@@ -8,12 +8,13 @@ A Windows desktop application providing real-time AI assistance through a transl
 
 ## Overview
 
-GhostPad is a lightweight, privacy-focused desktop assistant that stays on top of your work. Capture screenshots, ask questions about what you see, and get AI-powered answers - all without leaving your workflow.
+GhostPad is a lightweight, privacy-focused desktop assistant that stays on top of your work. Capture screenshots, ask questions about what you see, and get AI-powered answers from your choice of LLM provider - all without leaving your workflow.
 
 **Core Features:**
 - 🪟 Always-on-top translucent overlay
 - 📸 Instant screen capture (overlay automatically excluded)
-- 🤖 AI-powered responses via Google Gemini
+- 🤖 **Multi-provider LLM support** - Use Gemini, OpenAI, Anthropic, or custom APIs
+- 🔑 Bring your own API key - No subscriptions, pay only for what you use
 - 🔒 Privacy-first: no data persistence
 - ⌨️ Global keyboard shortcuts
 - 🎯 Lightweight and fast
@@ -28,7 +29,10 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 
 - Windows 10 (version 2004 or later) or Windows 11
 - Node.js 18+ and npm
-- Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
+- API key for your chosen LLM provider:
+  - **Gemini**: [Get API key](https://makersuite.google.com/app/apikey) (free tier available)
+  - **OpenAI**: [Get API key](https://platform.openai.com/api-keys) (pay-as-you-go)
+  - **Anthropic**: [Get API key](https://console.anthropic.com/) (coming soon)
 
 ### Setup
 
@@ -50,9 +54,11 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 
    **Important:** Run from Windows Command Prompt or PowerShell (not Cygwin/Git Bash due to Electron compatibility).
 
-4. **Configure your API key**
+4. **Configure your LLM provider**
    - Click the settings icon in the overlay
-   - Enter your Gemini API key
+   - Select your LLM provider (Gemini, OpenAI, etc.)
+   - Enter your API key for the selected provider
+   - Choose your preferred model
    - Click Save
 
 ## Usage
@@ -91,7 +97,11 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 - **Framework:** Electron v32.2.7
 - **UI:** Vanilla JavaScript/HTML/CSS
 - **Build Tool:** Vite
-- **AI Provider:** Google Gemini API (`@google/generative-ai`)
+- **LLM Providers:** Multi-provider architecture
+  - Google Gemini (`@google/generative-ai`)
+  - OpenAI (coming soon)
+  - Anthropic Claude (coming soon)
+  - Custom/Local models (future)
 - **Screen Capture:** Electron's `desktopCapturer` API
 - **Image Processing:** Sharp (for compression)
 
@@ -167,14 +177,18 @@ GhostPad uses a sophisticated approach to exclude the overlay from screenshots:
 - ✅ Development mode debugging features
 
 **In Progress:**
-- ⏳ Gemini API integration
+- ⏳ Multi-provider LLM architecture
+- ⏳ Gemini provider implementation (first provider)
 - ⏳ Chat UI implementation
-- ⏳ Settings panel
+- ⏳ Multi-provider settings panel
 
 **Planned:**
+- ⬜ OpenAI provider adapter
+- ⬜ Anthropic provider adapter
 - ⬜ Streaming responses
 - ⬜ Multi-monitor support
 - ⬜ Error handling and user feedback
+- ⬜ Provider switching UI
 - ⬜ Installer for Windows
 
 ## Troubleshooting
@@ -206,15 +220,29 @@ npm start
 
 **Solution:** Make sure the app has write permissions in its directory. The config file is stored in your user data directory.
 
-## Getting a Gemini API Key
+## Getting API Keys
 
+### Google Gemini (Recommended for Testing)
 1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Sign in with your Google account
 3. Click "Create API Key"
 4. Copy the key and paste it into GhostPad's settings
-5. The key is stored locally and never leaves your machine
+5. **Free tier**: 60 requests per minute
 
-**Note:** Gemini API has free tier limits. Monitor your usage in the [Google Cloud Console](https://console.cloud.google.com/).
+### OpenAI (Coming Soon)
+1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Create an account or sign in
+3. Navigate to API Keys section
+4. Click "Create new secret key"
+5. **Pricing**: Pay-as-you-go (GPT-4 Vision: ~$0.01-0.03 per image)
+
+### Anthropic Claude (Coming Soon)
+1. Visit [Anthropic Console](https://console.anthropic.com/)
+2. Sign up for API access
+3. Generate an API key
+4. **Pricing**: Pay-as-you-go
+
+**Security Note:** All API keys are stored locally on your machine and never transmitted to us or any third parties besides your chosen LLM provider.
 
 ## Contributing
 
@@ -228,12 +256,26 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Roadmap
 
-- [ ] Complete Gemini API integration with streaming
-- [ ] Implement full chat UI
-- [ ] Add settings panel for API key and preferences
+### Phase 1 (Current)
+- [x] Core Electron setup and overlay
+- [x] Screen capture with compression
+- [ ] Multi-provider LLM architecture
+- [ ] Gemini provider implementation
+- [ ] Basic chat UI
+- [ ] Multi-provider settings panel
+
+### Phase 2 (Next)
+- [ ] OpenAI provider adapter
+- [ ] Anthropic Claude provider adapter
+- [ ] Streaming responses for all providers
+- [ ] Provider switching in UI
+- [ ] Advanced error handling per provider
+
+### Phase 3 (Future)
+- [ ] Custom API endpoint support
+- [ ] Local LLM support (Ollama, LM Studio)
 - [ ] Multi-monitor support with display selection
-- [ ] Support for additional LLM providers (OpenAI, Anthropic)
-- [ ] Custom system prompts
+- [ ] Custom system prompts per provider
 - [ ] Screenshot annotations
 - [ ] Conversation export
 - [ ] Auto-update functionality
@@ -246,7 +288,10 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## Acknowledgments
 
 - Built with [Electron](https://www.electronjs.org/)
-- Powered by [Google Gemini](https://deepmind.google/technologies/gemini/)
+- LLM Providers:
+  - [Google Gemini](https://deepmind.google/technologies/gemini/)
+  - [OpenAI](https://openai.com/) (coming soon)
+  - [Anthropic Claude](https://www.anthropic.com/) (coming soon)
 - Image processing by [Sharp](https://sharp.pixelplumbing.com/)
 
 ## Support
