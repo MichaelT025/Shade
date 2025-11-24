@@ -259,8 +259,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ### Phase 1 (Current)
 - [x] Core Electron setup and overlay
 - [x] Screen capture with compression
-- [ ] Multi-provider LLM architecture
-- [ ] Gemini provider implementation
+- [x] Multi-provider LLM architecture
+- [x] Gemini provider implementation
 - [ ] Basic chat UI
 - [ ] Multi-provider settings panel
 
