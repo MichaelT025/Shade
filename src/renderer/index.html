@@ -4,6 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GhostPad</title>
+
+  <!-- Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+
+  <!-- LaTeX rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Code syntax highlighting -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+
   <style>
     * {
       margin: 0;
@@ -244,6 +257,177 @@
       width: 20px;
       height: 20px;
       fill: currentColor;
+    }
+
+    /* Streaming cursor */
+    .streaming-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: rgba(74, 158, 255, 0.8);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 49% {
+        opacity: 1;
+      }
+      50%, 100% {
+        opacity: 0;
+      }
+    }
+
+    /* Message fade-in animation */
+    @keyframes messageSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message {
+      animation: messageSlideIn 0.3s ease-out;
+    }
+
+    /* Code blocks */
+    pre {
+      margin: 12px 0;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      background: rgba(0, 0, 0, 0.4) !important;
+    }
+
+    pre code {
+      display: block;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      background: transparent !important;
+    }
+
+    /* Inline code */
+    code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+
+    /* Code block wrapper for copy button */
+    .code-block-wrapper {
+      position: relative;
+    }
+
+    .copy-code-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      background: rgba(74, 158, 255, 0.3);
+      border: 1px solid rgba(74, 158, 255, 0.5);
+      border-radius: 4px;
+      color: white;
+      font-size: 11px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s, background 0.2s;
+    }
+
+    .code-block-wrapper:hover .copy-code-btn {
+      opacity: 1;
+    }
+
+    .copy-code-btn:hover {
+      background: rgba(74, 158, 255, 0.5);
+    }
+
+    .copy-code-btn.copied {
+      background: rgba(76, 175, 80, 0.5);
+      border-color: rgba(76, 175, 80, 0.7);
+    }
+
+    /* Markdown elements in messages */
+    .message.ai h1, .message.ai h2, .message.ai h3 {
+      margin: 12px 0 8px;
+      font-weight: 600;
+    }
+
+    .message.ai h1 {
+      font-size: 1.5em;
+    }
+
+    .message.ai h2 {
+      font-size: 1.3em;
+    }
+
+    .message.ai h3 {
+      font-size: 1.1em;
+    }
+
+    .message.ai ul, .message.ai ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+
+    .message.ai li {
+      margin: 4px 0;
+    }
+
+    .message.ai p {
+      margin: 8px 0;
+    }
+
+    .message.ai blockquote {
+      border-left: 3px solid rgba(74, 158, 255, 0.5);
+      padding-left: 12px;
+      margin: 12px 0;
+      opacity: 0.8;
+    }
+
+    .message.ai a {
+      color: #4A9EFF;
+      text-decoration: none;
+    }
+
+    .message.ai a:hover {
+      text-decoration: underline;
+    }
+
+    .message.ai table {
+      border-collapse: collapse;
+      margin: 12px 0;
+      width: 100%;
+    }
+
+    .message.ai th, .message.ai td {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 8px;
+      text-align: left;
+    }
+
+    .message.ai th {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* LaTeX math */
+    .katex {
+      font-size: 1.1em;
+    }
+
+    .katex-display {
+      margin: 16px 0;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
   </style>
 </head>

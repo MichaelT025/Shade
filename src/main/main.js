@@ -101,8 +101,9 @@ function registerHotkeys() {
 
 // App lifecycle events
 app.whenReady().then(() => {
-  // Initialize config service
-  configService = new ConfigService()
+  // Initialize config service with user data path
+  const userDataPath = app.getPath('userData')
+  configService = new ConfigService(userDataPath)
 
   createMainWindow()
   registerHotkeys()
@@ -153,7 +154,7 @@ ipcMain.handle('capture-screen', async () => {
   }
 })
 
-ipcMain.handle('send-message', async (_event, { text, imageBase64 }) => {
+ipcMain.handle('send-message', async (event, { text, imageBase64 }) => {
   try {
     console.log('Message send requested:', text)
 
@@ -174,18 +175,25 @@ ipcMain.handle('send-message', async (_event, { text, imageBase64 }) => {
     // Create provider instance
     const provider = LLMFactory.createProvider(providerName, apiKey, config)
 
-    // Send message to LLM
-    const response = await provider.sendMessage(text, imageBase64)
+    // Stream response chunks to renderer
+    await provider.streamResponse(text, imageBase64, (chunk) => {
+      event.sender.send('message-chunk', chunk)
+    })
 
-    console.log('Response received from LLM')
+    // Signal completion
+    event.sender.send('message-complete')
+
+    console.log('Response streaming completed')
 
     return {
       success: true,
-      response,
       provider: providerName
     }
   } catch (error) {
     console.error('Failed to send message:', error)
+
+    // Send error to renderer
+    event.sender.send('message-error', error.message)
 
     return {
       success: false,

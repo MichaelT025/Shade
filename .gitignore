@@ -10,3 +10,8 @@ CLAUDE.md
 plan.md
 resources/image.png
 testing/
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov

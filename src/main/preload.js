@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('message-complete', () => callback())
   },
 
+  // Listen for message errors
+  onMessageError: (callback) => {
+    ipcRenderer.on('message-error', (_event, error) => callback(error))
+  },
+
   // Listen for new chat event (from Ctrl+R)
   onNewChat: (callback) => {
     ipcRenderer.on('new-chat', () => callback())

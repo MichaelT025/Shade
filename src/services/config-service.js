@@ -1,15 +1,16 @@
 const fs = require('fs')
 const path = require('path')
-const { app } = require('electron')
 
 /**
  * Configuration management for GhostPad
  * Stores API keys and provider configurations using simple JSON file
  */
 class ConfigService {
-  constructor() {
-    // Get user data path from Electron
-    const userDataPath = app.getPath('userData')
+  constructor(userDataPath) {
+    // Use provided user data path (must be passed from main process after app is ready)
+    if (!userDataPath) {
+      throw new Error('userDataPath is required for ConfigService')
+    }
     this.configPath = path.join(userDataPath, 'ghostpad-config.json')
 
     // Default configuration

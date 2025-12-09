@@ -7,6 +7,8 @@
 const messages = [] // Chat history array
 let capturedScreenshot = null // Current screenshot base64
 let isScreenshotActive = false // Screenshot button state
+let currentStreamingMessageId = null // ID of currently streaming message
+let accumulatedText = '' // Accumulated text during streaming
 
 // DOM element references
 const messagesContainer = document.getElementById('messages-container')
@@ -46,6 +48,11 @@ function init() {
 
   // Ctrl+R new chat handler
   window.electronAPI.onNewChat(handleNewChat)
+
+  // Streaming event handlers
+  window.electronAPI.onMessageChunk(handleMessageChunk)
+  window.electronAPI.onMessageComplete(handleMessageComplete)
+  window.electronAPI.onMessageError(handleMessageError)
 
   console.log('GhostPad initialized')
 }
@@ -96,20 +103,22 @@ async function handleSendMessage() {
     // Add loading indicator
     const loadingId = addLoadingMessage()
 
-    // Send to LLM with optional screenshot
+    // Reset streaming state
+    currentStreamingMessageId = null
+    accumulatedText = ''
+
+    // Send to LLM with optional screenshot (returns immediately, streams via events)
     console.log('Sending message to LLM...', { hasScreenshot: isScreenshotActive })
     const result = await window.electronAPI.sendMessage(text, capturedScreenshot)
 
     // Remove loading indicator
     removeLoadingMessage(loadingId)
 
-    if (result.success) {
-      // Add AI response
-      addMessage('ai', result.response, false)
-      console.log('Response received from', result.provider)
-    } else {
-      // Show error message
+    if (!result.success) {
+      // Show error message if initial request failed
       showError(result.error || 'Failed to get response')
+    } else {
+      console.log('Streaming started from', result.provider)
     }
   } catch (error) {
     console.error('Send message error:', error)
@@ -125,6 +134,60 @@ async function handleSendMessage() {
     messageInput.disabled = false
     messageInput.focus()
   }
+}
+
+/**
+ * Handle streaming message chunk
+ * @param {string} chunk - Text chunk from LLM
+ */
+function handleMessageChunk(chunk) {
+  // Accumulate text
+  accumulatedText += chunk
+
+  if (currentStreamingMessageId) {
+    // Update existing message
+    updateStreamingMessage(currentStreamingMessageId, accumulatedText)
+  } else {
+    // Create new streaming message
+    currentStreamingMessageId = addStreamingMessage(accumulatedText)
+  }
+}
+
+/**
+ * Handle streaming completion
+ */
+function handleMessageComplete() {
+  if (currentStreamingMessageId) {
+    // Finalize the message (remove cursor, store in history)
+    finalizeStreamingMessage(currentStreamingMessageId, accumulatedText)
+  }
+
+  // Reset streaming state
+  currentStreamingMessageId = null
+  accumulatedText = ''
+}
+
+/**
+ * Handle streaming error
+ * @param {string} error - Error message
+ */
+function handleMessageError(error) {
+  console.error('Streaming error:', error)
+
+  if (currentStreamingMessageId) {
+    // Remove the incomplete streaming message
+    const streamingEl = document.getElementById(currentStreamingMessageId)
+    if (streamingEl) {
+      streamingEl.remove()
+    }
+  }
+
+  // Reset streaming state
+  currentStreamingMessageId = null
+  accumulatedText = ''
+
+  // Show error
+  showError(error)
 }
 
 /**
@@ -191,6 +254,136 @@ function removeLoadingMessage(loadingId) {
 }
 
 /**
+ * Add a streaming message to the chat UI
+ * @param {string} text - Initial text content
+ * @returns {string} - Message ID
+ */
+function addStreamingMessage(text) {
+  // Remove empty state if it exists
+  const emptyState = messagesContainer.querySelector('.empty-state')
+  if (emptyState) {
+    emptyState.remove()
+  }
+
+  const messageId = 'streaming-' + Date.now()
+  const messageEl = document.createElement('div')
+  messageEl.className = 'message ai streaming'
+  messageEl.id = messageId
+
+  // Add text content with streaming cursor
+  const contentEl = document.createElement('span')
+  contentEl.className = 'streaming-content'
+  contentEl.textContent = text
+  messageEl.appendChild(contentEl)
+
+  // Add blinking cursor
+  const cursorEl = document.createElement('span')
+  cursorEl.className = 'streaming-cursor'
+  messageEl.appendChild(cursorEl)
+
+  messagesContainer.appendChild(messageEl)
+  messagesContainer.scrollTop = messagesContainer.scrollHeight
+
+  return messageId
+}
+
+/**
+ * Update a streaming message with new text
+ * @param {string} messageId - Message ID
+ * @param {string} text - Updated text content
+ */
+function updateStreamingMessage(messageId, text) {
+  const messageEl = document.getElementById(messageId)
+  if (messageEl) {
+    // Render markdown progressively during streaming
+    const renderedHtml = renderMarkdown(text)
+
+    // Replace content while preserving cursor
+    const cursorEl = messageEl.querySelector('.streaming-cursor')
+    messageEl.innerHTML = renderedHtml
+
+    // Re-add cursor at the end
+    if (cursorEl) {
+      messageEl.appendChild(cursorEl)
+    }
+
+    // Add copy buttons to any code blocks
+    addCopyButtons(messageEl)
+
+    messagesContainer.scrollTop = messagesContainer.scrollHeight
+  }
+}
+
+/**
+ * Finalize a streaming message (remove cursor, render markdown, store in history)
+ * @param {string} messageId - Message ID
+ * @param {string} text - Final text content
+ */
+function finalizeStreamingMessage(messageId, text) {
+  const messageEl = document.getElementById(messageId)
+  if (messageEl) {
+    // Remove streaming class and cursor
+    messageEl.classList.remove('streaming')
+    const cursorEl = messageEl.querySelector('.streaming-cursor')
+    if (cursorEl) {
+      cursorEl.remove()
+    }
+
+    // Render markdown and LaTeX
+    const renderedHtml = renderMarkdown(text)
+    messageEl.innerHTML = renderedHtml
+
+    // Add copy buttons to code blocks
+    addCopyButtons(messageEl)
+
+    // Store in message history
+    messages.push({ type: 'ai', text, hasScreenshot: false })
+  }
+}
+
+/**
+ * Add copy buttons to all code blocks in a message
+ * @param {HTMLElement} messageElement - Message element containing code blocks
+ */
+function addCopyButtons(messageElement) {
+  const codeBlocks = messageElement.querySelectorAll('pre code')
+
+  codeBlocks.forEach(codeBlock => {
+    const pre = codeBlock.parentElement
+
+    // Wrap in container for positioning
+    const wrapper = document.createElement('div')
+    wrapper.className = 'code-block-wrapper'
+    pre.parentNode.insertBefore(wrapper, pre)
+    wrapper.appendChild(pre)
+
+    // Create copy button
+    const copyBtn = document.createElement('button')
+    copyBtn.className = 'copy-code-btn'
+    copyBtn.textContent = 'Copy'
+    copyBtn.addEventListener('click', () => {
+      const code = codeBlock.textContent
+      navigator.clipboard.writeText(code).then(() => {
+        copyBtn.textContent = 'Copied!'
+        copyBtn.classList.add('copied')
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy'
+          copyBtn.classList.remove('copied')
+        }, 2000)
+      }).catch(err => {
+        console.error('Failed to copy code:', err)
+        copyBtn.textContent = 'Failed'
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy'
+        }, 2000)
+      })
+    })
+
+    wrapper.appendChild(copyBtn)
+  })
+}
+
+/**
  * Show an error message in the chat
  * @param {string} errorText - Error message to display
  */
@@ -231,6 +424,79 @@ function handleNewChat() {
   // Clear input
   messageInput.value = ''
   messageInput.focus()
+}
+
+/**
+ * Configure marked.js for GitHub-flavored markdown with code highlighting
+ */
+if (typeof marked !== 'undefined') {
+  marked.setOptions({
+    gfm: true, // GitHub Flavored Markdown
+    breaks: true, // Convert \n to <br>
+    headerIds: false, // Don't add IDs to headers
+    highlight: function(code, lang) {
+      // Use highlight.js for code highlighting
+      if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+        try {
+          return hljs.highlight(code, { language: lang }).value
+        } catch (err) {
+          console.error('Highlight error:', err)
+        }
+      }
+      // Auto-detect language if not specified
+      if (typeof hljs !== 'undefined') {
+        try {
+          return hljs.highlightAuto(code).value
+        } catch (err) {
+          console.error('Auto-highlight error:', err)
+        }
+      }
+      return code
+    }
+  })
+}
+
+/**
+ * Render markdown with LaTeX support
+ * @param {string} text - Raw markdown text
+ * @returns {string} - Rendered HTML
+ */
+function renderMarkdown(text) {
+  if (typeof marked === 'undefined') {
+    return text // Fallback if marked is not loaded
+  }
+
+  try {
+    // First, render markdown to HTML
+    let html = marked.parse(text)
+
+    // Create temporary element to apply LaTeX rendering
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = html
+
+    // Render LaTeX using KaTeX auto-render if available
+    if (typeof renderMathInElement !== 'undefined') {
+      try {
+        renderMathInElement(tempDiv, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '\\[', right: '\\]', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false}
+          ],
+          throwOnError: false,
+          strict: false
+        })
+      } catch (err) {
+        console.error('KaTeX render error:', err)
+      }
+    }
+
+    return tempDiv.innerHTML
+  } catch (err) {
+    console.error('Markdown render error:', err)
+    return text // Fallback to plain text on error
+  }
 }
 
 // Initialize when DOM is ready
