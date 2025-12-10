@@ -7,10 +7,12 @@ config.json
 .DS_Store
 .claude/
 CLAUDE.md
+GEMINI.md
 plan.md
 resources/image.png
 testing/
 resources/
+vibes.md/
 
 # Test coverage
 coverage/

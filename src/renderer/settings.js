@@ -47,7 +47,7 @@ const providerInfo = {
     badge: 'Active'
   },
   openai: {
-    name: 'OpenAI GPT-4',
+    name: 'OpenAI GPT',
     icon: '🟢',
     description: 'Powerful multimodal AI',
     badge: 'Available'
