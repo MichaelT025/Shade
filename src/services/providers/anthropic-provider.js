@@ -64,14 +64,28 @@ class AnthropicProvider extends LLMProvider {
   }
 
   /**
-   * Stream a response from Claude with optional image
+   * Stream a response from Claude with optional image and conversation history
    * @param {string} text - The text message to send
    * @param {string|null} imageBase64 - Optional base64-encoded image
+   * @param {Array} conversationHistory - Array of previous messages [{type: 'user'/'ai', text: string}]
    * @param {Function} onChunk - Callback function for each chunk of response
    * @returns {Promise<void>}
    */
-  async streamResponse(text, imageBase64 = null, onChunk) {
+  async streamResponse(text, imageBase64 = null, conversationHistory = [], onChunk) {
     try {
+      const messages = []
+
+      // Add conversation history (excluding the current message)
+      for (const msg of conversationHistory) {
+        // Map 'ai' type to 'assistant' role for Anthropic
+        const role = msg.type === 'user' ? 'user' : 'assistant'
+        messages.push({
+          role,
+          content: msg.text
+        })
+      }
+
+      // Build current message content
       const content = []
 
       // Add image if provided
@@ -92,13 +106,15 @@ class AnthropicProvider extends LLMProvider {
         text: text
       })
 
+      messages.push({
+        role: 'user',
+        content: content
+      })
+
       const requestParams = {
         model: this.modelName,
         max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: content
-        }],
+        messages: messages,
         stream: true
       }
 

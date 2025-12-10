@@ -133,8 +133,12 @@ async function handleSendMessage() {
     // Send to LLM with optional screenshot (returns immediately, streams via events)
     // If text is empty but screenshot exists, use a default prompt
     const promptText = text || 'Analyze this screenshot and describe what you see.'
-    console.log('Sending message to LLM...', { hasScreenshot: isScreenshotActive })
-    const result = await window.electronAPI.sendMessage(promptText, capturedScreenshot)
+
+    // Get conversation history (all messages except the current one we just added)
+    const conversationHistory = messages.slice(0, -1)
+
+    console.log('Sending message to LLM...', { hasScreenshot: isScreenshotActive, historyLength: conversationHistory.length })
+    const result = await window.electronAPI.sendMessage(promptText, capturedScreenshot, conversationHistory)
 
     // Remove loading indicator
     removeLoadingMessage(loadingId)

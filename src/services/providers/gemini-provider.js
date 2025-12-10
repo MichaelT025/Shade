@@ -52,15 +52,32 @@ class GeminiProvider extends LLMProvider {
   }
 
   /**
-   * Stream a response from Gemini with optional image
+   * Stream a response from Gemini with optional image and conversation history
    * @param {string} text - The text message to send
    * @param {string|null} imageBase64 - Optional base64-encoded image
+   * @param {Array} conversationHistory - Array of previous messages [{type: 'user'/'ai', text: string}]
    * @param {Function} onChunk - Callback function for each chunk of response
    * @returns {Promise<void>}
    */
-  async streamResponse(text, imageBase64 = null, onChunk) {
+  async streamResponse(text, imageBase64 = null, conversationHistory = [], onChunk) {
     try {
-      let parts = [text]
+      const contents = []
+
+      // Add conversation history (excluding the current message)
+      for (const msg of conversationHistory) {
+        // Map 'ai' type to 'model' role for Gemini
+        const role = msg.type === 'user' ? 'user' : 'model'
+        contents.push({
+          role,
+          parts: [{ text: msg.text }]
+        })
+      }
+
+      // Add current message
+      const parts = []
+
+      // Add text first
+      parts.push({ text })
 
       // If image is provided, add it to the request
       if (imageBase64) {
@@ -72,7 +89,12 @@ class GeminiProvider extends LLMProvider {
         })
       }
 
-      const result = await this.model.generateContentStream(parts)
+      contents.push({
+        role: 'user',
+        parts
+      })
+
+      const result = await this.model.generateContentStream({ contents })
 
       // Stream the response chunks
       for await (const chunk of result.stream) {

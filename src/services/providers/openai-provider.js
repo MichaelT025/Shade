@@ -68,13 +68,14 @@ class OpenAIProvider extends LLMProvider {
   }
 
   /**
-   * Stream a response from OpenAI with optional image
+   * Stream a response from OpenAI with optional image and conversation history
    * @param {string} text - The text message to send
    * @param {string|null} imageBase64 - Optional base64-encoded image
+   * @param {Array} conversationHistory - Array of previous messages [{type: 'user'/'ai', text: string}]
    * @param {Function} onChunk - Callback function for each chunk of response
    * @returns {Promise<void>}
    */
-  async streamResponse(text, imageBase64 = null, onChunk) {
+  async streamResponse(text, imageBase64 = null, conversationHistory = [], onChunk) {
     try {
       const messages = []
 
@@ -86,7 +87,17 @@ class OpenAIProvider extends LLMProvider {
         })
       }
 
-      // Build message content
+      // Add conversation history (excluding the current message)
+      for (const msg of conversationHistory) {
+        // Map 'ai' type to 'assistant' role for OpenAI
+        const role = msg.type === 'user' ? 'user' : 'assistant'
+        messages.push({
+          role,
+          content: msg.text
+        })
+      }
+
+      // Build current message content
       if (imageBase64) {
         // Multimodal message (text + image)
         messages.push({

@@ -153,7 +153,7 @@ ipcMain.handle('capture-screen', async () => {
   }
 })
 
-ipcMain.handle('send-message', async (event, { text, imageBase64 }) => {
+ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory }) => {
   try {
     console.log('Message send requested:', text)
 
@@ -182,7 +182,7 @@ ipcMain.handle('send-message', async (event, { text, imageBase64 }) => {
     const provider = LLMFactory.createProvider(providerName, apiKey, configWithPrompt)
 
     // Stream response chunks to renderer
-    await provider.streamResponse(text, imageBase64, (chunk) => {
+    await provider.streamResponse(text, imageBase64, conversationHistory || [], (chunk) => {
       event.sender.send('message-chunk', chunk)
     })
 
