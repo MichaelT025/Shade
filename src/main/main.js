@@ -62,9 +62,8 @@ function createSettingsWindow() {
     },
   })
 
-  // TODO: Create settings.html for settings UI
-  // For now, load a placeholder
-  settingsWindow.loadURL('data:text/html,<html><body style="background:#1a1a1a;color:white;font-family:sans-serif;padding:20px;"><h1>Settings</h1><p>Settings panel coming soon...</p><p>API keys, providers, and system prompts will be configured here.</p></body></html>')
+  // Load settings.html
+  settingsWindow.loadFile(path.join(__dirname, '../renderer/settings.html'))
 
   // Show when ready
   settingsWindow.once('ready-to-show', () => {
@@ -285,9 +284,23 @@ ipcMain.handle('validate-api-key', async (_event, provider) => {
 })
 
 ipcMain.handle('get-displays', async () => {
-  // TODO: Implement display detection
-  console.log('Get displays requested')
-  return { success: true, displays: [] }
+  try {
+    const { screen } = require('electron')
+    const displays = screen.getAllDisplays().map((display, index) => ({
+      id: display.id,
+      index,
+      primary: display.bounds.x === 0 && display.bounds.y === 0,
+      width: display.size.width,
+      height: display.size.height,
+      scaleFactor: display.scaleFactor
+    }))
+
+    console.log(`Found ${displays.length} displays`)
+    return { success: true, displays }
+  } catch (error) {
+    console.error('Failed to get displays:', error)
+    return { success: false, displays: [], error: error.message }
+  }
 })
 
 // Open settings window

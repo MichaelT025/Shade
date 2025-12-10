@@ -9,12 +9,18 @@ class GeminiProvider extends LLMProvider {
   constructor(apiKey, config = {}) {
     super(apiKey, config)
 
-    // Default to gemini-2.5-flash (latest and best model)
+    // Default to gemini-2.5-flash (recommended model)
     this.modelName = config.model || 'gemini-2.5-flash'
+    this.systemPrompt = config.systemPrompt || ''
 
-    // Initialize Gemini client
+    // Initialize Gemini client with system instruction if provided
+    const modelConfig = { model: this.modelName }
+    if (this.systemPrompt) {
+      modelConfig.systemInstruction = this.systemPrompt
+    }
+
     this.genAI = new GoogleGenerativeAI(apiKey)
-    this.model = this.genAI.getGenerativeModel({ model: this.modelName })
+    this.model = this.genAI.getGenerativeModel(modelConfig)
   }
 
   /**
@@ -102,8 +108,22 @@ class GeminiProvider extends LLMProvider {
    */
   getModels() {
     return [
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended)' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Latest)' }
+      // Gemini 3 Series (Latest - Nov 2025)
+      { id: 'gemini-3.0-pro', name: 'Gemini 3.0 Pro (Most Intelligent)' },
+      { id: 'gemini-3.0-deep-think', name: 'Gemini 3.0 Deep Think' },
+
+      // Gemini 2.5 Series (Production - Dec 2025)
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Complex Reasoning)' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recommended)' },
+      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (High Throughput)' },
+      { id: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image (Image Generation)' },
+
+      // Gemini 2.0 Series
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+
+      // Gemini 1.5 Series (Legacy)
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Legacy)' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Legacy)' }
     ]
   }
 

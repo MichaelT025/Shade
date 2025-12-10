@@ -23,10 +23,12 @@
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@google/generative-ai": "^0.24.1",
     "@vitejs/plugin-react": "^5.1.1",
     "electron": "32.2.7",
     "electron-builder": "^26.0.12",
+    "openai": "^6.10.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "sharp": "^0.34.5",

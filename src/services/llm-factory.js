@@ -1,4 +1,6 @@
 const GeminiProvider = require('./providers/gemini-provider')
+const OpenAIProvider = require('./providers/openai-provider')
+const AnthropicProvider = require('./providers/anthropic-provider')
 
 /**
  * Factory for creating LLM provider instances
@@ -20,11 +22,13 @@ class LLMFactory {
       case 'gemini':
         return new GeminiProvider(apiKey, config)
 
+      case 'openai':
+        return new OpenAIProvider(apiKey, config)
+
+      case 'anthropic':
+        return new AnthropicProvider(apiKey, config)
+
       // Future providers:
-      // case 'openai':
-      //   return new OpenAIProvider(apiKey, config)
-      // case 'anthropic':
-      //   return new AnthropicProvider(apiKey, config)
       // case 'custom':
       //   return new CustomProvider(apiKey, config)
 
@@ -40,7 +44,8 @@ class LLMFactory {
   static getAvailableProviders() {
     return [
       'gemini',
-      // Future: 'openai', 'anthropic', 'custom'
+      'openai',
+      'anthropic'
     ]
   }
 
