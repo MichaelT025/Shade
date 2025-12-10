@@ -1,6 +1,26 @@
 const fs = require('fs')
 const path = require('path')
 
+// Default system prompt for screenshot analysis
+const DEFAULT_SYSTEM_PROMPT = `You're a real-time assistant that gives the user info during meetings and other workflows. Your goal is to answer the user's query directly.
+
+Responses must be EXTREMELY short and terse
+
+- Aim for 1-2 sentences, and if longer, use bullet points for structure
+- Get straight to the point and NEVER add filler, preamble, or meta-comments
+- Never give the user a direct script or word track to say, your responses must be informative
+- Don't end with a question or prompt to the user
+- If an example story is needed, give one specific example story without making up details
+- If a response calls for code, write all code required with detailed comments
+
+Tone must be natural, human, and conversational
+
+- Never be robotic or overly formal
+- Use contractions naturally ("it's" not "it is")
+- Occasionally start with "And" or "But" or use a sentence fragment for flow
+- NEVER use hyphens or dashes, split into shorter sentences or use commas
+- Avoid unnecessary adjectives or dramatic emphasis unless it adds clear value`
+
 /**
  * Configuration management for GhostPad
  * Stores API keys and provider configurations using simple JSON file
@@ -28,7 +48,16 @@ class ConfigService {
       anthropicConfig: {
         model: 'claude-3-sonnet-20240229'
       },
-      primaryDisplay: 0
+      primaryDisplay: 0,
+      modes: [
+        {
+          id: 'default',
+          name: 'Default',
+          prompt: DEFAULT_SYSTEM_PROMPT,
+          isDefault: true
+        }
+      ],
+      activeMode: 'default'
     }
 
     // Load or initialize config
@@ -155,6 +184,115 @@ class ConfigService {
   clearAll() {
     this.config = { ...this.defaultConfig }
     this.saveConfig()
+  }
+
+  /**
+   * Get all system prompt modes
+   * @returns {Array}
+   */
+  getModes() {
+    // Ensure modes array exists and has default mode
+    if (!this.config.modes || this.config.modes.length === 0) {
+      this.config.modes = [
+        {
+          id: 'default',
+          name: 'Default',
+          prompt: DEFAULT_SYSTEM_PROMPT,
+          isDefault: true
+        }
+      ]
+      this.saveConfig()
+    }
+    return this.config.modes
+  }
+
+  /**
+   * Get a specific mode by ID
+   * @param {string} modeId
+   * @returns {Object|null}
+   */
+  getMode(modeId) {
+    const modes = this.getModes()
+    return modes.find(mode => mode.id === modeId) || null
+  }
+
+  /**
+   * Save or update a mode
+   * @param {Object} mode - Mode object with id, name, and prompt
+   */
+  saveMode(mode) {
+    const modes = this.getModes()
+    const existingIndex = modes.findIndex(m => m.id === mode.id)
+
+    if (existingIndex >= 0) {
+      // Update existing mode (but preserve isDefault flag)
+      modes[existingIndex] = {
+        ...mode,
+        isDefault: modes[existingIndex].isDefault || false
+      }
+    } else {
+      // Add new mode
+      modes.push({
+        ...mode,
+        isDefault: false
+      })
+    }
+
+    this.config.modes = modes
+    this.saveConfig()
+  }
+
+  /**
+   * Delete a mode by ID (cannot delete default mode)
+   * @param {string} modeId
+   */
+  deleteMode(modeId) {
+    if (modeId === 'default') {
+      throw new Error('Cannot delete default mode')
+    }
+
+    const modes = this.getModes()
+    this.config.modes = modes.filter(mode => mode.id !== modeId)
+
+    // If the deleted mode was active, switch to default
+    if (this.config.activeMode === modeId) {
+      this.config.activeMode = 'default'
+    }
+
+    this.saveConfig()
+  }
+
+  /**
+   * Get the active mode ID
+   * @returns {string}
+   */
+  getActiveMode() {
+    return this.config.activeMode || 'default'
+  }
+
+  /**
+   * Set the active mode
+   * @param {string} modeId
+   */
+  setActiveMode(modeId) {
+    // Verify mode exists
+    const mode = this.getMode(modeId)
+    if (!mode) {
+      throw new Error(`Mode not found: ${modeId}`)
+    }
+
+    this.config.activeMode = modeId
+    this.saveConfig()
+  }
+
+  /**
+   * Get the system prompt for the active mode
+   * @returns {string}
+   */
+  getActiveSystemPrompt() {
+    const modeId = this.getActiveMode()
+    const mode = this.getMode(modeId)
+    return mode ? mode.prompt : DEFAULT_SYSTEM_PROMPT
   }
 }
 

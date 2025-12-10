@@ -3,6 +3,26 @@
  * Handles provider configuration, API keys, and preferences
  */
 
+// Default system prompt for screenshot analysis
+const DEFAULT_SYSTEM_PROMPT = `You're a real-time assistant that gives the user info during meetings and other workflows. Your goal is to answer the user's query directly.
+
+Responses must be EXTREMELY short and terse
+
+- Aim for 1-2 sentences, and if longer, use bullet points for structure
+- Get straight to the point and NEVER add filler, preamble, or meta-comments
+- Never give the user a direct script or word track to say, your responses must be informative
+- Don't end with a question or prompt to the user
+- If an example story is needed, give one specific example story without making up details
+- If a response calls for code, write all code required with detailed comments
+
+Tone must be natural, human, and conversational
+
+- Never be robotic or overly formal
+- Use contractions naturally (“it's” not “it is”)
+- Occasionally start with “And” or “But” or use a sentence fragment for flow
+- NEVER use hyphens or dashes, split into shorter sentences or use commas
+- Avoid unnecessary adjectives or dramatic emphasis unless it adds clear value`
+
 // Current settings state
 let currentSettings = {
   activeProvider: 'gemini',
@@ -13,7 +33,9 @@ let currentSettings = {
   openaiModel: 'gpt-4.1',
   anthropicModel: 'claude-sonnet-4-5',
   primaryDisplay: 0,
-  systemPrompt: ''
+  systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  modes: [],
+  selectedMode: 'default'
 }
 
 // Provider metadata
@@ -49,6 +71,9 @@ async function init() {
 
   // Load available displays
   await loadDisplays()
+
+  // Load modes
+  await loadModes()
 
   // Set up event listeners
   setupEventListeners()
@@ -91,11 +116,11 @@ async function loadSettings() {
     currentSettings.openaiModel = openaiConfig.model || 'gpt-4.1'
     currentSettings.anthropicModel = anthropicConfig.model || 'claude-sonnet-4-5'
 
-    // Get system prompt from active provider config
+    // Get system prompt from active provider config, use default if not set
     const activeConfig = activeProvider === 'gemini' ? geminiConfig :
                         activeProvider === 'openai' ? openaiConfig :
                         anthropicConfig
-    currentSettings.systemPrompt = activeConfig.systemPrompt || ''
+    currentSettings.systemPrompt = activeConfig.systemPrompt || DEFAULT_SYSTEM_PROMPT
 
     // Update form fields
     document.getElementById('provider-select').value = activeProvider
@@ -158,6 +183,54 @@ function setupEventListeners() {
   // Display selection change
   document.getElementById('display-select').addEventListener('change', (e) => {
     currentSettings.primaryDisplay = parseInt(e.target.value)
+  })
+
+  // Auto-test API keys on input (debounced)
+  let geminiTimeout, openaiTimeout, anthropicTimeout
+
+  document.getElementById('gemini-api-key').addEventListener('input', (e) => {
+    clearTimeout(geminiTimeout)
+    const apiKey = e.target.value.trim()
+    if (apiKey.length > 10) {  // Only test if key looks valid
+      geminiTimeout = setTimeout(async () => {
+        currentSettings.geminiApiKey = apiKey
+        // Save the API key immediately before testing
+        await window.electronAPI.saveApiKey('gemini', apiKey)
+        testProvider('gemini')
+      }, 1000)  // Wait 1 second after user stops typing
+    }
+  })
+
+  document.getElementById('openai-api-key').addEventListener('input', (e) => {
+    clearTimeout(openaiTimeout)
+    const apiKey = e.target.value.trim()
+    if (apiKey.length > 10) {
+      openaiTimeout = setTimeout(async () => {
+        currentSettings.openaiApiKey = apiKey
+        // Save the API key immediately before testing
+        await window.electronAPI.saveApiKey('openai', apiKey)
+        testProvider('openai')
+      }, 1000)
+    }
+  })
+
+  document.getElementById('anthropic-api-key').addEventListener('input', (e) => {
+    clearTimeout(anthropicTimeout)
+    const apiKey = e.target.value.trim()
+    if (apiKey.length > 10) {
+      anthropicTimeout = setTimeout(async () => {
+        currentSettings.anthropicApiKey = apiKey
+        // Save the API key immediately before testing
+        await window.electronAPI.saveApiKey('anthropic', apiKey)
+        testProvider('anthropic')
+      }, 1000)
+    }
+  })
+
+  // Mode selection change
+  document.getElementById('mode-select').addEventListener('change', (e) => {
+    currentSettings.selectedMode = e.target.value
+    updateModeUI()
   })
 }
 
@@ -252,7 +325,7 @@ async function saveSettings() {
     const geminiModel = document.getElementById('gemini-model').value
     const openaiModel = document.getElementById('openai-model').value
     const anthropicModel = document.getElementById('anthropic-model').value
-    const systemPrompt = document.getElementById('system-prompt').value.trim()
+    const systemPrompt = document.getElementById('system-prompt').value.trim() || DEFAULT_SYSTEM_PROMPT
 
     // Validate that active provider has an API key
     if (activeProvider === 'gemini' && !geminiApiKey) {
@@ -310,6 +383,201 @@ function showStatus(elementId, message, type) {
   statusEl.className = `status-message ${type}`
 }
 
+/**
+ * Load modes from config
+ */
+async function loadModes() {
+  try {
+    const result = await window.electronAPI.getModes()
+    const modes = result.modes || []
+    const activeModeResult = await window.electronAPI.getActiveMode()
+    const activeModeId = activeModeResult.modeId || 'default'
+
+    currentSettings.modes = modes
+    currentSettings.selectedMode = activeModeId
+
+    // Populate mode dropdown
+    const modeSelect = document.getElementById('mode-select')
+    modeSelect.innerHTML = ''
+
+    modes.forEach(mode => {
+      const option = document.createElement('option')
+      option.value = mode.id
+      option.textContent = mode.name
+      modeSelect.appendChild(option)
+    })
+
+    // Select the active mode
+    modeSelect.value = activeModeId
+
+    // Update UI for selected mode
+    updateModeUI()
+
+    console.log('Modes loaded:', { count: modes.length, active: activeModeId })
+  } catch (error) {
+    console.error('Failed to load modes:', error)
+  }
+}
+
+/**
+ * Update mode UI based on selected mode
+ */
+function updateModeUI() {
+  const selectedModeId = currentSettings.selectedMode
+  const mode = currentSettings.modes.find(m => m.id === selectedModeId)
+
+  if (!mode) return
+
+  // Show/hide mode name field (only for custom modes)
+  const modeNameContainer = document.getElementById('mode-name-container')
+  const modeNameInput = document.getElementById('mode-name')
+  const deleteBtn = document.getElementById('delete-mode-btn')
+
+  if (mode.isDefault) {
+    modeNameContainer.style.display = 'none'
+    deleteBtn.disabled = true
+    modeNameInput.value = ''
+  } else {
+    modeNameContainer.style.display = 'block'
+    deleteBtn.disabled = false
+    modeNameInput.value = mode.name
+  }
+
+  // Load mode prompt
+  document.getElementById('system-prompt').value = mode.prompt || ''
+}
+
+/**
+ * Create a new mode
+ */
+function createNewMode() {
+  // Generate a unique ID
+  const newId = 'mode-' + Date.now()
+  const newMode = {
+    id: newId,
+    name: 'New Mode',
+    prompt: DEFAULT_SYSTEM_PROMPT,
+    isDefault: false
+  }
+
+  // Add to modes array
+  currentSettings.modes.push(newMode)
+
+  // Update dropdown
+  const modeSelect = document.getElementById('mode-select')
+  const option = document.createElement('option')
+  option.value = newMode.id
+  option.textContent = newMode.name
+  modeSelect.appendChild(option)
+
+  // Select the new mode
+  modeSelect.value = newId
+  currentSettings.selectedMode = newId
+
+  // Update UI
+  updateModeUI()
+
+  // Focus on the name input
+  document.getElementById('mode-name').focus()
+}
+
+/**
+ * Delete the currently selected mode
+ */
+async function deleteMode() {
+  const modeId = currentSettings.selectedMode
+
+  if (modeId === 'default') {
+    showStatus('mode-save-status', 'Cannot delete default mode', 'error')
+    return
+  }
+
+  // Confirm deletion
+  if (!confirm('Are you sure you want to delete this mode?')) {
+    return
+  }
+
+  try {
+    // Delete from server
+    await window.electronAPI.deleteMode(modeId)
+
+    // Remove from local array
+    currentSettings.modes = currentSettings.modes.filter(m => m.id !== modeId)
+
+    // Update dropdown
+    const modeSelect = document.getElementById('mode-select')
+    modeSelect.querySelector(`option[value="${modeId}"]`).remove()
+
+    // Select default mode
+    modeSelect.value = 'default'
+    currentSettings.selectedMode = 'default'
+
+    // Update UI
+    updateModeUI()
+
+    showStatus('mode-save-status', 'Mode deleted successfully', 'success')
+    setTimeout(() => {
+      document.getElementById('mode-save-status').style.display = 'none'
+    }, 2000)
+  } catch (error) {
+    console.error('Failed to delete mode:', error)
+    showStatus('mode-save-status', 'Failed to delete mode: ' + error.message, 'error')
+  }
+}
+
+/**
+ * Save the currently selected mode
+ */
+async function saveCurrentMode() {
+  const modeId = currentSettings.selectedMode
+  const mode = currentSettings.modes.find(m => m.id === modeId)
+
+  if (!mode) {
+    showStatus('mode-save-status', 'Mode not found', 'error')
+    return
+  }
+
+  // Get values from inputs
+  const prompt = document.getElementById('system-prompt').value.trim()
+  const name = mode.isDefault ? 'Default' : document.getElementById('mode-name').value.trim()
+
+  if (!name) {
+    showStatus('mode-save-status', 'Please enter a mode name', 'error')
+    return
+  }
+
+  if (!prompt) {
+    showStatus('mode-save-status', 'Please enter a system prompt', 'error')
+    return
+  }
+
+  // Update mode
+  mode.name = name
+  mode.prompt = prompt
+
+  try {
+    // Save to server
+    await window.electronAPI.saveMode(mode)
+
+    // Update dropdown text if name changed
+    const modeSelect = document.getElementById('mode-select')
+    const option = modeSelect.querySelector(`option[value="${modeId}"]`)
+    if (option) {
+      option.textContent = name
+    }
+
+    showStatus('mode-save-status', 'Mode saved successfully!', 'success')
+    document.getElementById('mode-save-status').style.display = 'block'
+    setTimeout(() => {
+      document.getElementById('mode-save-status').style.display = 'none'
+    }, 2000)
+  } catch (error) {
+    console.error('Failed to save mode:', error)
+    showStatus('mode-save-status', 'Failed to save mode: ' + error.message, 'error')
+    document.getElementById('mode-save-status').style.display = 'block'
+  }
+}
+
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init)
@@ -322,3 +590,6 @@ window.togglePasswordVisibility = togglePasswordVisibility
 window.testProvider = testProvider
 window.saveSettings = saveSettings
 window.closeSettings = closeSettings
+window.createNewMode = createNewMode
+window.deleteMode = deleteMode
+window.saveCurrentMode = saveCurrentMode

@@ -275,7 +275,7 @@
         <label for="provider-select">Active Provider</label>
         <select id="provider-select">
           <option value="gemini">Google Gemini</option>
-          <option value="openai">OpenAI (GPT-4)</option>
+          <option value="openai">OpenAI (GPT)</option>
           <option value="anthropic">Anthropic (Claude)</option>
         </select>
       </div>
@@ -399,20 +399,107 @@
       </div>
     </div>
 
-    <!-- System Prompt Configuration -->
+    <!-- Keyboard Shortcuts -->
     <div class="section">
-      <div class="section-title">System Prompt</div>
+      <div class="section-title">Keyboard Shortcuts</div>
 
-      <div class="form-group">
-        <label for="system-prompt">Custom System Prompt (Optional)</label>
-        <div class="form-description">Define custom instructions that will be sent with every message. Leave empty for default behavior.</div>
-        <textarea
-          id="system-prompt"
-          rows="6"
-          placeholder="Example: You are a helpful assistant that specializes in UI/UX analysis and web development..."
-          style="width: 100%; padding: 10px 12px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; color: white; font-size: 14px; font-family: inherit; resize: vertical; transition: border-color 0.2s, background 0.2s;"
-        ></textarea>
+      <div style="display: grid; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+          <span style="font-size: 13px; color: rgba(255, 255, 255, 0.8);">Toggle overlay visibility</span>
+          <code style="padding: 4px 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; font-size: 12px; color: #4A9EFF;">Ctrl + /</code>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+          <span style="font-size: 13px; color: rgba(255, 255, 255, 0.8);">Start new chat (clear conversation)</span>
+          <code style="padding: 4px 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; font-size: 12px; color: #4A9EFF;">Ctrl + R</code>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+          <span style="font-size: 13px; color: rgba(255, 255, 255, 0.8);">Quick send with screenshot</span>
+          <code style="padding: 4px 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; font-size: 12px; color: #4A9EFF;">Ctrl + Enter</code>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+          <span style="font-size: 13px; color: rgba(255, 255, 255, 0.8);">Send message</span>
+          <code style="padding: 4px 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; font-size: 12px; color: #4A9EFF;">Enter</code>
+        </div>
       </div>
+    </div>
+
+    <!-- System Prompt Modes -->
+    <div class="section">
+      <div class="section-title">System Prompt Modes</div>
+      <div class="section-description">Create and manage different AI response modes</div>
+
+      <!-- Mode Selection -->
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <div style="flex: 1;">
+          <label for="mode-select" style="display: block; font-size: 12px; color: rgba(255, 255, 255, 0.7); margin-bottom: 6px;">
+            Select Mode
+          </label>
+          <select
+            id="mode-select"
+            style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; color: white; font-size: 13px; cursor: pointer;"
+          >
+            <option value="default">Default</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: flex-end;">
+          <button
+            id="new-mode-btn"
+            onclick="createNewMode()"
+            style="padding: 10px 16px; background: rgba(74, 158, 255, 0.3); border: 1px solid rgba(74, 158, 255, 0.5); border-radius: 6px; color: white; font-size: 12px; cursor: pointer; white-space: nowrap;"
+          >
+            + New
+          </button>
+          <button
+            id="delete-mode-btn"
+            onclick="deleteMode()"
+            style="padding: 10px 16px; background: rgba(255, 74, 74, 0.2); border: 1px solid rgba(255, 74, 74, 0.4); border-radius: 6px; color: white; font-size: 12px; cursor: pointer; white-space: nowrap;"
+            disabled
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <!-- Mode Name (only shown for custom modes) -->
+      <div id="mode-name-container" style="display: none; margin-bottom: 12px;">
+        <label for="mode-name" style="display: block; font-size: 12px; color: rgba(255, 255, 255, 0.7); margin-bottom: 6px;">
+          Mode Name
+        </label>
+        <input
+          type="text"
+          id="mode-name"
+          placeholder="Enter mode name..."
+          style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; color: white; font-size: 13px;"
+        />
+      </div>
+
+      <!-- System Prompt -->
+      <label for="system-prompt" style="display: block; font-size: 12px; color: rgba(255, 255, 255, 0.7); margin-bottom: 6px;">
+        System Prompt
+      </label>
+      <textarea
+        id="system-prompt"
+        rows="8"
+        style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; color: white; font-size: 13px; font-family: 'Consolas', monospace; resize: vertical;"
+        placeholder="Enter system prompt instructions..."
+      ></textarea>
+
+      <div style="font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 6px;">
+        The system prompt defines the AI's behavior and response style for this mode
+      </div>
+
+      <!-- Save Mode Button -->
+      <button
+        id="save-mode-btn"
+        onclick="saveCurrentMode()"
+        style="margin-top: 12px; padding: 10px 20px; background: rgba(74, 158, 255, 0.3); border: 1px solid rgba(74, 158, 255, 0.5); border-radius: 6px; color: white; font-size: 13px; cursor: pointer;"
+      >
+        Save Mode
+      </button>
+      <div id="mode-save-status" class="status-message" style="display: none; margin-top: 8px;"></div>
     </div>
 
     <!-- Action Buttons -->

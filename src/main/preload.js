@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setProviderConfig: (provider, config) => ipcRenderer.invoke('set-provider-config', { provider, config }),
   validateApiKey: (provider) => ipcRenderer.invoke('validate-api-key', provider),
 
+  // Mode management
+  getModes: () => ipcRenderer.invoke('get-modes'),
+  saveMode: (mode) => ipcRenderer.invoke('save-mode', mode),
+  deleteMode: (modeId) => ipcRenderer.invoke('delete-mode', modeId),
+  getActiveMode: () => ipcRenderer.invoke('get-active-mode'),
+  setActiveMode: (modeId) => ipcRenderer.invoke('set-active-mode', modeId),
+
   // Display detection
   getDisplays: () => ipcRenderer.invoke('get-displays'),
 

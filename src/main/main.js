@@ -31,8 +31,8 @@ function createMainWindow() {
   // Load the renderer
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
 
-  // Open DevTools for debugging
-  mainWindow.webContents.openDevTools()
+  // Open DevTools for debugging (disabled for production)
+  // mainWindow.webContents.openDevTools()
 
   // Handle window closed
   mainWindow.on('closed', () => {
@@ -51,9 +51,9 @@ function createSettingsWindow() {
   settingsWindow = new BrowserWindow({
     width: 600,
     height: 700,
-    parent: mainWindow,
     modal: false,
     show: false,
+    alwaysOnTop: false,
     backgroundColor: '#1a1a1a',
     webPreferences: {
       nodeIntegration: false,
@@ -168,11 +168,18 @@ ipcMain.handle('send-message', async (event, { text, imageBase64 }) => {
       }
     }
 
-    // Get provider configuration
+    // Get provider configuration and merge with active mode's system prompt
     const config = configService.getProviderConfig(providerName)
+    const activeSystemPrompt = configService.getActiveSystemPrompt()
+
+    // Merge system prompt from active mode into config
+    const configWithPrompt = {
+      ...config,
+      systemPrompt: activeSystemPrompt
+    }
 
     // Create provider instance
-    const provider = LLMFactory.createProvider(providerName, apiKey, config)
+    const provider = LLMFactory.createProvider(providerName, apiKey, configWithPrompt)
 
     // Stream response chunks to renderer
     await provider.streamResponse(text, imageBase64, (chunk) => {
@@ -300,6 +307,60 @@ ipcMain.handle('get-displays', async () => {
   } catch (error) {
     console.error('Failed to get displays:', error)
     return { success: false, displays: [], error: error.message }
+  }
+})
+
+// Mode management IPC handlers
+ipcMain.handle('get-modes', async () => {
+  try {
+    const modes = configService.getModes()
+    return { success: true, modes }
+  } catch (error) {
+    console.error('Failed to get modes:', error)
+    return { success: false, modes: [], error: error.message }
+  }
+})
+
+ipcMain.handle('save-mode', async (_event, mode) => {
+  try {
+    configService.saveMode(mode)
+    console.log(`Mode saved: ${mode.name}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to save mode:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('delete-mode', async (_event, modeId) => {
+  try {
+    configService.deleteMode(modeId)
+    console.log(`Mode deleted: ${modeId}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to delete mode:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('get-active-mode', async () => {
+  try {
+    const modeId = configService.getActiveMode()
+    return { success: true, modeId }
+  } catch (error) {
+    console.error('Failed to get active mode:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('set-active-mode', async (_event, modeId) => {
+  try {
+    configService.setActiveMode(modeId)
+    console.log(`Active mode set to: ${modeId}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to set active mode:', error)
+    return { success: false, error: error.message }
   }
 })
 

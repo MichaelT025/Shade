@@ -17,11 +17,12 @@ const sendBtn = document.getElementById('send-btn')
 const screenshotBtn = document.getElementById('screenshot-btn')
 const homeBtn = document.getElementById('home-btn')
 const closeBtn = document.getElementById('close-btn')
+const modeDropdown = document.getElementById('mode-dropdown')
 
 /**
  * Initialize the application
  */
-function init() {
+async function init() {
   // Screenshot button - capture immediately and highlight icon
   screenshotBtn.addEventListener('click', handleScreenshotCapture)
 
@@ -29,10 +30,22 @@ function init() {
   sendBtn.addEventListener('click', handleSendMessage)
 
   // Enter key to send message
-  messageInput.addEventListener('keypress', (e) => {
+  messageInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      sendBtn.click()
+
+      // Ctrl+Enter: Quick send with screenshot (capture if needed)
+      if (e.ctrlKey) {
+        // If no screenshot captured yet, capture one first
+        if (!isScreenshotActive) {
+          await handleScreenshotCapture()
+        }
+        // Then send (even without text prompt)
+        sendBtn.click()
+      } else {
+        // Regular Enter: send as normal
+        sendBtn.click()
+      }
     }
   })
 
@@ -46,6 +59,9 @@ function init() {
     window.electronAPI.quitApp()
   })
 
+  // Mode dropdown - switch active mode
+  modeDropdown.addEventListener('change', handleModeSwitch)
+
   // Ctrl+R new chat handler
   window.electronAPI.onNewChat(handleNewChat)
 
@@ -53,6 +69,12 @@ function init() {
   window.electronAPI.onMessageChunk(handleMessageChunk)
   window.electronAPI.onMessageComplete(handleMessageComplete)
   window.electronAPI.onMessageError(handleMessageError)
+
+  // Load modes and populate dropdown
+  await loadModes()
+
+  // Auto-focus the input field so keyboard shortcuts work immediately
+  messageInput.focus()
 
   console.log('GhostPad initialized')
 }
@@ -86,16 +108,17 @@ async function handleScreenshotCapture() {
 async function handleSendMessage() {
   const text = messageInput.value.trim()
 
-  // Don't send empty messages
-  if (!text) return
+  // Don't send if both text and screenshot are empty
+  if (!text && !capturedScreenshot) return
 
   // Disable send button during processing
   sendBtn.disabled = true
   messageInput.disabled = true
 
   try {
-    // Add user message to UI
-    addMessage('user', text, isScreenshotActive)
+    // Add user message to UI (if text exists, otherwise just show screenshot indicator)
+    const messageText = text || '[Analyzing screenshot...]'
+    addMessage('user', messageText, isScreenshotActive)
 
     // Clear input immediately for better UX
     messageInput.value = ''
@@ -108,8 +131,10 @@ async function handleSendMessage() {
     accumulatedText = ''
 
     // Send to LLM with optional screenshot (returns immediately, streams via events)
+    // If text is empty but screenshot exists, use a default prompt
+    const promptText = text || 'Analyze this screenshot and describe what you see.'
     console.log('Sending message to LLM...', { hasScreenshot: isScreenshotActive })
-    const result = await window.electronAPI.sendMessage(text, capturedScreenshot)
+    const result = await window.electronAPI.sendMessage(promptText, capturedScreenshot)
 
     // Remove loading indicator
     removeLoadingMessage(loadingId)
@@ -607,6 +632,50 @@ function handleNewChat() {
   // Clear input
   messageInput.value = ''
   messageInput.focus()
+}
+
+/**
+ * Load modes and populate dropdown
+ */
+async function loadModes() {
+  try {
+    const result = await window.electronAPI.getModes()
+    const modes = result.modes || []
+    const activeModeResult = await window.electronAPI.getActiveMode()
+    const activeModeId = activeModeResult.modeId || 'default'
+
+    // Populate mode dropdown
+    modeDropdown.innerHTML = ''
+    modes.forEach(mode => {
+      const option = document.createElement('option')
+      option.value = mode.id
+      option.textContent = mode.name
+      modeDropdown.appendChild(option)
+    })
+
+    // Select the active mode
+    modeDropdown.value = activeModeId
+
+    console.log('Modes loaded:', { count: modes.length, active: activeModeId })
+  } catch (error) {
+    console.error('Failed to load modes:', error)
+  }
+}
+
+/**
+ * Handle mode switch from dropdown
+ */
+async function handleModeSwitch(event) {
+  const modeId = event.target.value
+
+  try {
+    // Set active mode in config
+    await window.electronAPI.setActiveMode(modeId)
+    console.log('Switched to mode:', modeId)
+  } catch (error) {
+    console.error('Failed to switch mode:', error)
+    showError('Failed to switch mode: ' + error.message)
+  }
 }
 
 /**

@@ -9,8 +9,8 @@ class OpenAIProvider extends LLMProvider {
   constructor(apiKey, config = {}) {
     super(apiKey, config)
 
-    // Default to gpt-4.1 (latest recommended model)
-    this.modelName = config.model || 'gpt-4.1'
+    // Default to gpt-4o (latest recommended multimodal model)
+    this.modelName = config.model || 'gpt-4o'
     this.systemPrompt = config.systemPrompt || ''
 
     // Initialize OpenAI client
