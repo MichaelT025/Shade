@@ -38,8 +38,8 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/ghostpad.git
-   cd ghostpad
+   git clone https://github.com/MichaelT025/Project-GhostPad.git
+   cd Project-GhostPad
    ```
 
 2. **Install dependencies**
