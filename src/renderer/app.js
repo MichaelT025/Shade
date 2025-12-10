@@ -216,16 +216,22 @@ function addMessage(type, text, hasScreenshot = false) {
     messageEl.appendChild(meta)
   }
 
+  // Add timestamp
+  const timestamp = document.createElement('span')
+  timestamp.className = 'message-timestamp'
+  timestamp.textContent = formatTimestamp(new Date())
+  messageEl.appendChild(timestamp)
+
   // Add to container and scroll to bottom
   messagesContainer.appendChild(messageEl)
   messagesContainer.scrollTop = messagesContainer.scrollHeight
 
   // Store in message history
-  messages.push({ type, text, hasScreenshot })
+  messages.push({ type, text, hasScreenshot, timestamp: new Date() })
 }
 
 /**
- * Add a loading indicator message
+ * Add a loading indicator message with typing animation
  * @returns {string} - Loading message ID for removal
  */
 function addLoadingMessage() {
@@ -233,8 +239,18 @@ function addLoadingMessage() {
   const loadingEl = document.createElement('div')
   loadingEl.className = 'message ai'
   loadingEl.id = loadingId
-  loadingEl.textContent = 'Thinking...'
-  loadingEl.style.opacity = '0.6'
+
+  // Create typing indicator with 3 bouncing dots
+  const typingIndicator = document.createElement('div')
+  typingIndicator.className = 'typing-indicator'
+
+  for (let i = 0; i < 3; i++) {
+    const dot = document.createElement('div')
+    dot.className = 'typing-dot'
+    typingIndicator.appendChild(dot)
+  }
+
+  loadingEl.appendChild(typingIndicator)
 
   messagesContainer.appendChild(loadingEl)
   messagesContainer.scrollTop = messagesContainer.scrollHeight
@@ -336,8 +352,17 @@ function finalizeStreamingMessage(messageId, text) {
     // Add copy buttons to code blocks
     addCopyButtons(messageEl)
 
+    // Add copy button to message
+    addMessageCopyButton(messageEl, text)
+
+    // Add timestamp
+    const timestamp = document.createElement('span')
+    timestamp.className = 'message-timestamp'
+    timestamp.textContent = formatTimestamp(new Date())
+    messageEl.appendChild(timestamp)
+
     // Store in message history
-    messages.push({ type: 'ai', text, hasScreenshot: false })
+    messages.push({ type: 'ai', text, hasScreenshot: false, timestamp: new Date() })
   }
 }
 
@@ -384,18 +409,176 @@ function addCopyButtons(messageElement) {
 }
 
 /**
- * Show an error message in the chat
+ * Categorize error type based on error message
+ * @param {string} errorText - Error message
+ * @returns {string} - Error category
+ */
+function categorizeError(errorText) {
+  const lowerError = errorText.toLowerCase()
+
+  if (lowerError.includes('api key') || lowerError.includes('unauthorized') || lowerError.includes('invalid key')) {
+    return 'API_KEY'
+  }
+  if (lowerError.includes('rate limit') || lowerError.includes('too many requests') || lowerError.includes('quota')) {
+    return 'RATE_LIMIT'
+  }
+  if (lowerError.includes('network') || lowerError.includes('connection') || lowerError.includes('timeout')) {
+    return 'NETWORK'
+  }
+  if (lowerError.includes('500') || lowerError.includes('503') || lowerError.includes('server error')) {
+    return 'SERVER'
+  }
+
+  return 'UNKNOWN'
+}
+
+/**
+ * Get user-friendly error message based on error type
+ * @param {string} errorType - Error category
+ * @returns {string} - User-friendly message
+ */
+function getErrorMessage(errorType) {
+  const messages = {
+    'API_KEY': 'Invalid or missing API key. Please check your settings.',
+    'RATE_LIMIT': 'Rate limit exceeded. Please wait a moment before trying again.',
+    'NETWORK': 'Network error. Please check your internet connection.',
+    'SERVER': 'The AI service is temporarily unavailable. Please try again later.',
+    'UNKNOWN': 'An error occurred. Please try again.'
+  }
+
+  return messages[errorType] || messages['UNKNOWN']
+}
+
+/**
+ * Show an error message in the chat with categorization and actions
  * @param {string} errorText - Error message to display
  */
 function showError(errorText) {
+  const errorType = categorizeError(errorText)
   const errorEl = document.createElement('div')
   errorEl.className = 'message ai'
   errorEl.style.borderColor = 'rgba(255, 74, 74, 0.3)'
   errorEl.style.background = 'rgba(255, 74, 74, 0.1)'
-  errorEl.textContent = '⚠️ ' + errorText
+  errorEl.style.position = 'relative'
+
+  // Create error content
+  const errorContent = document.createElement('div')
+  errorContent.style.paddingRight = '80px' // Make room for action button
+
+  const errorIcon = document.createElement('span')
+  errorIcon.textContent = '⚠️ '
+  errorContent.appendChild(errorIcon)
+
+  const errorMessage = document.createElement('span')
+  errorMessage.textContent = getErrorMessage(errorType)
+  errorContent.appendChild(errorMessage)
+
+  // Add technical details (collapsible)
+  if (errorText !== getErrorMessage(errorType)) {
+    const detailsToggle = document.createElement('div')
+    detailsToggle.style.fontSize = '11px'
+    detailsToggle.style.opacity = '0.6'
+    detailsToggle.style.marginTop = '6px'
+    detailsToggle.style.cursor = 'pointer'
+    detailsToggle.textContent = 'Show details'
+
+    const detailsContent = document.createElement('div')
+    detailsContent.style.fontSize = '11px'
+    detailsContent.style.opacity = '0.6'
+    detailsContent.style.marginTop = '6px'
+    detailsContent.style.display = 'none'
+    detailsContent.textContent = errorText
+
+    detailsToggle.addEventListener('click', () => {
+      if (detailsContent.style.display === 'none') {
+        detailsContent.style.display = 'block'
+        detailsToggle.textContent = 'Hide details'
+      } else {
+        detailsContent.style.display = 'none'
+        detailsToggle.textContent = 'Show details'
+      }
+    })
+
+    errorContent.appendChild(detailsToggle)
+    errorContent.appendChild(detailsContent)
+  }
+
+  errorEl.appendChild(errorContent)
+
+  // Add action button based on error type
+  if (errorType === 'API_KEY') {
+    const settingsBtn = document.createElement('button')
+    settingsBtn.textContent = 'Settings'
+    settingsBtn.style.position = 'absolute'
+    settingsBtn.style.top = '12px'
+    settingsBtn.style.right = '12px'
+    settingsBtn.style.padding = '4px 12px'
+    settingsBtn.style.background = 'rgba(74, 158, 255, 0.3)'
+    settingsBtn.style.border = '1px solid rgba(74, 158, 255, 0.5)'
+    settingsBtn.style.borderRadius = '4px'
+    settingsBtn.style.color = 'white'
+    settingsBtn.style.fontSize = '11px'
+    settingsBtn.style.cursor = 'pointer'
+    settingsBtn.addEventListener('click', () => {
+      window.electronAPI.openSettings()
+    })
+    errorEl.appendChild(settingsBtn)
+  }
 
   messagesContainer.appendChild(errorEl)
   messagesContainer.scrollTop = messagesContainer.scrollHeight
+}
+
+/**
+ * Format timestamp with relative time
+ * @param {Date} date - Message timestamp
+ * @returns {string} - Formatted timestamp
+ */
+function formatTimestamp(date) {
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+
+  // For older messages, show time
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+/**
+ * Add copy button to AI message
+ * @param {HTMLElement} messageElement - Message element to add copy button to
+ * @param {string} originalText - Original markdown text to copy
+ */
+function addMessageCopyButton(messageElement, originalText) {
+  const copyBtn = document.createElement('button')
+  copyBtn.className = 'message-copy-btn'
+  copyBtn.textContent = 'Copy'
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(originalText).then(() => {
+      copyBtn.textContent = 'Copied!'
+      copyBtn.classList.add('copied')
+      setTimeout(() => {
+        copyBtn.textContent = 'Copy'
+        copyBtn.classList.remove('copied')
+      }, 2000)
+    }).catch(err => {
+      console.error('Failed to copy message:', err)
+      copyBtn.textContent = 'Failed'
+      setTimeout(() => {
+        copyBtn.textContent = 'Copy'
+      }, 2000)
+    })
+  })
+
+  messageElement.appendChild(copyBtn)
 }
 
 /**

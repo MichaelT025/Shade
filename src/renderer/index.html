@@ -429,6 +429,86 @@
       overflow-x: auto;
       overflow-y: hidden;
     }
+
+    /* Typing indicator (loading animation) */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 0;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(74, 158, 255, 0.6);
+      animation: typing-bounce 1.4s infinite ease-in-out;
+    }
+
+    .typing-dot:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes typing-bounce {
+      0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.6;
+      }
+      30% {
+        transform: translateY(-10px);
+        opacity: 1;
+      }
+    }
+
+    /* Message copy button */
+    .message.ai {
+      position: relative;
+    }
+
+    .message-copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      background: rgba(74, 158, 255, 0.3);
+      border: 1px solid rgba(74, 158, 255, 0.5);
+      border-radius: 4px;
+      color: white;
+      font-size: 11px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s, background 0.2s;
+    }
+
+    .message.ai:hover .message-copy-btn {
+      opacity: 1;
+    }
+
+    .message-copy-btn:hover {
+      background: rgba(74, 158, 255, 0.5);
+    }
+
+    .message-copy-btn.copied {
+      background: rgba(76, 175, 80, 0.5);
+      border-color: rgba(76, 175, 80, 0.7);
+    }
+
+    /* Message timestamp */
+    .message-timestamp {
+      font-size: 10px;
+      opacity: 0.4;
+      margin-top: 6px;
+      display: block;
+    }
   </style>
 </head>
 <body>
