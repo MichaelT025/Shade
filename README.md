@@ -14,6 +14,7 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 - 🪟 Always-on-top translucent overlay
 - 📸 Instant screen capture (overlay automatically excluded)
 - 🤖 **Multi-provider LLM support** - Gemini, OpenAI, and Anthropic fully integrated
+- 💬 **Conversation memory** - AI remembers context from earlier in the chat
 - 🔑 Bring your own API key - No subscriptions, pay only for what you use
 - 🔒 Privacy-first: no data persistence
 - ⌨️ Global keyboard shortcuts
@@ -82,7 +83,8 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 
 3. **Get answers**
    - Responses stream in real-time
-   - Continue the conversation with follow-up questions
+   - Continue the conversation with follow-up questions that reference earlier messages
+   - The AI has full context of the current chat session
    - The screenshot remains attached until you start a new chat (Ctrl+R)
 
 ### Tips
@@ -161,8 +163,8 @@ GhostPad uses a sophisticated approach to exclude the overlay from screenshots:
 ### Privacy & Security
 
 - **No Persistence:** Screenshots are never saved to disk (except in dev mode for debugging)
-- **Session-Only History:** Chat history exists only in memory, cleared on new chat or app restart
-- **Local API Keys:** Your Gemini API key is stored locally in a config file (never transmitted to us)
+- **Session-Only History:** Chat history exists only in memory during your chat session, sent to LLM for context, then cleared on new chat (Ctrl+R) or app restart
+- **Local API Keys:** Your API keys are stored locally in a config file (never transmitted to us)
 - **User-Controlled Capture:** Screenshots only happen when you click the button
 - **Excluded from Git:** Config files with API keys are in `.gitignore`
 
@@ -183,12 +185,13 @@ GhostPad uses a sophisticated approach to exclude the overlay from screenshots:
 - ✅ LaTeX math equation support (inline & block)
 - ✅ Code syntax highlighting (10+ languages)
 - ✅ Copy buttons for code blocks and messages
+- ✅ Conversation memory (full context awareness across chat session)
 
 **In Progress:**
-- ⏳ **Chat UI Polish & Streaming Integration**
-
+- ⏳ **Additional Features & Polish**
   - ⏳ Enhanced animations and timestamps
   - ⏳ Improved error handling with retry
+  - ⏳ Max history limit for token usage optimization
 
 **Planned:**
 - ⬜ Multi-monitor support
