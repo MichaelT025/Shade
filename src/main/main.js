@@ -98,14 +98,14 @@ function createSettingsWindow() {
 
 // Register global hotkeys
 function registerHotkeys() {
-  // Ctrl+/ to toggle window visibility
+  // Ctrl+/ to toggle window visibility (minimize to taskbar)
   globalShortcut.register('CommandOrControl+/', () => {
     if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide()
-      } else {
-        mainWindow.show()
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
         mainWindow.focus()
+      } else {
+        mainWindow.minimize()
       }
     }
   })
@@ -519,7 +519,7 @@ ipcMain.handle('open-settings', async () => {
 // Hide main window
 ipcMain.handle('hide-window', async () => {
   if (mainWindow) {
-    mainWindow.hide()
+    mainWindow.minimize()
   }
 })
 

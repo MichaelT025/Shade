@@ -33,7 +33,7 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 - API key for your chosen LLM provider:
   - **Gemini**: [Get API key](https://makersuite.google.com/app/apikey) (free tier available)
   - **OpenAI**: [Get API key](https://platform.openai.com/api-keys) (pay-as-you-go)
-  - **Anthropic**: [Get API key](https://console.anthropic.com/) (Claude Haiku 4.5 default)
+  - **Anthropic**: [Get API key](https://console.anthropic.com/) (pay-as-you-go)
 
 ### Setup
 

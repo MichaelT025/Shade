@@ -807,10 +807,6 @@ function showError(errorText) {
 }
 
 /**
- * Note: formatTimestamp is now imported from ui-helpers.js
- */
-
-/**
  * Add copy button to AI message
  * @param {HTMLElement} messageElement - Message element to add copy button to
  * @param {string} originalText - Original markdown text to copy
