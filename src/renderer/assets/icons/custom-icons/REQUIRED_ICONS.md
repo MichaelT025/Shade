@@ -10,43 +10,46 @@ Upload SVG icons to this directory. All icon files should be named exactly as sh
 
 ---
 
-## Required Icons List
+## Required Icons Checklist
 
-### Navigation Icons (Title Bar)
-- `settings.svg` - Settings gear icon (top left button)
-- `close.svg` - Close/X icon (top right button)
+### Navigation & Window Controls
+- [x] `settings.svg` - Settings gear icon (top left button)
+- [x] `close.svg` - Close/X icon (top right button)
+- [x] `minus.svg` - Minimize/Hide icon (top right button)
 
-### Action Icons (Input Area)
-- `camera.svg` - Screenshot/capture icon (input area)
-- `send.svg` - Send message icon (send button)
-- `remove.svg` - Remove/delete icon (screenshot chip remove button)
+### Action Icons (Input Area & Main UI)
+- [x] `camera.svg` - Screenshot/capture icon (input area)
+- [x] `send.svg` - Send message icon (send button)
+- [x] `display.svg` - Display/Monitor selection icon
+- [x] `remove.svg` - Remove/delete icon (screenshot chip remove button)
 
 ### Utility Icons (Messages & Code)
-- `copy.svg` - Copy icon (code blocks and message copy)
-- `check.svg` - Checkmark icon (copy success feedback)
+- [x] `copy.svg` - Copy icon (code blocks and message copy)
+- [x] `arrow-down.svg` - Scroll to bottom arrow
+- [x] `check.svg` - Checkmark icon (copy success feedback)
 
 ### Provider Icons (Status Pill)
-- `gemini.svg` - Google Gemini logo/icon
-- `openai.svg` - OpenAI logo/icon
-- `anthropic.svg` - Anthropic logo/icon
+- [x] `gemini.svg` - Google Gemini logo/icon
+- [x] `openai.svg` - OpenAI logo/icon
+- [x] `anthropic.svg` - Anthropic logo/icon
 
 ### Status Icons (Errors & Notifications)
-- `error.svg` - Error/warning icon
-- `info.svg` - Information icon
-- `success.svg` - Success icon
-- `warning.svg` - Warning icon
+- [x] `error.svg` - Error/warning icon
+- [x] `info.svg` - Information icon
+- [x] `success.svg` - Success icon
+- [x] `warning.svg` - Warning icon
 
 ### UI Navigation Icons
-- `chevron-up.svg` - Upward chevron/arrow
-- `chevron-down.svg` - Downward chevron/arrow
-- `chevron-left.svg` - Left chevron/arrow
-- `chevron-right.svg` - Right chevron/arrow
+- [x] `chevron-up.svg` - Upward chevron/arrow
+- [x] `chevron-down.svg` - Downward chevron/arrow
+- [x] `chevron-left.svg` - Left chevron/arrow
+- [x] `chevron-right.svg` - Right chevron/arrow
 
 ### Optional Icons (Future Use)
-- `loading.svg` - Loading spinner/animation
-- `refresh.svg` - Refresh/reload icon
-- `download.svg` - Download icon
-- `upload.svg` - Upload icon
+- [x] `loading.svg` - Loading spinner/animation
+- [x] `refresh.svg` - Refresh/reload icon
+- [x] `download.svg` - Download icon
+- [x] `upload.svg` - Upload icon
 
 ---
 

@@ -22,7 +22,6 @@ export const REQUIRED_ICONS = {
 
   // Actions
   'camera': 'Camera Icon',
-  'screenshot': 'Screenshot Icon',
   'send': 'Send Icon',
   'remove': 'Remove Icon',
   'minus': 'Hide Icon',
@@ -47,8 +46,6 @@ export const REQUIRED_ICONS = {
   'chevron-down': 'Chevron Down',
   'chevron-left': 'Chevron Left',
   'chevron-right': 'Chevron Right',
-  'chevronUp': 'Chevron Up',
-  'chevronDown': 'Chevron Down',
 
   // Utility
   'arrow-down': 'Arrow Down',

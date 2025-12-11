@@ -640,27 +640,15 @@ function addCopyButtons(messageElement) {
     const copyBtn = document.createElement('button')
     copyBtn.className = 'copy-code-btn'
     copyBtn.title = 'Copy code'
-    copyBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z"/>
-      </svg>
-    `
+    copyBtn.innerHTML = getIcon('copy', 'icon-svg-sm')
     copyBtn.addEventListener('click', () => {
       const code = codeBlock.textContent
       navigator.clipboard.writeText(code).then(() => {
-        copyBtn.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-          </svg>
-        `
+        copyBtn.innerHTML = getIcon('check', 'icon-svg-sm')
         copyBtn.classList.add('copied')
         copyBtn.title = 'Copied!'
         setTimeout(() => {
-          copyBtn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z"/>
-            </svg>
-          `
+          copyBtn.innerHTML = getIcon('copy', 'icon-svg-sm')
           copyBtn.classList.remove('copied')
           copyBtn.title = 'Copy code'
         }, 2000)
@@ -668,11 +656,7 @@ function addCopyButtons(messageElement) {
         console.error('Failed to copy code:', err)
         copyBtn.title = 'Failed to copy'
         setTimeout(() => {
-          copyBtn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z"/>
-            </svg>
-          `
+          copyBtn.innerHTML = getIcon('copy', 'icon-svg-sm')
           copyBtn.title = 'Copy code'
         }, 2000)
       })
@@ -760,7 +744,7 @@ function showError(errorText) {
     detailsToggle.style.gap = 'var(--space-4)'
     
     const chevronIcon = document.createElement('span')
-    chevronIcon.innerHTML = getIcon('chevronDown', 'icon-svg-sm')
+    chevronIcon.innerHTML = getIcon('chevron-down', 'icon-svg-sm')
     detailsToggle.appendChild(chevronIcon)
     
     const toggleText = document.createElement('span')
@@ -777,11 +761,11 @@ function showError(errorText) {
     detailsToggle.addEventListener('click', () => {
       if (detailsContent.style.display === 'none') {
         detailsContent.style.display = 'block'
-        chevronIcon.innerHTML = getIcon('chevronUp', 'icon-svg-sm')
+        chevronIcon.innerHTML = getIcon('chevron-up', 'icon-svg-sm')
         toggleText.textContent = 'Hide details'
       } else {
         detailsContent.style.display = 'none'
-        chevronIcon.innerHTML = getIcon('chevronDown', 'icon-svg-sm')
+        chevronIcon.innerHTML = getIcon('chevron-down', 'icon-svg-sm')
         toggleText.textContent = 'Show details'
       }
     })
