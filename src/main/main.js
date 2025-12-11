@@ -11,9 +11,25 @@ let configService = null
 
 // Create the main overlay window
 function createMainWindow() {
+  // Get primary display work area
+  const { screen } = require('electron')
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const { workArea } = primaryDisplay
+
+  // Calculate position - right side but more centered vertically
+  const width = 550
+  const height = 500
+  const paddingRight = 100  // More space from right edge
+  const paddingTop = 80     // More space from top edge
+  
+  const x = workArea.x + workArea.width - width - paddingRight
+  const y = workArea.y + paddingTop
+
   mainWindow = new BrowserWindow({
-    width: 550,
-    height: 500,
+    width: width,
+    height: height,
+    x: x,
+    y: y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -249,6 +265,12 @@ ipcMain.handle('set-active-provider', async (_event, provider) => {
   try {
     configService.setActiveProvider(provider)
     console.log(`Active provider set to: ${provider}`)
+
+    // Notify main window that config changed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('config-changed')
+    }
+
     return { success: true }
   } catch (error) {
     console.error('Failed to set active provider:', error)
@@ -280,6 +302,12 @@ ipcMain.handle('set-provider-config', async (_event, { provider, config }) => {
   try {
     configService.setProviderConfig(provider, config)
     console.log(`Provider config saved for: ${provider}`)
+
+    // Notify main window that config changed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('config-changed')
+    }
+
     return { success: true }
   } catch (error) {
     console.error('Failed to set provider config:', error)
@@ -387,6 +415,13 @@ ipcMain.handle('open-settings', async () => {
   } catch (error) {
     console.error('Failed to open settings:', error)
     return { success: false, error: error.message }
+  }
+})
+
+// Hide main window
+ipcMain.handle('hide-window', async () => {
+  if (mainWindow) {
+    mainWindow.hide()
   }
 })
 

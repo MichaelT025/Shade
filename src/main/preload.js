@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('new-chat', () => callback())
   },
 
+  // Listen for config changes (from settings window)
+  onConfigChanged: (callback) => {
+    ipcRenderer.on('config-changed', () => callback())
+  },
+
   // Config management
   saveApiKey: (provider, apiKey) => ipcRenderer.invoke('save-api-key', { provider, apiKey }),
   getApiKey: (provider) => ipcRenderer.invoke('get-api-key', provider),
@@ -50,6 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Window management
   openSettings: () => ipcRenderer.invoke('open-settings'),
+  hideWindow: () => ipcRenderer.invoke('hide-window'),
   quitApp: () => ipcRenderer.invoke('quit-app'),
 
   // Icon management

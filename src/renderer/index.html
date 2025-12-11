@@ -62,9 +62,10 @@
       justify-content: space-between;
       align-items: center;
       padding: var(--space-8) var(--space-12);
-      background: var(--panel-strong);
-      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       -webkit-app-region: drag;
+      backdrop-filter: blur(8px);
     }
 
     .title-bar-left,
@@ -80,44 +81,37 @@
       user-select: none;
     }
 
-    /* Provider Status Pill */
-    .status-pill {
-      display: flex;
-      align-items: center;
-      gap: var(--space-8);
-      padding: var(--space-4) var(--space-12);
-      background: var(--panel-muted);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-pill);
-      font-size: var(--font-size-xs);
-      color: var(--text-secondary);
+    /* Model Selector Dropdown */
+    .model-selector {
+      padding: var(--space-6) var(--space-12);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      cursor: pointer;
+      transition: all var(--duration-quick) var(--easing);
       -webkit-app-region: no-drag;
-      user-select: none;
+      outline: none;
+      backdrop-filter: blur(8px);
     }
 
-    .provider-icon {
-      width: 14px;
-      height: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
+    .model-selector:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
     }
 
-    .provider-name {
+    .model-selector:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+    }
+
+    .model-selector option {
+      background: var(--panel-strong);
+      color: var(--text-primary);
       font-weight: 500;
-    }
-
-    .model-name {
-      color: var(--text-tertiary);
-    }
-
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 8px var(--success);
     }
 
     /* Mode Select */
@@ -191,6 +185,7 @@
       display: flex;
       justify-content: center;
       padding: var(--space-16) var(--space-12);
+      position: relative;
     }
 
     .messages-container::-webkit-scrollbar {
@@ -208,6 +203,38 @@
 
     .messages-container::-webkit-scrollbar-thumb:hover {
       background: var(--text-tertiary);
+    }
+
+    /* Scroll Gradient Indicators */
+    .messages-container::before,
+    .messages-container::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 32px;
+      pointer-events: none;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity var(--duration-normal) var(--easing);
+    }
+
+    .messages-container::before {
+      top: 0;
+      background: linear-gradient(to bottom, var(--bg), transparent);
+    }
+
+    .messages-container::after {
+      bottom: 0;
+      background: linear-gradient(to top, var(--bg), transparent);
+    }
+
+    .messages-container.has-scroll-top::before {
+      opacity: 1;
+    }
+
+    .messages-container.has-scroll-bottom::after {
+      opacity: 1;
     }
 
     /* Chat Wrapper (max-width constraint) */
@@ -291,11 +318,52 @@
       font-size: 13px;
     }
 
+    /* Scroll to bottom button */
+    .scroll-bottom-btn {
+      position: absolute;
+      bottom: 80px; /* Right above input area */
+      right: 24px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      transition: all var(--duration-normal) var(--easing);
+      box-shadow: var(--shadow-elev-2);
+      z-index: 20;
+    }
+
+    .scroll-bottom-btn.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .scroll-bottom-btn:hover {
+      background: var(--panel-muted);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+      transform: translateY(-2px);
+    }
+
+    .scroll-bottom-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
     /* Input Area */
     .input-area {
       padding: var(--space-16);
       border-top: 1px solid var(--border);
-      background: var(--panel-muted);
+      background: transparent;
     }
 
     .input-container {
@@ -304,7 +372,7 @@
       gap: var(--space-8);
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: var(--radius-md);
+      border-radius: 20px;
       padding: var(--space-8) var(--space-12);
     }
 
@@ -336,8 +404,31 @@
     }
 
     .icon-btn-input.active {
-      background: var(--accent-muted);
-      color: var(--accent);
+      background: rgba(74, 158, 255, 0.2);
+      color: #4A9EFF;
+    }
+
+    /* Send button special styling */
+    #send-btn {
+      background: #0377fc;
+      color: white;
+      border-radius: var(--radius-md);
+      width: 36px;
+      height: 36px;
+    }
+
+    #send-btn:hover {
+      background: #0260d4;
+      transform: translateY(-1px);
+    }
+
+    #send-btn:active {
+      transform: translateY(0);
+    }
+
+    #send-btn svg {
+      width: 18px;
+      height: 18px;
     }
 
     .icon-btn-input:focus-visible {
@@ -724,16 +815,20 @@
         <!-- App Title -->
         <span class="title-text">GhostPad</span>
 
-        <!-- Provider Status Pill -->
-        <div class="status-pill" id="provider-status">
-          <span class="provider-icon" id="provider-icon"><!-- Icon loaded dynamically --></span>
-          <span class="provider-name" id="provider-name">Gemini</span>
-          <span class="model-name" id="model-name">2.5 Flash</span>
-          <span class="status-dot" id="status-dot"></span>
-        </div>
+        <!-- Model Selector Dropdown -->
+        <select id="model-selector" class="model-selector" title="Switch Model" aria-label="Model Selector">
+          <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
+          <option value="gpt-4o">GPT-4o</option>
+          <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+        </select>
       </div>
 
       <div class="title-bar-right">
+        <!-- Hide Button -->
+        <button id="hide-btn" class="icon-btn" title="Hide (Ctrl+/)" aria-label="Hide application">
+          <!-- Icon loaded from custom-icons/minus.svg -->
+        </button>
+
         <!-- Close Button -->
         <button id="close-btn" class="icon-btn close-btn" title="Close" aria-label="Close application">
           <!-- Icon loaded from custom-icons/close.svg -->
@@ -750,6 +845,11 @@
         </div>
       </div>
     </div>
+
+    <!-- Scroll to bottom button -->
+    <button id="scroll-bottom-btn" class="scroll-bottom-btn" title="Scroll to bottom" aria-label="Scroll to bottom">
+      <!-- Icon loaded from custom-icons/arrow-down.svg -->
+    </button>
 
     <!-- Input Area -->
     <div class="input-area">

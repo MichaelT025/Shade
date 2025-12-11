@@ -22,12 +22,15 @@ const sendBtn = document.getElementById('send-btn')
 const screenshotBtn = document.getElementById('screenshot-btn')
 const homeBtn = document.getElementById('home-btn')
 const closeBtn = document.getElementById('close-btn')
+const hideBtn = document.getElementById('hide-btn')
 const modeDropdownInput = document.getElementById('mode-dropdown-input')
+const modelSelector = document.getElementById('model-selector')
+const scrollBottomBtn = document.getElementById('scroll-bottom-btn')
 
 /**
- * Update provider status pill with current provider and model
+ * Update model selector with current provider and model
  */
-async function updateProviderStatus() {
+async function updateModelSelector() {
   try {
     // Get active provider
     const providerResult = await window.electronAPI.getActiveProvider()
@@ -36,59 +39,59 @@ async function updateProviderStatus() {
     // Get provider config for model
     const configResult = await window.electronAPI.getProviderConfig(provider)
     const config = configResult.config || {}
-    const model = config.model || 'gemini-2.5-flash'
+    const currentModel = config.model || 'gemini-2.0-flash-exp'
 
-    // Update UI elements
-    const providerIcon = document.getElementById('provider-icon')
-    const providerName = document.getElementById('provider-name')
-    const modelName = document.getElementById('model-name')
-    const statusDot = document.getElementById('status-dot')
-
-    // Set provider icon using SVG
-    const iconName = provider === 'gemini' ? 'gemini' : provider === 'openai' ? 'openai' : 'anthropic';
-    providerIcon.innerHTML = getIcon(iconName, 'icon-svg-sm')
-
-    // Provider name (capitalize first letter)
-    providerName.textContent = provider.charAt(0).toUpperCase() + provider.slice(1)
-
-    // Model name (shortened versions)
-    const modelShortNames = {
-      'gemini-3.0-pro': '3.0 Pro',
-      'gemini-3.0-deep-think': '3.0 Think',
-      'gemini-2.5-pro': '2.5 Pro',
-      'gemini-2.5-flash': '2.5 Flash',
-      'gemini-2.5-flash-lite': '2.5 Lite',
-      'gemini-2.0-flash': '2.0 Flash',
-      'gemini-1.5-pro': '1.5 Pro',
-      'gemini-1.5-flash': '1.5 Flash',
-      'gpt-5.1': 'GPT-5.1',
-      'gpt-5.1-chat': '5.1 Chat',
-      'gpt-5-mini': '5 Mini',
-      'gpt-4.1': 'GPT-4.1',
-      'gpt-4.1-mini': '4.1 Mini',
-      'gpt-4o': 'GPT-4o',
-      'gpt-4o-mini': '4o Mini',
-      'claude-opus-4-5': 'Opus 4.5',
-      'claude-sonnet-4-5': 'Sonnet 4.5',
-      'claude-haiku-4-5': 'Haiku 4.5',
-      'claude-opus-4-1': 'Opus 4.1',
-      'claude-sonnet-4': 'Sonnet 4'
+    // Map provider to default selector value (one model per provider)
+    const providerModelMap = {
+      'gemini': 'gemini-2.0-flash-exp',
+      'openai': 'gpt-4o',
+      'anthropic': 'claude-3-5-sonnet-20241022'
     }
-    modelName.textContent = modelShortNames[model] || model.split('-').slice(0, 2).join(' ')
 
-    // Green status dot indicates connected
-    statusDot.style.background = 'var(--success)'
-    statusDot.style.boxShadow = '0 0 8px var(--success)'
+    // Use the provider's default model in the selector
+    const selectorValue = providerModelMap[provider] || 'gemini-2.0-flash-exp'
 
-    console.log('Provider status updated:', { provider, model })
+    // Set the selected model in dropdown
+    if (modelSelector) {
+      modelSelector.value = selectorValue
+      console.log('Model selector updated:', { provider, currentModel, selectorValue })
+    }
   } catch (error) {
-    console.error('Failed to update provider status:', error)
-    // Red dot for error
-    const statusDot = document.getElementById('status-dot')
-    if (statusDot) {
-      statusDot.style.background = 'var(--danger)'
-      statusDot.style.boxShadow = '0 0 8px var(--danger)'
-    }
+    console.error('Failed to update model selector:', error)
+  }
+}
+
+/**
+ * Handle model selector change - switches provider and model
+ */
+async function handleModelSwitch() {
+  const selectedModel = modelSelector.value
+
+  // Map selector values to provider and model
+  const modelConfig = {
+    'gemini-2.0-flash-exp': { provider: 'gemini', model: 'gemini-2.0-flash-exp' },
+    'gpt-4o': { provider: 'openai', model: 'gpt-4o' },
+    'claude-3-5-sonnet-20241022': { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' }
+  }
+
+  const config = modelConfig[selectedModel]
+  if (!config) return
+
+  try {
+    // Switch provider
+    await window.electronAPI.setActiveProvider(config.provider)
+
+    // Update provider config with the model
+    await window.electronAPI.setProviderConfig(config.provider, { model: config.model })
+
+    console.log('Switched to:', config)
+    showToast(`Switched to ${modelSelector.options[modelSelector.selectedIndex].text}`, 'success', 2000)
+
+    // Refresh the model selector to confirm the switch
+    await updateModelSelector()
+  } catch (error) {
+    console.error('Failed to switch model:', error)
+    showToast('Failed to switch model', 'error')
   }
 }
 
@@ -101,6 +104,11 @@ async function init() {
 
   // Send button - send message with optional screenshot
   sendBtn.addEventListener('click', handleSendMessage)
+
+  // Scroll to bottom button
+  scrollBottomBtn.addEventListener('click', () => {
+    scrollToBottom()
+  })
 
   // Enter key to send message
   messageInput.addEventListener('keydown', async (e) => {
@@ -132,11 +140,25 @@ async function init() {
     window.electronAPI.quitApp()
   })
 
+  // Hide button - hide application
+  hideBtn.addEventListener('click', () => {
+    window.electronAPI.hideWindow()
+  })
+
   // Mode dropdown - switch active mode
   modeDropdownInput.addEventListener('change', handleModeSwitch)
 
+  // Model selector - switch provider/model
+  modelSelector.addEventListener('change', handleModelSwitch)
+
   // Ctrl+R new chat handler
   window.electronAPI.onNewChat(handleNewChat)
+
+  // Config changed handler (from settings window)
+  window.electronAPI.onConfigChanged(async () => {
+    console.log('Config changed, refreshing model selector...')
+    await updateModelSelector()
+  })
 
   // Streaming event handlers
   window.electronAPI.onMessageChunk(handleMessageChunk)
@@ -149,19 +171,58 @@ async function init() {
   // Insert icons into UI elements
   insertIcon(homeBtn, 'settings', 'icon-svg')
   insertIcon(closeBtn, 'close', 'icon-svg')
+  insertIcon(hideBtn, 'minus', 'icon-svg')
   insertIcon(screenshotBtn, 'camera', 'icon-svg')
   insertIcon(sendBtn, 'send', 'icon-svg')
+  insertIcon(scrollBottomBtn, 'arrow-down', 'icon-svg')
 
   // Load modes and populate dropdown
   await loadModes()
 
-  // Update provider status pill
-  await updateProviderStatus()
+  // Update model selector
+  await updateModelSelector()
+
+  // Set up scroll gradient detection
+  messagesContainer.addEventListener('scroll', updateScrollGradients)
+  updateScrollGradients() // Initial check
 
   // Auto-focus the input field so keyboard shortcuts work immediately
   messageInput.focus()
 
   console.log('GhostPad initialized')
+}
+
+/**
+ * Update scroll gradient indicators and scroll-to-bottom button
+ */
+function updateScrollGradients() {
+  const container = messagesContainer
+  const hasScrollTop = container.scrollTop > 20
+  
+  // Show scroll-to-bottom button if we're not near the bottom
+  const distFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop
+  const hasScrollBottom = distFromBottom > 50
+
+  container.classList.toggle('has-scroll-top', hasScrollTop)
+  container.classList.toggle('has-scroll-bottom', hasScrollBottom)
+  
+  // Toggle scroll button visibility
+  if (scrollBottomBtn) {
+    if (hasScrollBottom) {
+      scrollBottomBtn.classList.add('visible')
+    } else {
+      scrollBottomBtn.classList.remove('visible')
+    }
+  }
+}
+
+/**
+ * Scroll to bottom and update gradients
+ */
+function scrollToBottom() {
+  messagesContainer.scrollTop = messagesContainer.scrollHeight
+  // Update gradients after scroll completes
+  setTimeout(() => updateScrollGradients(), 50)
 }
 
 /**
@@ -254,8 +315,8 @@ async function handleSendMessage() {
   messageInput.disabled = true
 
   try {
-    // Add user message to UI (if text exists, otherwise just show screenshot indicator)
-    const messageText = text || '[Analyzing screenshot...]'
+    // Add user message to UI (if text exists, otherwise use 'Assist' as default)
+    const messageText = text || 'Assist'
     addMessage('user', messageText, isScreenshotActive)
 
     // Clear input immediately for better UX
@@ -269,8 +330,8 @@ async function handleSendMessage() {
     accumulatedText = ''
 
     // Send to LLM with optional screenshot (returns immediately, streams via events)
-    // If text is empty but screenshot exists, use a default prompt
-    const promptText = text || 'Analyze this screenshot and describe what you see.'
+    // If text is empty but screenshot exists, use 'Assist' as default prompt
+    const promptText = text || 'Assist'
 
     // Get conversation history (all messages except the current one we just added)
     const conversationHistory = messages.slice(0, -1)
@@ -384,8 +445,8 @@ function addMessage(type, text, hasScreenshot = false) {
     chatWrapper.appendChild(meta)
   }
   
-  // Scroll to bottom
-  messagesContainer.scrollTop = messagesContainer.scrollHeight
+  // Scroll to bottom and update gradients
+  scrollToBottom()
 
   // Store in message history
   messages.push({ type, text, hasScreenshot, timestamp: new Date() })
@@ -414,7 +475,7 @@ function addLoadingMessage() {
   loadingEl.appendChild(typingIndicator)
 
   chatWrapper.appendChild(loadingEl)
-  messagesContainer.scrollTop = messagesContainer.scrollHeight
+  scrollToBottom()
 
   return loadingId
 }
@@ -459,7 +520,7 @@ function addStreamingMessage(text) {
   messageEl.appendChild(cursorEl)
 
   chatWrapper.appendChild(messageEl)
-  messagesContainer.scrollTop = messagesContainer.scrollHeight
+  scrollToBottom()
 
   return messageId
 }
@@ -487,7 +548,7 @@ function updateStreamingMessage(messageId, text) {
     // Add copy buttons to any code blocks
     addCopyButtons(messageEl)
 
-    messagesContainer.scrollTop = messagesContainer.scrollHeight
+    scrollToBottom()
   }
 }
 
@@ -747,8 +808,8 @@ function showError(errorText) {
   }
 
   chatWrapper.appendChild(errorEl)
-  messagesContainer.scrollTop = messagesContainer.scrollHeight
-  
+  scrollToBottom()
+
   // Also show toast notification
   showToast(getErrorMessage(errorType), 'error')
 }

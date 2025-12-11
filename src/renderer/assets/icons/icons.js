@@ -25,6 +25,7 @@ export const REQUIRED_ICONS = {
   'screenshot': 'Screenshot Icon',
   'send': 'Send Icon',
   'remove': 'Remove Icon',
+  'minus': 'Hide Icon',
 
   // Utility
   'copy': 'Copy Icon',
@@ -49,6 +50,9 @@ export const REQUIRED_ICONS = {
   'chevronUp': 'Chevron Up',
   'chevronDown': 'Chevron Down',
 
+  // Utility
+  'arrow-down': 'Arrow Down',
+  
   // Optional
   'loading': 'Loading Icon',
   'refresh': 'Refresh Icon',
