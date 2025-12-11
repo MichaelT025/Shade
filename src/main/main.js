@@ -184,9 +184,9 @@ ipcMain.handle('capture-screen', async () => {
   }
 })
 
-ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory }) => {
+ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary }) => {
   try {
-    console.log('Message send requested:', text)
+    console.log('Message send requested:', text, { hasSummary: !!summary })
 
     // Get active provider and API key
     const providerName = configService.getActiveProvider()
@@ -212,8 +212,29 @@ ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHi
     // Create provider instance
     const provider = LLMFactory.createProvider(providerName, apiKey, configWithPrompt)
 
+    // Handle summary by prepending to conversation context
+    let historyWithSummary = conversationHistory || []
+    let promptWithSummary = text
+    
+    if (summary) {
+      // If we have conversation history, prepend summary to the first message
+      if (historyWithSummary.length > 0) {
+        const firstMsg = historyWithSummary[0]
+        historyWithSummary = [
+          {
+            ...firstMsg,
+            text: `[Context from earlier conversation: ${summary}]\n\n${firstMsg.text}`
+          },
+          ...historyWithSummary.slice(1)
+        ]
+      } else {
+        // If no history, prepend summary to current prompt
+        promptWithSummary = `[Context from earlier conversation: ${summary}]\n\n${text}`
+      }
+    }
+
     // Stream response chunks to renderer
-    await provider.streamResponse(text, imageBase64, conversationHistory || [], (chunk) => {
+    await provider.streamResponse(promptWithSummary, imageBase64, historyWithSummary, (chunk) => {
       event.sender.send('message-chunk', chunk)
     })
 
@@ -232,6 +253,69 @@ ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHi
     // Send error to renderer
     event.sender.send('message-error', error.message)
 
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// Generate conversation summary
+ipcMain.handle('generate-summary', async (_event, messages) => {
+  try {
+    console.log('Summary generation requested for', messages.length, 'messages')
+
+    // Get active provider and API key
+    const providerName = configService.getActiveProvider()
+    const apiKey = configService.getApiKey(providerName)
+
+    if (!apiKey) {
+      return {
+        success: false,
+        error: `No API key configured for ${providerName}`
+      }
+    }
+
+    // Get provider configuration WITHOUT system prompt for summary generation
+    // This prevents context bleed between chats (especially for Gemini)
+    const config = configService.getProviderConfig(providerName)
+    const summaryConfig = {
+      ...config,
+      systemPrompt: '' // Clear system prompt for summary generation
+    }
+
+    // Create provider instance
+    const provider = LLMFactory.createProvider(providerName, apiKey, summaryConfig)
+
+    // Build summary prompt
+    const conversationText = messages
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.substring(0, 500)}`)
+      .join('\n\n')
+
+    const summaryPrompt = `Summarize this conversation concisely (under 200 words). Focus on:
+- Main topics discussed
+- Key decisions or conclusions
+- Important context for future messages
+
+Conversation:
+${conversationText}
+
+Provide a clear, contextual summary:`
+
+    // Generate summary (non-streaming)
+    let summary = ''
+    await provider.streamResponse(summaryPrompt, null, [], (chunk) => {
+      summary += chunk
+    })
+
+    console.log('Summary generated:', summary.length, 'characters')
+
+    return {
+      success: true,
+      summary: summary.trim()
+    }
+  } catch (error) {
+    console.error('Failed to generate summary:', error)
     return {
       success: false,
       error: error.message

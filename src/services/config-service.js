@@ -75,8 +75,7 @@ class ConfigService {
       activeMode: 'default',
       memorySettings: {
         historyLimit: 10,
-        enableSummarization: true,
-        summarizationThreshold: 15
+        enableSummarization: true
       }
     }
 

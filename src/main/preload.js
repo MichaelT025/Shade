@@ -7,7 +7,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureScreen: (displayId) => ipcRenderer.invoke('capture-screen', displayId),
 
   // LLM messaging
-  sendMessage: (text, imageBase64, conversationHistory) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory }),
+  sendMessage: (text, imageBase64, conversationHistory, summary) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory, summary }),
+  generateSummary: (messages) => ipcRenderer.invoke('generate-summary', messages),
 
   // Listen for streaming message chunks
   onMessageChunk: (callback) => {

@@ -5,9 +5,11 @@
 
 import { getIcon, insertIcon, initIcons } from './assets/icons/icons.js';
 import { createScreenshotChip, formatTimestamp, showToast, copyToClipboard } from './utils/ui-helpers.js';
+import MemoryManager from './utils/memory-manager.js';
 
 // State management
-const messages = [] // Chat history array
+const messages = [] // Chat history array (for UI display)
+let memoryManager = null // Memory manager instance (for context optimization)
 let capturedScreenshot = null // Current screenshot base64
 let capturedThumbnail = null // Screenshot thumbnail for preview
 let isScreenshotActive = false // Screenshot button state
@@ -99,6 +101,12 @@ async function handleModelSwitch() {
  * Initialize the application
  */
 async function init() {
+  // Initialize memory manager with history limit from settings
+  const historyLimitResult = await window.electronAPI.getHistoryLimit()
+  const historyLimit = historyLimitResult.success ? historyLimitResult.limit : 10
+  memoryManager = new MemoryManager(historyLimit)
+  console.log('MemoryManager initialized with limit:', historyLimit)
+
   // Screenshot button - capture immediately and highlight icon
   screenshotBtn.addEventListener('click', handleScreenshotCapture)
 
@@ -158,6 +166,12 @@ async function init() {
   window.electronAPI.onConfigChanged(async () => {
     console.log('Config changed, refreshing model selector...')
     await updateModelSelector()
+    
+    // Update memory manager with new history limit
+    const historyLimitResult = await window.electronAPI.getHistoryLimit()
+    if (historyLimitResult.success && memoryManager) {
+      memoryManager.updateHistoryLimit(historyLimitResult.limit)
+    }
   })
 
   // Streaming event handlers
@@ -193,19 +207,28 @@ async function init() {
 }
 
 /**
+ * Check if user is scrolled near the bottom of the messages container
+ * @returns {boolean} - True if within 50px of bottom
+ */
+function isScrolledNearBottom() {
+  const container = messagesContainer
+  const distFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop
+  return distFromBottom < 50
+}
+
+/**
  * Update scroll gradient indicators and scroll-to-bottom button
  */
 function updateScrollGradients() {
   const container = messagesContainer
   const hasScrollTop = container.scrollTop > 20
-  
+
   // Show scroll-to-bottom button if we're not near the bottom
-  const distFromBottom = container.scrollHeight - container.clientHeight - container.scrollTop
-  const hasScrollBottom = distFromBottom > 50
+  const hasScrollBottom = !isScrolledNearBottom()
 
   container.classList.toggle('has-scroll-top', hasScrollTop)
   container.classList.toggle('has-scroll-bottom', hasScrollBottom)
-  
+
   // Toggle scroll button visibility
   if (scrollBottomBtn) {
     if (hasScrollBottom) {
@@ -333,25 +356,49 @@ async function handleSendMessage() {
     // If text is empty but screenshot exists, use 'Assist' as default prompt
     const promptText = text || 'Assist'
 
-    // Get conversation history (all messages except the current one we just added)
-    const allHistory = messages.slice(0, -1)
+    // Check if we need to generate a summary
+    if (memoryManager && memoryManager.shouldGenerateSummary()) {
+      console.log('Generating conversation summary...')
+      try {
+        await memoryManager.generateSummary(async (messages) => {
+          const result = await window.electronAPI.generateSummary(messages)
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to generate summary')
+          }
+          return result.summary
+        })
+        console.log('Summary generated successfully')
+      } catch (error) {
+        console.error('Failed to generate summary:', error)
+        // Continue without summary if generation fails
+      }
+    }
+
+    // Get context from memory manager (summary + recent messages)
+    const context = memoryManager ? memoryManager.getContextForRequest() : { summary: null, messages: [] }
     
-    // Apply history limit to save tokens
-    const historyLimitResult = await window.electronAPI.getHistoryLimit()
-    const historyLimit = historyLimitResult.success ? historyLimitResult.limit : 10
-    
-    // Only send last N messages based on history limit
-    const conversationHistory = allHistory.length > historyLimit 
-      ? allHistory.slice(-historyLimit)
-      : allHistory
+    // Convert memory manager messages to conversation history format
+    const conversationHistory = context.messages.map(m => ({
+      type: m.role === 'user' ? 'user' : 'ai',
+      text: m.content,
+      hasScreenshot: false,
+      timestamp: new Date(m.timestamp)
+    }))
 
     console.log('Sending message to LLM...', { 
       hasScreenshot: isScreenshotActive, 
-      totalMessages: allHistory.length,
+      totalMessages: memoryManager ? memoryManager.messages.length : 0,
       sentMessages: conversationHistory.length,
-      historyLimit: historyLimit
+      hasSummary: !!context.summary,
+      memoryState: memoryManager ? memoryManager.getState() : null
     })
-    const result = await window.electronAPI.sendMessage(promptText, capturedScreenshot, conversationHistory)
+    
+    const result = await window.electronAPI.sendMessage(
+      promptText, 
+      capturedScreenshot, 
+      conversationHistory,
+      context.summary
+    )
 
     // Remove loading indicator
     removeLoadingMessage(loadingId)
@@ -462,8 +509,14 @@ function addMessage(type, text, hasScreenshot = false) {
   // Scroll to bottom and update gradients
   scrollToBottom()
 
-  // Store in message history
+  // Store in message history (for UI)
   messages.push({ type, text, hasScreenshot, timestamp: new Date() })
+
+  // Add to memory manager (for context optimization)
+  if (memoryManager) {
+    const role = type === 'user' ? 'user' : 'assistant'
+    memoryManager.addMessage(role, text)
+  }
 }
 
 /**
@@ -547,6 +600,9 @@ function addStreamingMessage(text) {
 function updateStreamingMessage(messageId, text) {
   const messageEl = document.getElementById(messageId)
   if (messageEl) {
+    // Check if user is near bottom BEFORE updating content
+    const isNearBottom = isScrolledNearBottom()
+
     // Render markdown progressively during streaming
     const renderedHtml = renderMarkdown(text)
 
@@ -562,7 +618,13 @@ function updateStreamingMessage(messageId, text) {
     // Add copy buttons to any code blocks
     addCopyButtons(messageEl)
 
-    scrollToBottom()
+    // Only auto-scroll if user was already near the bottom
+    if (isNearBottom) {
+      scrollToBottom()
+    } else {
+      // User has scrolled up - just update gradients/button
+      updateScrollGradients()
+    }
   }
 }
 
@@ -871,6 +933,11 @@ function handleNewChat() {
   // Clear message history
   messages.length = 0
 
+  // Clear memory manager conversation state
+  if (memoryManager) {
+    memoryManager.clearConversation()
+  }
+
   // Reset UI to empty state
   messagesContainer.innerHTML = `
     <div class="chat-wrapper" id="chat-wrapper">
@@ -995,13 +1062,17 @@ function renderMarkdown(text) {
       try {
         renderMathInElement(tempDiv, {
           delimiters: [
+            // Display math (block) - check these first
             {left: '$$', right: '$$', display: true},
             {left: '\\[', right: '\\]', display: true},
-            {left: '$', right: '$', display: false},
-            {left: '\\(', right: '\\)', display: false}
+            // Inline math - check single $ last to avoid conflicts
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$', right: '$', display: false}
           ],
           throwOnError: false,
-          strict: false
+          strict: false,
+          trust: true, // Allow \url, \href, etc.
+          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
         })
       } catch (err) {
         console.error('KaTeX render error:', err)
