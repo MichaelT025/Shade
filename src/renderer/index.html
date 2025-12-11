@@ -66,19 +66,25 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       -webkit-app-region: drag;
       backdrop-filter: blur(8px);
+      position: relative;
     }
 
     .title-bar-left,
     .title-bar-right {
       display: flex;
       align-items: center;
-      gap: var(--space-12);
+      gap: var(--space-8);
     }
 
     .title-text {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
       font-size: var(--font-size-sm);
-      color: var(--text-tertiary);
+      font-weight: 600;
+      color: var(--text-secondary);
       user-select: none;
+      pointer-events: none;
     }
 
     /* Model Selector Dropdown */
@@ -812,16 +818,14 @@
           <!-- Icon loaded from custom-icons/settings.svg -->
         </button>
 
-        <!-- App Title -->
-        <span class="title-text">GhostPad</span>
-
-        <!-- Model Selector Dropdown -->
-        <select id="model-selector" class="model-selector" title="Switch Model" aria-label="Model Selector">
-          <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash</option>
-          <option value="gpt-4o">GPT-4o</option>
-          <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
-        </select>
+        <!-- Display Selector Button (Coming Soon) -->
+        <button id="display-btn" class="icon-btn" title="Multiple Displays Coming Soon" aria-label="Display Selector" style="cursor: default; color: var(--text-tertiary); opacity: 0.5;">
+          <!-- Icon loaded from custom-icons/display.svg -->
+        </button>
       </div>
+
+      <!-- Centered App Title -->
+      <span class="title-text">GhostPad</span>
 
       <div class="title-bar-right">
         <!-- Hide Button -->

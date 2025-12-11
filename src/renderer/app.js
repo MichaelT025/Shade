@@ -26,76 +26,8 @@ const homeBtn = document.getElementById('home-btn')
 const closeBtn = document.getElementById('close-btn')
 const hideBtn = document.getElementById('hide-btn')
 const modeDropdownInput = document.getElementById('mode-dropdown-input')
-const modelSelector = document.getElementById('model-selector')
+const displayBtn = document.getElementById('display-btn')
 const scrollBottomBtn = document.getElementById('scroll-bottom-btn')
-
-/**
- * Update model selector with current provider and model
- */
-async function updateModelSelector() {
-  try {
-    // Get active provider
-    const providerResult = await window.electronAPI.getActiveProvider()
-    const provider = providerResult.provider || 'gemini'
-
-    // Get provider config for model
-    const configResult = await window.electronAPI.getProviderConfig(provider)
-    const config = configResult.config || {}
-    const currentModel = config.model || 'gemini-2.0-flash-exp'
-
-    // Map provider to default selector value (one model per provider)
-    const providerModelMap = {
-      'gemini': 'gemini-2.0-flash-exp',
-      'openai': 'gpt-4o',
-      'anthropic': 'claude-3-5-sonnet-20241022'
-    }
-
-    // Use the provider's default model in the selector
-    const selectorValue = providerModelMap[provider] || 'gemini-2.0-flash-exp'
-
-    // Set the selected model in dropdown
-    if (modelSelector) {
-      modelSelector.value = selectorValue
-      console.log('Model selector updated:', { provider, currentModel, selectorValue })
-    }
-  } catch (error) {
-    console.error('Failed to update model selector:', error)
-  }
-}
-
-/**
- * Handle model selector change - switches provider and model
- */
-async function handleModelSwitch() {
-  const selectedModel = modelSelector.value
-
-  // Map selector values to provider and model
-  const modelConfig = {
-    'gemini-2.0-flash-exp': { provider: 'gemini', model: 'gemini-2.0-flash-exp' },
-    'gpt-4o': { provider: 'openai', model: 'gpt-4o' },
-    'claude-3-5-sonnet-20241022': { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' }
-  }
-
-  const config = modelConfig[selectedModel]
-  if (!config) return
-
-  try {
-    // Switch provider
-    await window.electronAPI.setActiveProvider(config.provider)
-
-    // Update provider config with the model
-    await window.electronAPI.setProviderConfig(config.provider, { model: config.model })
-
-    console.log('Switched to:', config)
-    showToast(`Switched to ${modelSelector.options[modelSelector.selectedIndex].text}`, 'success', 2000)
-
-    // Refresh the model selector to confirm the switch
-    await updateModelSelector()
-  } catch (error) {
-    console.error('Failed to switch model:', error)
-    showToast('Failed to switch model', 'error')
-  }
-}
 
 /**
  * Initialize the application
@@ -153,20 +85,22 @@ async function init() {
     window.electronAPI.hideWindow()
   })
 
+  // Display button - show coming soon toast
+  displayBtn.addEventListener('click', () => {
+    showToast('Multi-monitor support coming soon!', 'info', 3000)
+  })
+
   // Mode dropdown - switch active mode
   modeDropdownInput.addEventListener('change', handleModeSwitch)
-
-  // Model selector - switch provider/model
-  modelSelector.addEventListener('change', handleModelSwitch)
 
   // Ctrl+R new chat handler
   window.electronAPI.onNewChat(handleNewChat)
 
   // Config changed handler (from settings window)
   window.electronAPI.onConfigChanged(async () => {
-    console.log('Config changed, refreshing model selector...')
-    await updateModelSelector()
-    
+    console.log('Config changed, refreshing modes...')
+    await loadModes()
+
     // Update memory manager with new history limit
     const historyLimitResult = await window.electronAPI.getHistoryLimit()
     if (historyLimitResult.success && memoryManager) {
@@ -184,6 +118,7 @@ async function init() {
 
   // Insert icons into UI elements
   insertIcon(homeBtn, 'settings', 'icon-svg')
+  insertIcon(displayBtn, 'display', 'icon-svg')
   insertIcon(closeBtn, 'close', 'icon-svg')
   insertIcon(hideBtn, 'minus', 'icon-svg')
   insertIcon(screenshotBtn, 'camera', 'icon-svg')
@@ -192,9 +127,6 @@ async function init() {
 
   // Load modes and populate dropdown
   await loadModes()
-
-  // Update model selector
-  await updateModelSelector()
 
   // Set up scroll gradient detection
   messagesContainer.addEventListener('scroll', updateScrollGradients)

@@ -17,8 +17,15 @@ Never add filler, preambles, meta comments or restatements of the question.
 Use a normal conversational tone, use contractions, and avoid corporate or robotic phrasing.
 
 Math and code:
-Use LaTeX only when it clearly improves readability, for example integrals, limits or formal notation. 
-When code is needed, output complete working code with clear comments. 
+When writing math, always use LaTeX with explicit delimiters so it can be rendered.
+Use any of these standard formats:
+- Inline math: $x^2$ or \\(x^2\\)
+- Block/display math: $$\\int_0^1 x^2\\,dx$$ or \\[\\int_0^1 x^2\\,dx\\]
+
+Do NOT write bare LaTeX without delimiters.
+Do NOT put math inside fenced code blocks unless explicitly asked for raw LaTeX.
+
+When code is needed, output complete working code with clear comments.
 Explain only what's required to solve the user's request.
 
 Emails:
@@ -98,6 +105,15 @@ async function init() {
 
   // Set up event listeners
   setupEventListeners()
+
+  // Listen for reload-settings event (when window is refocused)
+  window.electronAPI.onReloadSettings(async () => {
+    console.log('Reloading settings...')
+    await loadSettings()
+    await loadDisplays()
+    await loadModes()
+    updateProviderUI()
+  })
 
   // Update UI to match current provider
   updateProviderUI()

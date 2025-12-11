@@ -82,9 +82,11 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
    - The AI will analyze both your question and the screenshot
 
 3. **Get answers**
-   - Responses stream in real-time
+   - Responses stream in real-time with markdown, LaTeX, and code highlighting
    - Continue the conversation with follow-up questions that reference earlier messages
-   - The AI has full context of the current chat session
+   - The AI has full context of the current chat session (with smart memory management)
+   - Scroll up while responses are streaming - your position is preserved
+   - Click the scroll-to-bottom button to jump back when ready
    - The screenshot remains attached until you start a new chat (Ctrl+R)
 
 ### Tips
@@ -100,12 +102,15 @@ GhostPad is a lightweight, privacy-focused desktop assistant that stays on top o
 - **UI:** Vanilla JavaScript/HTML/CSS
 - **Build Tool:** Vite
 - **LLM Providers:** Multi-provider architecture
-  - Google Gemini (`@google/generative-ai`) - Flash 2.0 default
-  - OpenAI (`openai`) - GPT-4.1 with vision support
-  - Anthropic Claude (`@anthropic-ai/sdk`) - Haiku 4.5 default
+  - Google Gemini (`@google/generative-ai`) - Flash 2.5 default
+  - OpenAI (`openai`) - GPT-4o with vision support
+  - Anthropic Claude (`@anthropic-ai/sdk`) - Sonnet 3.5 default
   - Custom/Local models (future)
 - **Screen Capture:** Electron's `desktopCapturer` API
 - **Image Processing:** Sharp (for compression)
+- **Markdown Rendering:** marked.js (GitHub-flavored)
+- **Math Rendering:** KaTeX (inline & block LaTeX equations)
+- **Code Highlighting:** highlight.js (50+ languages)
 
 ## Development
 
@@ -160,6 +165,16 @@ GhostPad uses a sophisticated approach to exclude the overlay from screenshots:
 - **Smart Compression:** Resizes to max 1920px width, compresses to JPEG (quality 80-85)
 - **Target Size:** Keeps images under 5MB for Gemini API compatibility
 
+### Conversation Memory Management
+
+GhostPad intelligently manages conversation context to balance memory usage and response quality:
+
+- **Configurable History Limit:** Set maximum messages to send per request (default: 10 messages)
+- **Automatic Summarization:** When limit is reached, older messages are summarized to preserve context
+- **Smart Context Window:** Sends summary + recent messages for optimal token usage
+- **Full Session Context:** AI maintains understanding of the entire conversation
+- **Memory Optimization:** Configurable limits prevent token bloat on long conversations
+
 ### Privacy & Security
 
 - **No Persistence:** Screenshots are never saved to disk (except in dev mode for debugging)
@@ -183,21 +198,29 @@ GhostPad uses a sophisticated approach to exclude the overlay from screenshots:
 - ✅ Streaming responses with progressive rendering
 - ✅ Markdown rendering (GitHub-flavored)
 - ✅ LaTeX math equation support (inline & block)
-- ✅ Code syntax highlighting (10+ languages)
+- ✅ Code syntax highlighting (50+ languages)
 - ✅ Copy buttons for code blocks and messages
-- ✅ Conversation memory (full context awareness across chat session)
+- ✅ Conversation memory with configurable history limits
+- ✅ Smart auto-scroll behavior (preserves user scroll position during streaming)
+- ✅ Scroll-to-bottom button with gradient indicators
+- ✅ Toast notification system with error categorization
 
 **In Progress:**
-- ⏳ **Additional Features & Polish**
-  - ⏳ Max history limit for token usage optimization
-  - ⏳ Multi-monitor support with display selection
+- ⏳ **Final Testing & Polish**
+  - ⏳ Windows 10/11 end-to-end testing
+  - ⏳ Multi-monitor testing and display selection
 
-**Planned:**
-- ⬜ Multi-monitor support
+**Next Up:**
+- ⬜ Windows installer/executable
+- ⬜ Multi-monitor display selection
+- ⬜ Screenshot annotations
+- ⬜ Conversation export
+
+**Post-v1.0 (Planned):**
+- ⬜ Provider registry architecture (easy plugin of new LLM providers)
 - ⬜ Custom API endpoints
 - ⬜ Local LLM support (Ollama, LM Studio)
-- ⬜ Installer for Windows
-- ⬜ Screenshot annotations
+- ⬜ Usage tracking and cost estimation
 
 ## Troubleshooting
 
@@ -292,18 +315,61 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [x] Provider switching in UI
 - [x] Advanced error handling per provider
 
-### Phase 4 (Next)
+### Phase 4 (Current - MVP Completion)
+- [ ] Windows 10/11 end-to-end testing
 - [ ] Multi-monitor support with display selection
-- [ ] Custom system prompts per provider
-- [ ] Screenshot annotations
-- [ ] Conversation export
-- [ ] Max history limit for token usage optimization
+- [ ] Production build and installer
+- [ ] Documentation polish
 
-### Phase 5 (Future)
-- [ ] Custom API endpoint support
-- [ ] Local LLM support (Ollama, LM Studio)
+### Phase 5 (Post-Launch Features)
+- [ ] Screenshot annotations
+- [ ] Conversation export (markdown, JSON)
+- [ ] Custom system prompts library
+- [ ] Usage tracking and cost estimation per provider
 - [ ] Auto-update functionality
+
+### Phase 6 (Future - Architectural Improvements)
+
+#### LLM Provider Unification
+**Goal:** Refactor provider system to use a centralized provider registry, making it trivial to add new LLM providers.
+
+**Current State:** Each provider has separate config fields (`geminiApiKey`, `openaiApiKey`, etc.), requiring updates to multiple files when adding providers.
+
+**Planned Architecture:**
+- **Provider Registry** (`provider-registry.js`) - Central metadata for all providers (models, features, icons, defaults)
+- **Unified Config Structure** - Single `providers` object instead of per-provider fields:
+  ```json
+  {
+    "activeProvider": "gemini",
+    "providers": {
+      "gemini": { "apiKey": "...", "model": "...", "enabled": true },
+      "openai": { "apiKey": "...", "model": "...", "enabled": true }
+    }
+  }
+  ```
+- **Migration Logic** - Automatic config migration from old format to new
+- **Dynamic UI Generation** - Settings UI renders provider sections from registry metadata
+- **Adding New Providers** - Only requires creating provider class + registry entry (no UI/config changes)
+
+**Benefits:**
+- Add providers like Groq, Cohere, Mistral in <30 minutes
+- Centralized model lists (easier to keep up-to-date)
+- Dynamic settings UI (auto-adapts to new providers)
+- Single source of truth for provider metadata
+- Easier to add features like auto-fallback, cost tracking
+
+**Implementation Scope:** ~5-7 days (registry + migration + UI refactor + testing)
+
+**Timing:** Post-v1.0 release (v1.1 target) - Architecture improvement, not blocking for MVP
+
+See `LLredo.md` for detailed implementation plan.
+
+#### Other Future Enhancements
+- [ ] Custom API endpoint support (for self-hosted models)
+- [ ] Local LLM support (Ollama, LM Studio)
 - [ ] macOS and Linux support (if demand exists)
+- [ ] Provider groups (vision, fast, cheap, local)
+- [ ] Auto-fallback between providers on error
 
 ## License
 

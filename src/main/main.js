@@ -63,6 +63,8 @@ function createSettingsWindow() {
   // Don't create if already exists
   if (settingsWindow) {
     settingsWindow.focus()
+    // Reload settings data when window is refocused
+    settingsWindow.webContents.send('reload-settings')
     return
   }
 
@@ -452,6 +454,12 @@ ipcMain.handle('save-mode', async (_event, mode) => {
   try {
     configService.saveMode(mode)
     console.log(`Mode saved: ${mode.name}`)
+
+    // Notify main window that config changed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('config-changed')
+    }
+
     return { success: true }
   } catch (error) {
     console.error('Failed to save mode:', error)
@@ -463,6 +471,12 @@ ipcMain.handle('delete-mode', async (_event, modeId) => {
   try {
     configService.deleteMode(modeId)
     console.log(`Mode deleted: ${modeId}`)
+
+    // Notify main window that config changed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('config-changed')
+    }
+
     return { success: true }
   } catch (error) {
     console.error('Failed to delete mode:', error)

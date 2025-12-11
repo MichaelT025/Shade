@@ -35,6 +35,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('config-changed', () => callback())
   },
 
+  // Listen for reload settings request (when settings window is refocused)
+  onReloadSettings: (callback) => {
+    ipcRenderer.on('reload-settings', () => callback())
+  },
+
   // Config management
   saveApiKey: (provider, apiKey) => ipcRenderer.invoke('save-api-key', { provider, apiKey }),
   getApiKey: (provider) => ipcRenderer.invoke('get-api-key', provider),
