@@ -952,7 +952,127 @@ if (typeof marked !== 'undefined') {
 }
 
 /**
+ * Extract and protect LaTeX blocks from text before markdown processing
+ * This prevents markdown from corrupting LaTeX syntax
+ * @param {string} text - Raw text with LaTeX
+ * @returns {{text: string, blocks: Array}} - Text with placeholders and extracted blocks
+ */
+function extractLatexBlocks(text) {
+  const blocks = []
+  let placeholderIndex = 0
+
+  // Patterns for LaTeX blocks (order matters - check longer/display patterns first)
+  const patterns = [
+    // Display math blocks (multi-line capable)
+    /\$\$([\s\S]*?)\$\$/g,           // $$...$$
+    /\\\[([\s\S]*?)\\\]/g,           // \[...\]
+    // Inline math (single line, non-greedy)
+    /\\\((.*?)\\\)/g,                // \(...\)
+    /(?<!\$)\$(?!\$)([^\$\n]+?)\$/g  // $...$ (not $$ and not crossing newlines)
+  ]
+
+  // Extract each pattern type
+  for (const pattern of patterns) {
+    text = text.replace(pattern, (match) => {
+      const placeholder = `%%LATEX_BLOCK_${placeholderIndex}%%`
+      blocks.push({ placeholder, content: match })
+      placeholderIndex++
+      return placeholder
+    })
+  }
+
+  return { text, blocks }
+}
+
+/**
+ * Normalize LaTeX backslashes from OpenAI's inconsistent escaping
+ * OpenAI sometimes sends \\frac instead of \frac, or \\\\ instead of \\
+ * @param {string} latex - LaTeX string to normalize
+ * @returns {string} - Normalized LaTeX
+ */
+function normalizeLatexBackslashes(latex) {
+  // Don't process if it looks already correct
+  if (!latex.includes('\\\\')) {
+    return latex
+  }
+
+  // Normalize quadruple backslashes to double (for line breaks in aligned environments)
+  latex = latex.replace(/\\\\\\\\/g, '\\\\')
+
+  // Normalize double-escaped commands back to single
+  // Match \\commandname and convert to \commandname
+  // But preserve \\ for line breaks in environments
+  latex = latex.replace(/\\\\([a-zA-Z]+)/g, '\\$1')
+
+  // Normalize double-escaped delimiters
+  latex = latex.replace(/\\\\\[/g, '\\[')
+  latex = latex.replace(/\\\\\]/g, '\\]')
+  latex = latex.replace(/\\\\\(/g, '\\(')
+  latex = latex.replace(/\\\\\)/g, '\\)')
+
+  return latex
+}
+
+/**
+ * Restore LaTeX blocks and render them with KaTeX
+ * @param {string} html - HTML with placeholders
+ * @param {Array} blocks - Extracted LaTeX blocks
+ * @returns {string} - HTML with rendered LaTeX
+ */
+function restoreAndRenderLatex(html, blocks) {
+  if (typeof katex === 'undefined') {
+    // Fallback: just restore the original LaTeX text
+    for (const block of blocks) {
+      html = html.replace(block.placeholder, block.content)
+    }
+    return html
+  }
+
+  for (const block of blocks) {
+    let latex = block.content
+    let displayMode = false
+
+    // Determine display mode and extract inner content
+    if (latex.startsWith('$$') && latex.endsWith('$$')) {
+      latex = latex.slice(2, -2)
+      displayMode = true
+    } else if (latex.startsWith('\\[') && latex.endsWith('\\]')) {
+      latex = latex.slice(2, -2)
+      displayMode = true
+    } else if (latex.startsWith('\\(') && latex.endsWith('\\)')) {
+      latex = latex.slice(2, -2)
+      displayMode = false
+    } else if (latex.startsWith('$') && latex.endsWith('$')) {
+      latex = latex.slice(1, -1)
+      displayMode = false
+    }
+
+    // Normalize backslashes for OpenAI's inconsistent escaping
+    latex = normalizeLatexBackslashes(latex.trim())
+
+    try {
+      const rendered = katex.renderToString(latex, {
+        displayMode: displayMode,
+        throwOnError: false,
+        strict: false,
+        trust: true
+      })
+      html = html.replace(block.placeholder, rendered)
+    } catch (err) {
+      console.error('KaTeX render error for block:', err, latex)
+      // Fallback: show original LaTeX in a styled span
+      const escaped = latex.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const fallback = `<span class="latex-error" title="LaTeX render error">${escaped}</span>`
+      html = html.replace(block.placeholder, fallback)
+    }
+  }
+
+  return html
+}
+
+/**
  * Render markdown with LaTeX support
+ * Uses pre-processing to protect LaTeX from markdown parser corruption
  * @param {string} text - Raw markdown text
  * @returns {string} - Rendered HTML
  */
@@ -962,36 +1082,16 @@ function renderMarkdown(text) {
   }
 
   try {
-    // First, render markdown to HTML
-    let html = marked.parse(text)
+    // Step 1: Extract and protect LaTeX blocks before markdown processing
+    const { text: textWithPlaceholders, blocks } = extractLatexBlocks(text)
 
-    // Create temporary element to apply LaTeX rendering
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = html
+    // Step 2: Render markdown (LaTeX is now protected by placeholders)
+    let html = marked.parse(textWithPlaceholders)
 
-    // Render LaTeX using KaTeX auto-render if available
-    if (typeof renderMathInElement !== 'undefined') {
-      try {
-        renderMathInElement(tempDiv, {
-          delimiters: [
-            // Display math (block) - check these first
-            {left: '$$', right: '$$', display: true},
-            {left: '\\[', right: '\\]', display: true},
-            // Inline math - check single $ last to avoid conflicts
-            {left: '\\(', right: '\\)', display: false},
-            {left: '$', right: '$', display: false}
-          ],
-          throwOnError: false,
-          strict: false,
-          trust: true, // Allow \url, \href, etc.
-          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-        })
-      } catch (err) {
-        console.error('KaTeX render error:', err)
-      }
-    }
+    // Step 3: Restore LaTeX blocks and render with KaTeX
+    html = restoreAndRenderLatex(html, blocks)
 
-    return tempDiv.innerHTML
+    return html
   } catch (err) {
     console.error('Markdown render error:', err)
     return text // Fallback to plain text on error
