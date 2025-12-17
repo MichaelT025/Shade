@@ -115,21 +115,13 @@ async function compressImage(imageBuffer) {
 }
 
 /**
- * Captures a screenshot without compression
+ * Captures a screenshot and compresses it to JPEG format
  * @returns {Promise<{buffer: Buffer, base64: string, size: number}>}
  */
 async function captureAndCompress() {
   const screenshot = await captureScreen()
-  
-  // Convert to base64 without compression
-  const base64 = screenshot.toString('base64')
-  
-  console.log('Uncompressed image:', {
-    size: `${(screenshot.length / 1024 / 1024).toFixed(2)}MB`,
-    base64Length: base64.length
-  })
 
-  // Save to disk in development mode for debugging
+  // Save PNG to disk in development mode for debugging
   const isDevelopment = process.env.NODE_ENV !== 'production'
   if (isDevelopment) {
     try {
@@ -143,7 +135,7 @@ async function captureAndCompress() {
         fs.mkdirSync(screenshotsDir, { recursive: true })
       }
 
-      // Save the uncompressed buffer to disk
+      // Save the uncompressed PNG buffer to disk
       fs.writeFileSync(filepath, screenshot)
       console.log(`[DEV] Screenshot saved to: ${filepath}`)
     } catch (error) {
@@ -152,11 +144,10 @@ async function captureAndCompress() {
     }
   }
 
-  return {
-    buffer: screenshot,
-    base64,
-    size: screenshot.length
-  }
+  // Compress PNG to JPEG for API transmission
+  const compressed = await compressImage(screenshot)
+
+  return compressed
 }
 
 module.exports = {
