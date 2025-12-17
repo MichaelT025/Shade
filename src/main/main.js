@@ -63,6 +63,17 @@ function createMainWindow() {
     overlayExpandedBounds = mainWindow.getBounds()
   })
 
+  // If user drags window while collapsed, keep the new position for restore
+  mainWindow.on('move', () => {
+    if (!mainWindow || !overlayIsCollapsed || !overlayExpandedBounds) return
+    const currentBounds = mainWindow.getBounds()
+    overlayExpandedBounds = {
+      ...overlayExpandedBounds,
+      x: currentBounds.x,
+      y: currentBounds.y
+    }
+  })
+
   // Handle window closed
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -543,13 +554,22 @@ ipcMain.handle('hide-window', async () => {
 })
 
 // Collapse/expand overlay window so it doesn't block the screen
-ipcMain.on('set-collapsed', (_event, collapsed) => {
+ipcMain.on('set-collapsed', (_event, payload) => {
   if (!mainWindow) return
 
-  const collapsedHeight = 150
+  const collapsed = typeof payload === 'boolean' ? payload : !!payload?.collapsed
+  const requestedHeight = typeof payload === 'object' && payload !== null ? payload.height : undefined
+
+  const defaultCollapsedHeight = 136
+  const collapsedHeight = Number.isFinite(requestedHeight)
+    ? Math.max(110, Math.min(Math.round(requestedHeight), 400))
+    : defaultCollapsedHeight
 
   if (collapsed) {
-    if (!overlayExpandedBounds) {
+    // Capture current expanded bounds right before shrinking
+    if (!overlayIsCollapsed) {
+      overlayExpandedBounds = mainWindow.getBounds()
+    } else if (!overlayExpandedBounds) {
       overlayExpandedBounds = mainWindow.getBounds()
     }
 

@@ -49,11 +49,12 @@
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: height 220ms var(--easing);
     }
 
     /* Title Bar */
@@ -111,7 +112,7 @@
 
     .model-selector:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+      box-shadow: 0 0 0 2px rgba(182, 179, 180, 0.22);
     }
 
     .model-selector option {
@@ -227,7 +228,7 @@
 
     .messages-container::before {
       top: 54px; /* Height of title bar */
-      background: linear-gradient(to bottom, rgba(18, 18, 18, 0.92), transparent);
+      background: none;
     }
 
     .messages-container::after {
@@ -264,15 +265,15 @@
 
     .message.user {
       align-self: flex-end;
-      background: #0377fc;
-      border: 1px solid #000000;
+      background: var(--accent);
+      border: 1px solid rgba(0, 0, 0, 0.35);
       border-radius: 18px;
       border-bottom-right-radius: 4px;
       max-width: 65%;
       margin-left: auto;
       text-align: left;
       padding: var(--space-12) var(--space-16);
-      color: white;
+      color: #0c0e12;
     }
 
     .message.ai {
@@ -367,14 +368,14 @@
 
     /* Input Area */
     .input-area {
-      padding: var(--space-16);
+      padding: var(--space-12);
       border-top: 1px solid var(--border);
       background: transparent;
     }
 
     .input-container {
       display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: var(--space-8);
       background: var(--panel);
       border: 1px solid var(--border);
@@ -382,9 +383,31 @@
       padding: var(--space-8) var(--space-12);
     }
 
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+    }
+
+    .input-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      padding-top: var(--space-6);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .input-controls-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+    }
+
     .input-container:focus-within {
       border-color: var(--accent);
-      box-shadow: var(--focus-ring);
+      /* Use inset ring so it never gets clipped in collapsed mode */
+      box-shadow: inset 0 0 0 1px rgba(182, 179, 180, 0.35);
     }
 
     /* Input area icon buttons */
@@ -410,21 +433,21 @@
     }
 
     .icon-btn-input.active {
-      background: rgba(74, 158, 255, 0.2);
-      color: #4A9EFF;
+      background: var(--accent-muted);
+      color: var(--accent-strong);
     }
 
     /* Send button special styling */
     #send-btn {
-      background: #0377fc;
-      color: white;
+      background: var(--accent);
+      color: #0c0e12;
       border-radius: var(--radius-md);
       width: 36px;
       height: 36px;
     }
 
     #send-btn:hover {
-      background: #0260d4;
+      background: var(--accent-strong);
       transform: translateY(-1px);
     }
 
@@ -451,6 +474,13 @@
       font-family: var(--font-family);
       outline: none;
       box-shadow: none !important;
+      resize: none;
+      line-height: var(--line-height);
+      min-height: 22px;
+      max-height: 140px;
+      overflow-y: auto;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
     }
 
     #message-input:focus {
@@ -540,7 +570,7 @@
       display: inline-block;
       width: 2px;
       height: 1em;
-      background: rgba(74, 158, 255, 0.8);
+      background: rgba(182, 179, 180, 0.75);
       margin-left: 2px;
       vertical-align: text-bottom;
       animation: blink 1s infinite;
@@ -698,14 +728,14 @@
     }
 
     .message.ai blockquote {
-      border-left: 3px solid rgba(74, 158, 255, 0.5);
+      border-left: 3px solid rgba(182, 179, 180, 0.35);
       padding-left: 12px;
       margin: 12px 0;
       opacity: 0.8;
     }
 
     .message.ai a {
-      color: #4A9EFF;
+      color: var(--accent);
       text-decoration: none;
     }
 
@@ -752,7 +782,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: rgba(74, 158, 255, 0.6);
+      background: rgba(182, 179, 180, 0.55);
       animation: typing-bounce 1.4s infinite ease-in-out;
     }
 
@@ -786,19 +816,19 @@
       gap: 4px;
       margin-top: var(--space-8);
       padding: 4px 8px;
-      background: rgba(74, 158, 255, 0.15);
-      border: 1px solid rgba(74, 158, 255, 0.4);
+      background: rgba(182, 179, 180, 0.10);
+      border: 1px solid rgba(182, 179, 180, 0.28);
       border-radius: var(--radius-sm);
-      color: rgba(74, 158, 255, 0.9);
+      color: rgba(230, 227, 228, 0.9);
       font-size: var(--font-size-xs);
       cursor: pointer;
       transition: all var(--duration-quick) var(--easing);
     }
 
     .message-copy-btn:hover {
-      background: rgba(74, 158, 255, 0.25);
-      border-color: rgba(74, 158, 255, 0.6);
-      color: #4A9EFF;
+      background: rgba(182, 179, 180, 0.16);
+      border-color: rgba(182, 179, 180, 0.40);
+      color: var(--accent-strong);
     }
 
     .message-copy-btn.copied {
@@ -809,27 +839,25 @@
 
     /* Collapsed Overlay State */
     .overlay-collapsed {
-      height: 150px !important;
-      min-height: 150px !important;
+      /* Height is computed dynamically in app.js */
     }
 
+    /* Collapse only hides chat area; input stays identical */
     .overlay-collapsed .messages-container,
     .overlay-collapsed .scroll-bottom-btn {
       display: none !important;
     }
 
-    .overlay-collapsed .title-bar {
-      border-bottom: none;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+
+    /* Collapse/expand animation */
+    .messages-container {
+      transition: opacity 180ms var(--easing), transform 180ms var(--easing);
     }
 
-
-    .overlay-collapsed .input-area {
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(18, 18, 18, 0.95);
-      padding: var(--space-12);
+    .overlay-collapsed .messages-container {
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
     }
   </style>
 </head>
@@ -888,26 +916,33 @@
     <!-- Input Area -->
     <div class="input-area">
       <div class="input-container">
-        <button id="screenshot-btn" class="icon-btn-input" title="Capture Screen" aria-label="Capture Screen">
-          <!-- Icon loaded from custom-icons/camera.svg -->
-        </button>
-        <input
-          type="text"
-          id="message-input"
-          placeholder="Ask about your screen or conversation, or ↩ for Assist"
-          autocomplete="off"
-        />
-        <select
-          id="mode-dropdown-input"
-          class="mode-select-input"
-          title="Switch System Prompt Mode"
-          aria-label="System Prompt Mode"
-        >
-          <option value="default">Default</option>
-        </select>
-        <button id="send-btn" class="send-btn-input" title="Send" aria-label="Send message">
-          <!-- Icon loaded from custom-icons/send.svg -->
-        </button>
+        <div class="input-row">
+          <textarea
+            id="message-input"
+            placeholder="Ask about your screen or conversation, or ↩ for Assist"
+            autocomplete="off"
+            rows="1"
+          ></textarea>
+          <button id="send-btn" class="send-btn-input" title="Send" aria-label="Send message">
+            <!-- Icon loaded from custom-icons/send.svg -->
+          </button>
+        </div>
+
+        <div class="input-controls">
+          <div class="input-controls-left">
+            <button id="screenshot-btn" class="icon-btn-input" title="Use Screen" aria-label="Use Screen">
+              <!-- Icon loaded from custom-icons/camera.svg -->
+            </button>
+            <select
+              id="mode-dropdown-input"
+              class="mode-select-input"
+              title="Switch System Prompt Mode"
+              aria-label="System Prompt Mode"
+            >
+              <option value="default">Default</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   </div>

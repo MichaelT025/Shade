@@ -126,7 +126,7 @@ function generateProviderSections() {
 
       <div class="form-group">
         <label for="${providerId}-api-key">API Key</label>
-        <div class="form-description">Get your API key from <a href="${provider.website}" target="_blank" style="color: #4A9EFF;">${provider.name}</a></div>
+        <div class="form-description">Get your API key from <a href="${provider.website}" target="_blank" style="color: var(--accent);">${provider.name}</a></div>
         <div class="api-key-input-wrapper">
           <input type="password" id="${providerId}-api-key" placeholder="Enter your ${provider.name} API key">
           <button class="toggle-visibility" onclick="togglePasswordVisibility('${providerId}-api-key')">Show</button>
@@ -439,9 +439,9 @@ async function testProvider(provider) {
     // Show testing message
     statusEl.className = 'status-message'
     statusEl.style.display = 'block'
-    statusEl.style.background = 'rgba(74, 158, 255, 0.2)'
-    statusEl.style.borderColor = 'rgba(74, 158, 255, 0.4)'
-    statusEl.style.color = '#4A9EFF'
+     statusEl.style.background = 'rgba(182, 179, 180, 0.14)'
+     statusEl.style.borderColor = 'rgba(182, 179, 180, 0.28)'
+     statusEl.style.color = '#d7d4d5'
     statusEl.textContent = 'Testing connection...'
 
     // Validate API key (this will make a test request)

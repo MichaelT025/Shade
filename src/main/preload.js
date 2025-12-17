@@ -73,7 +73,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Window management
   openSettings: () => ipcRenderer.invoke('open-settings'),
   hideWindow: () => ipcRenderer.invoke('hide-window'),
-  setCollapsed: (collapsed) => ipcRenderer.send('set-collapsed', collapsed),
+  setCollapsed: (collapsed, height) => ipcRenderer.send('set-collapsed', { collapsed, height }),
   quitApp: () => ipcRenderer.invoke('quit-app'),
 
   // Icon management

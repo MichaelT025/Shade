@@ -18,10 +18,10 @@
   --panel-strong: #181b24;
   --panel-muted: #0f1117;
 
-  /* Accent Colors */
-  --accent: #4da3ff;
-  --accent-strong: #7cc0ff;
-  --accent-muted: rgba(77, 163, 255, 0.22);
+  /* Accent Colors (Icon-Based Monochrome) */
+  --accent: #b6b3b4;
+  --accent-strong: #d7d4d5;
+  --accent-muted: rgba(182, 179, 180, 0.14);
 
   /* Text */
   --text-primary: #f4f6fb;
@@ -36,7 +36,7 @@
   --success: #5dd39e;
   --warning: #f7c266;
   --danger: #ff6b6b;
-  --info: #4da3ff;
+  --info: #b6b3b4;
 
   /* ========================================
      SPACING
@@ -75,7 +75,7 @@
 
   /* Special effects */
   --shadow-glow: 0 10px 30px var(--accent-muted);
-  --focus-ring: 0 0 0 2px rgba(77, 163, 255, 0.45);
+  --focus-ring: 0 0 0 2px rgba(182, 179, 180, 0.32);
 
   /* Blur effects */
   --blur-overlay: blur(12px);

@@ -31,6 +31,32 @@ const modeDropdownInput = document.getElementById('mode-dropdown-input')
 const displayBtn = document.getElementById('display-btn')
 const scrollBottomBtn = document.getElementById('scroll-bottom-btn')
 
+function autosizeMessageInput() {
+  const maxHeight = 140
+
+  // Reset to measure scrollHeight correctly
+  messageInput.style.height = 'auto'
+  messageInput.style.height = `${Math.min(messageInput.scrollHeight, maxHeight)}px`
+}
+
+function measureCollapsedHeight() {
+  const root = document.querySelector('#root')
+  const titleBar = document.querySelector('.title-bar')
+  const inputArea = document.querySelector('.input-area')
+
+  if (!titleBar || !inputArea) return 146
+
+  // Force layout calculation
+  const titleRect = titleBar.getBoundingClientRect()
+  const inputRect = inputArea.getBoundingClientRect()
+
+  const contentHeight = Math.ceil(titleRect.height + inputRect.height)
+
+  // Account for #root borders (1px top + 1px bottom) + safety buffer
+  // Buffer prevents sub-pixel rounding from clipping the input box.
+  return contentHeight + 8
+}
+
 /**
  * Initialize the application
  */
@@ -47,29 +73,29 @@ async function init() {
   // Send button - send message with optional screenshot
   sendBtn.addEventListener('click', handleSendMessage)
 
-   // Scroll to bottom button
-   scrollBottomBtn.addEventListener('click', () => {
-     scrollToBottom()
-   })
+  // Scroll to bottom button
+  scrollBottomBtn.addEventListener('click', () => {
+    scrollToBottom()
+  })
 
-   // Collapse toggle button
-   collapseBtn.addEventListener('click', toggleCollapse)
+  // Collapse toggle button
+  collapseBtn.addEventListener('click', toggleCollapse)
 
-  // Enter key to send message
+  messageInput.addEventListener('input', autosizeMessageInput)
+  autosizeMessageInput()
+
+  // Enter to send message, Shift+Enter for newline
   messageInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
 
       // Ctrl+Enter: Quick send with screenshot (capture if needed)
       if (e.ctrlKey) {
-        // If no screenshot captured yet, capture one first
         if (!isScreenshotActive) {
           await handleScreenshotCapture()
         }
-        // Then send (even without text prompt)
         sendBtn.click()
       } else {
-        // Regular Enter: send as normal
         sendBtn.click()
       }
     }
@@ -223,20 +249,51 @@ function collapse() {
 /**
  * Update the visual collapse state
  */
+let collapseResizeTimer = null
+
 function updateCollapseState() {
   const overlay = document.querySelector('#root')
-  if (isCollapsed) {
-    overlay.classList.add('overlay-collapsed')
-    collapseBtn.title = 'Expand/Collapse (Ctrl+\')'
-    collapseBtn.setAttribute('aria-label', 'Toggle collapse')
-  } else {
-    overlay.classList.remove('overlay-collapsed')
-    collapseBtn.title = 'Expand/Collapse (Ctrl+\')'
-    collapseBtn.setAttribute('aria-label', 'Toggle collapse')
+
+  // Cancel any pending resize from previous toggles
+  if (collapseResizeTimer) {
+    clearTimeout(collapseResizeTimer)
+    collapseResizeTimer = null
   }
 
-  // Resize window so collapsed overlay doesn't block screen
-  window.electronAPI.setCollapsed(isCollapsed)
+  collapseBtn.title = 'Toggle Collapse (Ctrl+\')'
+  collapseBtn.setAttribute('aria-label', 'Toggle collapse')
+
+  const transitionMs = 220
+
+  if (isCollapsed) {
+    // Apply collapsed styles first so measurements are accurate
+    overlay.classList.add('overlay-collapsed')
+    autosizeMessageInput()
+
+    requestAnimationFrame(() => {
+      if (!isCollapsed) return
+
+      const collapsedHeight = measureCollapsedHeight()
+      overlay.style.height = `${collapsedHeight}px`
+
+      // Animate content collapse first, then shrink the window so it doesn't block the screen
+      collapseResizeTimer = setTimeout(() => {
+        window.electronAPI.setCollapsed(true, collapsedHeight)
+        collapseResizeTimer = null
+      }, transitionMs)
+    })
+  } else {
+    // Expand window first, then animate content in
+    window.electronAPI.setCollapsed(false)
+
+    requestAnimationFrame(() => {
+      if (isCollapsed) return
+
+      overlay.style.height = '100vh'
+      overlay.classList.remove('overlay-collapsed')
+      autosizeMessageInput()
+    })
+  }
 }
 
 /**
