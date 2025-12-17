@@ -83,6 +83,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllProvidersMeta: () => ipcRenderer.invoke('get-all-providers-meta'),
   getConfiguredProviders: () => ipcRenderer.invoke('get-configured-providers'),
 
+  // Model refresh methods
+  refreshModels: (providerId) => ipcRenderer.invoke('refresh-models', providerId),
+  checkModelCacheStale: (providerId) => ipcRenderer.invoke('check-model-cache-stale', providerId),
+
   // Session storage
   saveSession: (session) => ipcRenderer.invoke('save-session', session),
   loadSession: (id) => ipcRenderer.invoke('load-session', id),

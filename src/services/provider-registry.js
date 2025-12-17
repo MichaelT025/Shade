@@ -11,9 +11,10 @@ const defaultProviders = {
   gemini: {
     name: 'Google Gemini',
     type: 'gemini',
-    description: 'Fast and efficient vision model',
+    description: 'All Gemini models support vision',
     website: 'https://makersuite.google.com/app/apikey',
     defaultModel: 'gemini-2.0-flash-exp',
+    lastFetched: null,
     models: {
       'gemini-2.0-flash-exp': { name: 'Gemini 2.0 Flash (Experimental)' },
       'gemini-1.5-flash': { name: 'Gemini 1.5 Flash' },
@@ -23,9 +24,10 @@ const defaultProviders = {
   openai: {
     name: 'OpenAI',
     type: 'openai',
-    description: 'Powerful multimodal AI',
+    description: 'Vision-capable GPT models',
     website: 'https://platform.openai.com/api-keys',
     defaultModel: 'gpt-4o',
+    lastFetched: null,
     models: {
       'gpt-4o': { name: 'GPT-4o' },
       'gpt-4o-mini': { name: 'GPT-4o Mini' },
@@ -35,32 +37,75 @@ const defaultProviders = {
           reasoningEffort: 'high'
         }
       },
-      'o1-mini': { name: 'o1 Mini' }
+      'o1-mini': { name: 'o1 Mini' },
+      'gpt-4-turbo': { name: 'GPT-4 Turbo' }
     }
   },
   anthropic: {
     name: 'Anthropic Claude',
     type: 'anthropic',
-    description: 'Advanced reasoning capabilities',
+    description: 'All Claude models support vision',
     website: 'https://console.anthropic.com/',
     defaultModel: 'claude-sonnet-4',
+    lastFetched: null,
     models: {
       'claude-sonnet-4': { name: 'Claude Sonnet 4' },
-      'claude-opus-4': { name: 'Claude Opus 4' }
+      'claude-opus-4': { name: 'Claude Opus 4' },
+      'claude-3-5-sonnet-20241022': { name: 'Claude 3.5 Sonnet' },
+      'claude-3-7-sonnet-20250219': { name: 'Claude 3.7 Sonnet' }
+    }
+  },
+  grok: {
+    name: 'Grok (X.AI)',
+    type: 'openai-compatible',
+    description: 'X.AI\'s vision-capable models',
+    website: 'https://console.x.ai',
+    baseUrl: 'https://api.x.ai/v1',
+    defaultModel: 'grok-vision-beta',
+    lastFetched: null,
+    models: {
+      'grok-vision-beta': { name: 'Grok Vision Beta' },
+      'grok-2-vision-1212': { name: 'Grok 2 Vision' }
+    }
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    type: 'openai-compatible',
+    description: 'Access multiple AI models through one API',
+    website: 'https://openrouter.ai/keys',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    defaultModel: 'anthropic/claude-3.5-sonnet',
+    lastFetched: null,
+    models: {
+      'anthropic/claude-3.5-sonnet': { name: 'Claude 3.5 Sonnet' },
+      'openai/gpt-4o': { name: 'GPT-4o' },
+      'google/gemini-pro-1.5': { name: 'Gemini Pro 1.5' },
+      'meta-llama/llama-3.2-11b-vision-instruct:free': { name: 'Llama 3.2 11B Vision (Free)' }
     }
   },
   ollama: {
-    name: 'Ollama (Local)',
+    name: 'Ollama',
     type: 'openai-compatible',
-    description: 'Run local models with Ollama',
+    description: 'Run local models on your machine',
     website: 'https://ollama.ai/',
     baseUrl: 'http://localhost:11434/v1',
-    defaultModel: 'llama3.2',
+    defaultModel: 'llama3.2-vision',
+    lastFetched: null,
     models: {
-      'llama3.2': { name: 'Llama 3.2' },
-      'qwen2.5-coder:7b': { name: 'Qwen 2.5 Coder 7B' },
-      'deepseek-r1': { name: 'DeepSeek R1' }
+      'llama3.2-vision': { name: 'Llama 3.2 Vision' },
+      'llava': { name: 'LLaVA' },
+      'bakllava': { name: 'BakLLaVA' }
     }
+  },
+  'lm-studio': {
+    name: 'LM Studio',
+    type: 'openai-compatible',
+    description: 'Run local models with LM Studio',
+    website: 'https://lmstudio.ai/',
+    baseUrl: 'http://localhost:1234/v1',
+    defaultModel: '',
+    lastFetched: null,
+    models: {}
   }
 }
 
@@ -92,6 +137,22 @@ function loadProviders() {
       const data = fs.readFileSync(providersPath, 'utf8')
       providers = JSON.parse(data)
       console.log('Loaded providers from:', providersPath)
+
+      // Migrate: Add any missing providers from defaults
+      let needsSave = false
+      for (const [providerId, providerData] of Object.entries(defaultProviders)) {
+        if (!providers[providerId]) {
+          console.log(`Migrating: Adding missing provider '${providerId}'`)
+          providers[providerId] = { ...providerData }
+          needsSave = true
+        }
+      }
+
+      // Save if we added any missing providers
+      if (needsSave) {
+        saveProviders()
+        console.log('Provider migration completed')
+      }
     } else {
       // Create default providers file
       providers = { ...defaultProviders }
@@ -209,6 +270,30 @@ function generateDefaultProvidersConfig() {
   return config
 }
 
+/**
+ * Update provider models and save to file
+ * @param {string} providerId - Provider ID
+ * @param {Object} models - New models object
+ */
+function updateProviderModels(providerId, models) {
+  if (!providers) {
+    providers = { ...defaultProviders }
+  }
+
+  if (!providers[providerId]) {
+    console.error(`Provider not found: ${providerId}`)
+    return
+  }
+
+  // Update models and lastFetched timestamp
+  providers[providerId].models = models
+  providers[providerId].lastFetched = new Date().toISOString()
+
+  // Save to file
+  saveProviders()
+  console.log(`Updated models for ${providerId}:`, Object.keys(models).length, 'models')
+}
+
 module.exports = {
   initProvidersPath,
   loadProviders,
@@ -217,5 +302,6 @@ module.exports = {
   getProvider,
   hasProvider,
   getModels,
-  generateDefaultProvidersConfig
+  generateDefaultProvidersConfig,
+  updateProviderModels
 }

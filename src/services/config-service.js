@@ -131,9 +131,13 @@ class ConfigService {
     // Initialize provider registry with user data path
     ProviderRegistry.initProvidersPath(userDataPath)
 
+    // Get first available provider ID dynamically
+    const providerIds = ProviderRegistry.getProviderIds()
+    const defaultProvider = providerIds.length > 0 ? providerIds[0] : 'gemini'
+
     // Default configuration with new structure
     this.defaultConfig = {
-      activeProvider: 'gemini',
+      activeProvider: defaultProvider,
       providers: ProviderRegistry.generateDefaultProvidersConfig(),
       screenshotMode: 'manual',
       memoryLimit: 30,

@@ -643,6 +643,41 @@ ipcMain.handle('set-summarization-enabled', async (_event, enabled) => {
   }
 })
 
+// Model refresh IPC handlers
+ipcMain.handle('refresh-models', async (_event, providerId) => {
+  try {
+    const ModelRefreshService = require('../services/model-refresh')
+
+    // Get API key for the provider
+    const apiKey = configService.getApiKey(providerId)
+
+    // Refresh models
+    const result = await ModelRefreshService.refreshModels(providerId, apiKey)
+
+    if (result.success) {
+      console.log(`Successfully refreshed models for ${providerId}`)
+      return { success: true, models: result.models }
+    } else {
+      console.error(`Failed to refresh models for ${providerId}:`, result.error)
+      return { success: false, error: result.error }
+    }
+  } catch (error) {
+    console.error('Error in refresh-models handler:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('check-model-cache-stale', async (_event, providerId) => {
+  try {
+    const ModelRefreshService = require('../services/model-refresh')
+    const isStale = ModelRefreshService.isCacheStale(providerId)
+    return { success: true, isStale }
+  } catch (error) {
+    console.error('Error checking cache staleness:', error)
+    return { success: false, error: error.message }
+  }
+})
+
 // Quit application
 ipcMain.handle('quit-app', async () => {
   app.quit()

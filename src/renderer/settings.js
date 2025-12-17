@@ -142,6 +142,10 @@ function generateProviderSections() {
         ` : `
           <input type="text" id="${providerId}-model" placeholder="Enter model name">
         `}
+        <button class="btn-refresh-models" onclick="refreshProviderModels('${providerId}')" style="margin-top: 8px;">
+          <span class="refresh-icon">↻</span> Refresh Models
+        </button>
+        <div id="${providerId}-refresh-status" class="status-message" style="margin-top: 4px;"></div>
       </div>
 
       ${provider.baseUrl ? `
@@ -217,7 +221,9 @@ async function loadSettings() {
   try {
     // Get active provider
     const activeProviderResult = await window.electronAPI.getActiveProvider()
-    const activeProvider = activeProviderResult.provider || 'gemini'
+    // Fallback to first available provider from registry
+    const firstProvider = Object.keys(providerRegistry)[0] || 'gemini'
+    const activeProvider = activeProviderResult.provider || firstProvider
     currentSettings.activeProvider = activeProvider
 
     // Load settings for each provider dynamically
@@ -757,6 +763,77 @@ async function saveCurrentMode() {
   }
 }
 
+/**
+ * Refresh models for a provider by fetching from its API
+ * @param {string} providerId - Provider ID
+ */
+async function refreshProviderModels(providerId) {
+  const statusElement = document.getElementById(`${providerId}-refresh-status`)
+  const button = event.target.closest('.btn-refresh-models')
+
+  try {
+    // Show loading state
+    button.disabled = true
+    button.innerHTML = '<span class="refresh-icon">↻</span> Refreshing...'
+    statusElement.textContent = 'Fetching models...'
+    statusElement.className = 'status-message'
+    statusElement.style.display = 'block'
+
+    // Call refresh API
+    const result = await window.electronAPI.refreshModels(providerId)
+
+    if (result.success) {
+      // Reload provider metadata to get updated models
+      await loadProviderMetadata()
+
+      // Regenerate provider sections with new models
+      generateProviderSections()
+
+      // Reload settings to repopulate fields
+      await loadSettings()
+
+      // Update UI to show the current provider section
+      updateProviderUI()
+
+      // Show success message
+      const newStatusElement = document.getElementById(`${providerId}-refresh-status`)
+      newStatusElement.textContent = `✓ Refreshed ${Object.keys(result.models).length} models`
+      newStatusElement.className = 'status-message success'
+      newStatusElement.style.display = 'block'
+
+      setTimeout(() => {
+        newStatusElement.style.display = 'none'
+      }, 3000)
+    } else {
+      // Show error message
+      statusElement.textContent = `✗ ${result.error}`
+      statusElement.className = 'status-message error'
+      statusElement.style.display = 'block'
+
+      setTimeout(() => {
+        statusElement.style.display = 'none'
+      }, 5000)
+
+      // Re-enable button
+      button.disabled = false
+      button.innerHTML = '<span class="refresh-icon">↻</span> Refresh Models'
+    }
+  } catch (error) {
+    console.error('Failed to refresh models:', error)
+    statusElement.textContent = `✗ ${error.message}`
+    statusElement.className = 'status-message error'
+    statusElement.style.display = 'block'
+
+    setTimeout(() => {
+      statusElement.style.display = 'none'
+    }, 5000)
+
+    // Re-enable button
+    button.disabled = false
+    button.innerHTML = '<span class="refresh-icon">↻</span> Refresh Models'
+  }
+}
+
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init)
@@ -772,3 +849,4 @@ window.closeSettings = closeSettings
 window.createNewMode = createNewMode
 window.deleteMode = deleteMode
 window.saveCurrentMode = saveCurrentMode
+window.refreshProviderModels = refreshProviderModels
