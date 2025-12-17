@@ -15,6 +15,7 @@ let capturedThumbnail = null // Screenshot thumbnail for preview
 let isScreenshotActive = false // Screenshot button state
 let currentStreamingMessageId = null // ID of currently streaming message
 let accumulatedText = '' // Accumulated text during streaming
+let isCollapsed = true // Overlay collapse state (starts collapsed)
 
 // DOM element references
 const messagesContainer = document.getElementById('messages-container')
@@ -25,6 +26,7 @@ const screenshotBtn = document.getElementById('screenshot-btn')
 const homeBtn = document.getElementById('home-btn')
 const closeBtn = document.getElementById('close-btn')
 const hideBtn = document.getElementById('hide-btn')
+const collapseBtn = document.getElementById('collapse-btn')
 const modeDropdownInput = document.getElementById('mode-dropdown-input')
 const displayBtn = document.getElementById('display-btn')
 const scrollBottomBtn = document.getElementById('scroll-bottom-btn')
@@ -45,10 +47,13 @@ async function init() {
   // Send button - send message with optional screenshot
   sendBtn.addEventListener('click', handleSendMessage)
 
-  // Scroll to bottom button
-  scrollBottomBtn.addEventListener('click', () => {
-    scrollToBottom()
-  })
+   // Scroll to bottom button
+   scrollBottomBtn.addEventListener('click', () => {
+     scrollToBottom()
+   })
+
+   // Collapse toggle button
+   collapseBtn.addEventListener('click', toggleCollapse)
 
   // Enter key to send message
   messageInput.addEventListener('keydown', async (e) => {
@@ -113,17 +118,21 @@ async function init() {
   window.electronAPI.onMessageComplete(handleMessageComplete)
   window.electronAPI.onMessageError(handleMessageError)
 
+  // Collapse toggle event handler (Ctrl+')
+  window.electronAPI.onToggleCollapse(toggleCollapse)
+
   // Initialize custom icons from directory
   await initIcons()
 
-  // Insert icons into UI elements
-  insertIcon(homeBtn, 'settings', 'icon-svg')
-  insertIcon(displayBtn, 'display', 'icon-svg')
-  insertIcon(closeBtn, 'close', 'icon-svg')
-  insertIcon(hideBtn, 'minus', 'icon-svg')
-  insertIcon(screenshotBtn, 'camera', 'icon-svg')
-  insertIcon(sendBtn, 'send', 'icon-svg')
-  insertIcon(scrollBottomBtn, 'arrow-down', 'icon-svg')
+   // Insert icons into UI elements
+   insertIcon(homeBtn, 'settings', 'icon-svg')
+   insertIcon(displayBtn, 'display', 'icon-svg')
+   insertIcon(closeBtn, 'close', 'icon-svg')
+   insertIcon(hideBtn, 'minus', 'icon-svg')
+   insertIcon(collapseBtn, 'collapse', 'icon-svg')
+   insertIcon(screenshotBtn, 'camera', 'icon-svg')
+   insertIcon(sendBtn, 'send', 'icon-svg')
+   insertIcon(scrollBottomBtn, 'arrow-down', 'icon-svg')
 
   // Load modes and populate dropdown
   await loadModes()
@@ -134,6 +143,9 @@ async function init() {
 
   // Auto-focus the input field so keyboard shortcuts work immediately
   messageInput.focus()
+
+  // Initialize collapsed state (starts collapsed)
+  updateCollapseState()
 
   console.log('Shade initialized')
 }
@@ -178,6 +190,53 @@ function scrollToBottom() {
   messagesContainer.scrollTop = messagesContainer.scrollHeight
   // Update gradients after scroll completes
   setTimeout(() => updateScrollGradients(), 50)
+}
+
+/**
+ * Collapse state management
+ */
+
+/**
+ * Toggle collapse state
+ */
+function toggleCollapse() {
+  isCollapsed = !isCollapsed
+  updateCollapseState()
+}
+
+/**
+ * Expand the overlay
+ */
+function expand() {
+  isCollapsed = false
+  updateCollapseState()
+}
+
+/**
+ * Collapse the overlay
+ */
+function collapse() {
+  isCollapsed = true
+  updateCollapseState()
+}
+
+/**
+ * Update the visual collapse state
+ */
+function updateCollapseState() {
+  const overlay = document.querySelector('#root')
+  if (isCollapsed) {
+    overlay.classList.add('overlay-collapsed')
+    collapseBtn.title = 'Expand/Collapse (Ctrl+\')'
+    collapseBtn.setAttribute('aria-label', 'Toggle collapse')
+  } else {
+    overlay.classList.remove('overlay-collapsed')
+    collapseBtn.title = 'Expand/Collapse (Ctrl+\')'
+    collapseBtn.setAttribute('aria-label', 'Toggle collapse')
+  }
+
+  // Resize window so collapsed overlay doesn't block screen
+  window.electronAPI.setCollapsed(isCollapsed)
 }
 
 /**
@@ -260,6 +319,9 @@ function removeScreenshot() {
  * Handle sending a message
  */
 async function handleSendMessage() {
+  // Auto-expand on first message
+  expand()
+
   const text = messageInput.value.trim()
 
   // Don't send if both text and screenshot are empty

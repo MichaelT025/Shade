@@ -8,6 +8,8 @@ const ConfigService = require('../services/config-service')
 let mainWindow = null
 let settingsWindow = null
 let configService = null
+let overlayExpandedBounds = null
+let overlayIsCollapsed = false
 
 // Create the main overlay window
 function createMainWindow() {
@@ -43,6 +45,8 @@ function createMainWindow() {
     },
   })
 
+  overlayExpandedBounds = mainWindow.getBounds()
+
   // Allow window in system screenshots by default (PrtSc, etc.)
   // Content protection will be enabled temporarily during app screenshot capture
   mainWindow.setContentProtection(false)
@@ -52,6 +56,12 @@ function createMainWindow() {
 
   // Open DevTools for debugging (disabled for production)
   // mainWindow.webContents.openDevTools()
+
+  // Track expanded size so we can restore after collapse
+  mainWindow.on('resize', () => {
+    if (!mainWindow || overlayIsCollapsed) return
+    overlayExpandedBounds = mainWindow.getBounds()
+  })
 
   // Handle window closed
   mainWindow.on('closed', () => {
@@ -116,6 +126,13 @@ function registerHotkeys() {
   globalShortcut.register('CommandOrControl+R', () => {
     if (mainWindow) {
       mainWindow.webContents.send('new-chat')
+    }
+  })
+
+  // Ctrl+' to toggle overlay collapse
+  globalShortcut.register('CommandOrControl+\'', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('toggle-collapse')
     }
   })
 }
@@ -522,6 +539,36 @@ ipcMain.handle('open-settings', async () => {
 ipcMain.handle('hide-window', async () => {
   if (mainWindow) {
     mainWindow.minimize()
+  }
+})
+
+// Collapse/expand overlay window so it doesn't block the screen
+ipcMain.on('set-collapsed', (_event, collapsed) => {
+  if (!mainWindow) return
+
+  const collapsedHeight = 150
+
+  if (collapsed) {
+    if (!overlayExpandedBounds) {
+      overlayExpandedBounds = mainWindow.getBounds()
+    }
+
+    overlayIsCollapsed = true
+    const currentBounds = mainWindow.getBounds()
+
+    // Keep top-left anchored; preserve width
+    mainWindow.setBounds({
+      x: currentBounds.x,
+      y: currentBounds.y,
+      width: currentBounds.width,
+      height: collapsedHeight
+    })
+  } else {
+    overlayIsCollapsed = false
+
+    if (overlayExpandedBounds) {
+      mainWindow.setBounds(overlayExpandedBounds)
+    }
   }
 })
 

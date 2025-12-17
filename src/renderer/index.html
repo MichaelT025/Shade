@@ -806,6 +806,31 @@
       border-color: var(--success);
       color: var(--success);
     }
+
+    /* Collapsed Overlay State */
+    .overlay-collapsed {
+      height: 150px !important;
+      min-height: 150px !important;
+    }
+
+    .overlay-collapsed .messages-container,
+    .overlay-collapsed .scroll-bottom-btn {
+      display: none !important;
+    }
+
+    .overlay-collapsed .title-bar {
+      border-bottom: none;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+
+    .overlay-collapsed .input-area {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(18, 18, 18, 0.95);
+      padding: var(--space-12);
+    }
   </style>
 </head>
 <body>
@@ -827,11 +852,16 @@
       <!-- Centered App Title -->
       <span class="title-text">Shade</span>
 
-      <div class="title-bar-right">
-        <!-- Hide Button -->
-        <button id="hide-btn" class="icon-btn" title="Hide (Ctrl+/)" aria-label="Hide application">
-          <!-- Icon loaded from custom-icons/minus.svg -->
-        </button>
+       <div class="title-bar-right">
+         <!-- Collapse Toggle Button -->
+         <button id="collapse-btn" class="icon-btn" title="Toggle Collapse (Ctrl+')" aria-label="Toggle collapse">
+           <!-- Icon loaded from custom-icons/collapse.svg -->
+         </button>
+
+         <!-- Hide Button -->
+         <button id="hide-btn" class="icon-btn" title="Hide (Ctrl+/)" aria-label="Hide application">
+           <!-- Icon loaded from custom-icons/minus.svg -->
+         </button>
 
         <!-- Close Button -->
         <button id="close-btn" class="icon-btn close-btn" title="Close" aria-label="Close application">
