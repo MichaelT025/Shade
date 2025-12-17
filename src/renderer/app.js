@@ -9,6 +9,7 @@ import MemoryManager from './utils/memory-manager.js';
 
 // State management
 const messages = [] // Chat history array (for UI display)
+let currentSessionId = null
 let memoryManager = null // Memory manager instance (for context optimization)
 let capturedScreenshot = null // Current screenshot base64
 let capturedThumbnail = null // Screenshot thumbnail for preview
@@ -30,6 +31,74 @@ const collapseBtn = document.getElementById('collapse-btn')
 const modeDropdownInput = document.getElementById('mode-dropdown-input')
 const displayBtn = document.getElementById('display-btn')
 const scrollBottomBtn = document.getElementById('scroll-bottom-btn')
+
+// Session persistence
+let sessionSaveTimer = null
+
+function generateMessageId() {
+  return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function toIsoTimestamp(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString()
+  }
+
+  const parsed = new Date(value)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString()
+  }
+
+  return new Date().toISOString()
+}
+
+function scheduleSessionSave() {
+  if (sessionSaveTimer) {
+    clearTimeout(sessionSaveTimer)
+  }
+
+  sessionSaveTimer = setTimeout(() => {
+    saveCurrentSession().catch(error => {
+      console.error('Failed to autosave session:', error)
+    })
+    sessionSaveTimer = null
+  }, 350)
+}
+
+async function saveCurrentSession() {
+  if (!window.electronAPI?.saveSession) {
+    return
+  }
+
+  const activeProviderResult = await window.electronAPI.getActiveProvider()
+  const provider = activeProviderResult?.success ? activeProviderResult.provider : ''
+
+  let model = ''
+  if (provider) {
+    const providerConfigResult = await window.electronAPI.getProviderConfig(provider)
+    model = providerConfigResult?.success ? (providerConfigResult.config?.model || '') : ''
+  }
+
+  const sessionPayload = {
+    id: currentSessionId,
+    title: '',
+    createdAt: null,
+    provider,
+    model,
+    messages: messages.map(m => ({
+      id: m.id,
+      type: m.type,
+      text: m.text,
+      hasScreenshot: !!m.hasScreenshot,
+      timestamp: toIsoTimestamp(m.timestamp)
+    }))
+  }
+
+  const result = await window.electronAPI.saveSession(sessionPayload)
+  if (result?.success && result.session?.id) {
+    currentSessionId = result.session.id
+  }
+}
 
 function autosizeMessageInput() {
   const maxHeight = 140
@@ -561,7 +630,10 @@ function addMessage(type, text, hasScreenshot = false) {
   scrollToBottom()
 
   // Store in message history (for UI)
-  messages.push({ type, text, hasScreenshot, timestamp: new Date() })
+  messages.push({ id: generateMessageId(), type, text, hasScreenshot, timestamp: new Date() })
+
+  // Persist session after each message
+  scheduleSessionSave()
 
   // Add to memory manager (for context optimization)
   if (memoryManager) {
@@ -705,7 +777,10 @@ function finalizeStreamingMessage(messageId, text) {
     addMessageCopyButton(messageEl, text)
 
     // Store in message history
-    messages.push({ type: 'ai', text, hasScreenshot: false, timestamp: new Date() })
+    messages.push({ id: generateMessageId(), type: 'ai', text, hasScreenshot: false, timestamp: new Date() })
+
+    // Persist session after assistant message completes
+    scheduleSessionSave()
   }
 }
 
@@ -963,6 +1038,13 @@ function handleNewChat() {
 
   // Clear message history
   messages.length = 0
+
+  // Start a new persisted session
+  currentSessionId = null
+  if (sessionSaveTimer) {
+    clearTimeout(sessionSaveTimer)
+    sessionSaveTimer = null
+  }
 
   // Clear memory manager conversation state
   if (memoryManager) {

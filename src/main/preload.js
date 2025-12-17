@@ -83,6 +83,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllProvidersMeta: () => ipcRenderer.invoke('get-all-providers-meta'),
   getConfiguredProviders: () => ipcRenderer.invoke('get-configured-providers'),
 
+  // Session storage
+  saveSession: (session) => ipcRenderer.invoke('save-session', session),
+  loadSession: (id) => ipcRenderer.invoke('load-session', id),
+  getAllSessions: () => ipcRenderer.invoke('get-all-sessions'),
+  deleteSession: (id) => ipcRenderer.invoke('delete-session', id),
+  searchSessions: (query) => ipcRenderer.invoke('search-sessions', query),
+
   // Cleanup listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel)

@@ -4,10 +4,12 @@ const fs = require('fs').promises
 const { captureAndCompress } = require('../services/screen-capture')
 const LLMFactory = require('../services/llm-factory')
 const ConfigService = require('../services/config-service')
+const SessionStorage = require('../services/session-storage')
 
 let mainWindow = null
 let settingsWindow = null
 let configService = null
+let sessionStorage = null
 let overlayExpandedBounds = null
 let overlayIsCollapsed = false
 
@@ -153,6 +155,12 @@ app.whenReady().then(() => {
   // Initialize config service with user data path
   const userDataPath = app.getPath('userData')
   configService = new ConfigService(userDataPath)
+  sessionStorage = new SessionStorage(userDataPath)
+
+  // Best-effort cleanup (do not block app startup)
+  sessionStorage.cleanupOldSessions().catch(error => {
+    console.error('Failed to cleanup old sessions:', error)
+  })
 
   createMainWindow()
   registerHotkeys()
@@ -702,5 +710,76 @@ ipcMain.handle('get-configured-providers', async () => {
   } catch (error) {
     console.error('Failed to get configured providers:', error)
     return { success: false, error: error.message }
+  }
+})
+
+// Session storage IPC handlers
+ipcMain.handle('save-session', async (_event, session) => {
+  try {
+    if (!sessionStorage) {
+      return { success: false, error: 'Session storage not initialized' }
+    }
+
+    const saved = await sessionStorage.saveSession(session)
+    return { success: true, session: saved }
+  } catch (error) {
+    console.error('Failed to save session:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('load-session', async (_event, id) => {
+  try {
+    if (!sessionStorage) {
+      return { success: false, error: 'Session storage not initialized' }
+    }
+
+    const session = await sessionStorage.loadSession(id)
+    return { success: true, session }
+  } catch (error) {
+    console.error('Failed to load session:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('get-all-sessions', async () => {
+  try {
+    if (!sessionStorage) {
+      return { success: false, error: 'Session storage not initialized', sessions: [] }
+    }
+
+    const sessions = await sessionStorage.getAllSessions()
+    return { success: true, sessions }
+  } catch (error) {
+    console.error('Failed to get all sessions:', error)
+    return { success: false, error: error.message, sessions: [] }
+  }
+})
+
+ipcMain.handle('delete-session', async (_event, id) => {
+  try {
+    if (!sessionStorage) {
+      return { success: false, error: 'Session storage not initialized' }
+    }
+
+    await sessionStorage.deleteSession(id)
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to delete session:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('search-sessions', async (_event, query) => {
+  try {
+    if (!sessionStorage) {
+      return { success: false, error: 'Session storage not initialized', sessions: [] }
+    }
+
+    const sessions = await sessionStorage.searchSessions(query)
+    return { success: true, sessions }
+  } catch (error) {
+    console.error('Failed to search sessions:', error)
+    return { success: false, error: error.message, sessions: [] }
   }
 })
