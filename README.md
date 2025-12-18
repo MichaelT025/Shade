@@ -24,7 +24,8 @@ A Windows desktop application providing real-time AI assistance through a transl
 - **Multi-provider support** - Gemini, OpenAI, Anthropic, plus OpenAI-compatible endpoints (Ollama / LM Studio)
 - **Rich responses** - Markdown, LaTeX math, and syntax highlighting for 50+ languages
 - **Session history dashboard** - Browse, search, rename, save, and resume conversations (stored locally)
-- **In-app configuration** - Provider, API key validation, model selection, and screenshot/memory toggles
+- **System prompt modes** - Built-in modes and editable prompts (per-mode)
+- **In-app configuration** - Provider, API key validation, model selection + refresh, and screenshot/memory toggles
 - **Keyboard shortcuts** - Toggle visibility, start new chat, collapse/expand
 
 ## Installation
@@ -48,8 +49,11 @@ cd Project-GhostPad
 # Install dependencies
 npm install
 
-# Start the app
-npm start
+# Start in dev mode (Vite + Electron)
+npm run dev
+
+# Or launch Electron directly (requires built renderer assets)
+# npm start
 ```
 
 
@@ -57,10 +61,11 @@ npm start
 ### First-Time Setup
 
 1. Open Shade — you’ll see a minimal input bar
-2. Open the Dashboard (Configuration tab)
+2. Open the Dashboard and go to **Configuration**
 3. Choose your provider and paste your API key (it auto-tests/validates)
-4. Select your default model
-5. Start chatting!
+4. Select your default model (or refresh the model list)
+5. Optional: open **Modes** to choose/customize a system prompt
+6. Start chatting!
 
 ## Usage
 
@@ -76,7 +81,7 @@ npm start
 
 1. **See something on screen you have a question about?**
 2. **Press `Ctrl+/`** to show Shade
-3. **Click Image button to capture a screenshot (or enable auto-capture in settings)
+3. **Click the Image button** to capture a screenshot (or enable auto-capture in settings)
 4. **Type your question** and press Enter
 5. **Get AI-powered answers** with full context of what's on your screen
 
@@ -90,7 +95,8 @@ npm start
 ## Technology
 
 - **Framework:** Electron
-- **UI:** Vanilla JavaScript/HTML/CSS
+- **Bundler:** Vite
+- **UI:** JavaScript/HTML/CSS (renderer)
 - **LLM Providers:** Gemini, OpenAI, Anthropic, OpenAI-compatible endpoints
 - **Screen Capture:** Electron's `desktopCapturer` with `setContentProtection`
 - **Rendering:** marked.js (Markdown), KaTeX (LaTeX), highlight.js (code)
@@ -120,7 +126,8 @@ Shade is designed with privacy as a core principle:
 ### Commands
 
 ```bash
-npm start         # Run in development mode
+npm run dev       # Run in development mode (Vite + Electron)
+npm start         # Run Electron (built assets)
 npm test          # Run unit tests
 npm run build:win # Build Windows executable
 ```
@@ -128,6 +135,12 @@ npm run build:win # Build Windows executable
 ### Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing/build commands, and pull request guidelines.
+
+### Docs
+
+- Provider/model config details: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+- Default shipped modes/prompts: [docs/modes.md](docs/modes.md)
+- Test suite walkthrough: [docs/TESTS_SETUP.md](docs/TESTS_SETUP.md)
 
 ## Roadmap
 
@@ -139,7 +152,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing/build commands, 
 - [x] Session history dashboard
 - [x] OpenAI-compatible local endpoints (Ollama / LM Studio)
 - [x] Automatic screenshot mode
-- [ ] Model switcher (`/models`)
+- [x] Model selection dropdown + refresh
+- [x] System prompt modes (built-in + editable)
+- [x] Unit test suite (Vitest)
 
 ### V1.1
 - [ ] macOS support
