@@ -88,39 +88,6 @@
       pointer-events: none;
     }
 
-    /* Model Selector Dropdown */
-    .model-selector {
-      padding: var(--space-6) var(--space-12);
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: var(--radius-md);
-      font-size: var(--font-size-sm);
-      font-weight: 600;
-      color: var(--text-primary);
-      font-family: var(--font-family);
-      cursor: pointer;
-      transition: all var(--duration-quick) var(--easing);
-      -webkit-app-region: no-drag;
-      outline: none;
-      backdrop-filter: blur(8px);
-    }
-
-    .model-selector:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.15);
-    }
-
-    .model-selector:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(182, 179, 180, 0.22);
-    }
-
-    .model-selector option {
-      background: var(--panel-strong);
-      color: var(--text-primary);
-      font-weight: 500;
-    }
-
     /* Mode Select */
     .mode-select {
       padding: var(--space-4) var(--space-8);
@@ -152,18 +119,34 @@
 
     /* Icon Buttons */
     .icon-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
-      background: transparent;
-      border: none;
-      border-radius: var(--radius-sm);
-      color: var(--text-secondary);
-      cursor: pointer;
       transition: all var(--duration-quick) var(--easing);
-      -webkit-app-region: no-drag;
+    }
+
+    .icon-btn .app-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      display: block;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+      transition: box-shadow var(--duration-quick) var(--easing), transform var(--duration-quick) var(--easing);
+    }
+
+    /* Dashboard-like glow for the app icon on hover */
+    #home-btn:hover .app-icon {
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.22),
+        0 0 18px rgba(182, 179, 180, 0.22);
+      transform: translateY(-3.5px);
     }
 
     .icon-btn:hover {
@@ -534,13 +517,19 @@
       border: 1px solid rgba(255, 255, 255, 0.10);
       border-radius: var(--radius-sm);
       color: var(--text-secondary);
-      font-size: var(--font-size-sm);
+      font-size: var(--font-size-xs);
       font-family: var(--font-family);
       cursor: pointer;
       transition: all var(--duration-quick) var(--easing);
       outline: none;
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b7bdcb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 12px;
+      padding-right: 28px;
     }
 
     .mode-select-input:hover {
@@ -901,14 +890,9 @@
     <!-- Title Bar -->
     <div class="title-bar">
       <div class="title-bar-left">
-        <!-- Settings Button -->
-        <button id="home-btn" class="icon-btn" title="Settings" aria-label="Open Settings">
-          <!-- Icon loaded from custom-icons/settings.svg -->
-        </button>
-
-        <!-- Display Selector Button (Coming Soon) -->
-        <button id="display-btn" class="icon-btn" title="Multiple Displays Coming Soon" aria-label="Display Selector" style="cursor: default; color: var(--text-tertiary); opacity: 0.5;">
-          <!-- Icon loaded from custom-icons/display.svg -->
+        <!-- Dashboard Button -->
+        <button id="home-btn" class="icon-btn" title="Dashboard" aria-label="Open Dashboard">
+          <img class="app-icon" src="assets/icons/main_icon/appicon.png" alt="Shade" />
         </button>
       </div>
 

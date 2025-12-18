@@ -477,8 +477,14 @@ function showView(viewId) {
 }
 
 let configViewInitialized = false
+let modesViewInitialized = false
 let cachedProvidersMeta = null
 let cachedActiveProvider = null
+
+let cachedModes = null
+let cachedActiveModeId = null
+let selectedModeId = null
+let modeSaveTimer = null
 
 function normalizeProvidersMeta(providers) {
   if (!providers) return []
@@ -608,9 +614,9 @@ function renderConfig(container, state) {
       </div>
       <div class="form-row" style="margin-top: var(--space-12);">
         <div class="form-field">
-          <label for="config-model-select">Default model</label>
-          <select id="config-model-select" class="select-input" size="6"></select>
-          <div id="config-model-status" class="status-line"></div>
+          <label>Default model</label>
+          <div id="config-model-status" class="status-line" style="margin-top: 0; margin-bottom: 8px;"></div>
+          <div id="config-model-list" class="model-list"></div>
         </div>
       </div>
     </div>
@@ -692,10 +698,370 @@ function setStatus(el, text, kind) {
   if (kind === 'bad') el.classList.add('bad')
 }
 
+async function fetchModesState(force = false) {
+  if (!force && cachedModes && cachedActiveModeId) {
+    return { modes: cachedModes, activeModeId: cachedActiveModeId }
+  }
+
+  const [modesResult, activeResult] = await Promise.all([
+    window.electronAPI.getModes(),
+    window.electronAPI.getActiveMode()
+  ])
+
+  const modes = modesResult?.success ? (modesResult.modes || []) : (modesResult?.modes || [])
+  const activeModeId = activeResult?.success ? (activeResult.modeId || 'default') : (activeResult?.modeId || 'default')
+
+  cachedModes = modes
+  cachedActiveModeId = activeModeId
+
+  return { modes, activeModeId }
+}
+
+function sanitizeMode(mode) {
+  return {
+    id: mode.id,
+    name: (mode.name || '').trim() || 'New Mode',
+    prompt: mode.prompt || '',
+    provider: mode.provider || '',
+    model: mode.model || '',
+    isDefault: !!mode.isDefault
+  }
+}
+
+function renderModesList(container, state, query = '') {
+  const modes = (state.modes || []).slice()
+  const activeModeId = state.activeModeId || 'default'
+
+  const q = (query || '').trim().toLowerCase()
+  const filtered = q
+    ? modes.filter(m => (m.name || '').toLowerCase().includes(q) || (m.id || '').toLowerCase().includes(q))
+    : modes
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty" style="margin-top: 24px;"><h2>No modes found</h2><p>Create a mode to get started.</p></div>`
+    return
+  }
+
+  container.innerHTML = filtered
+    .map(m => {
+      const mode = sanitizeMode(m)
+      const isActive = mode.id === activeModeId
+      const isSelected = mode.id === selectedModeId
+      const subtitleParts = []
+      if (mode.provider) subtitleParts.push(mode.provider)
+      if (mode.model) subtitleParts.push(mode.model)
+      const subtitle = subtitleParts.length ? subtitleParts.join(' • ') : 'Uses current provider/model'
+
+      return `
+        <div class="mode-card ${isSelected ? 'active' : ''}" data-mode-id="${mode.id}">
+          <div class="mode-meta">
+            <div class="mode-name">${mode.name}${isActive ? ' <span class="pill small" style="margin-left: 8px;">Active</span>' : ''}</div>
+            <div class="mode-sub">${subtitle}</div>
+          </div>
+          <div class="mode-actions">
+            ${!isActive ? `<button class="mini-btn" data-action="activate" data-mode-id="${mode.id}" type="button">Activate</button>` : ''}
+            ${!mode.isDefault ? `<button class="icon-mini danger" data-action="delete" data-mode-id="${mode.id}" type="button" title="Delete"><span class="nav-icon" data-icon="trash"></span></button>` : ''}
+          </div>
+        </div>
+      `
+    })
+    .join('')
+
+  // icons
+  container.querySelectorAll('[data-icon="trash"]').forEach(el => insertIcon(el, 'trash'))
+}
+
+async function renderModeEditor(container, state) {
+  const modes = state.modes || []
+  const mode = modes.find(m => m.id === selectedModeId) || modes.find(m => m.id === state.activeModeId) || modes[0]
+
+  if (!mode) {
+    container.innerHTML = `<div class="empty" style="margin-top: 0;"><h2>No modes</h2><p>Create a mode to configure prompts and defaults.</p></div>`
+    return
+  }
+
+  selectedModeId = mode.id
+  const sanitized = sanitizeMode(mode)
+
+  const { providers, activeProvider } = await fetchConfigurationState()
+
+  const providerOptions = (providers || [])
+    .slice()
+    .sort((a, b) => getProviderLabel(a).localeCompare(getProviderLabel(b)))
+    .map(p => `<option value="${p.id}">${getProviderLabel(p)}</option>`)
+    .join('')
+
+  const providerId = sanitized.provider || activeProvider || (providers?.[0]?.id || '')
+
+  container.innerHTML = `
+    <div class="form-row" style="align-items: center;">
+      <div class="form-field" style="min-width: 0;">
+        <label for="mode-name">Mode name</label>
+        <input id="mode-name" class="text-input" type="text" value="${sanitized.name.replace(/"/g, '&quot;')}" />
+        <div id="mode-save-status" class="status-line"></div>
+      </div>
+      <div class="inline-actions">
+        <button id="mode-activate" class="mini-btn" type="button">Make active</button>
+        ${sanitized.isDefault ? '' : '<button id="mode-delete" class="mini-btn danger" type="button">Delete</button>'}
+      </div>
+    </div>
+
+    <div class="config-card" style="margin: var(--space-12) 0 0 0;">
+      <h2>Model defaults</h2>
+      <p>When this mode is active, Shade uses these defaults.</p>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label for="mode-provider">Provider</label>
+          <select id="mode-provider" class="select-input">${providerOptions}</select>
+        </div>
+      </div>
+
+      <div class="form-row" style="margin-top: var(--space-12);">
+        <div class="form-field">
+          <label for="mode-model-search">Search models</label>
+          <input id="mode-model-search" class="text-input" type="text" placeholder="Search by name" autocomplete="off" />
+          <div class="helper-text">Click a model to select it.</div>
+        </div>
+      </div>
+
+      <div id="mode-model-list" class="model-list" aria-label="Mode models"></div>
+    </div>
+
+    <div class="config-card" style="margin: var(--space-12) 0 0 0;">
+      <h2>System prompt</h2>
+      <p>This prompt is used for new messages in this mode.</p>
+      <textarea id="mode-prompt" class="textarea" placeholder="Enter system prompt...">${(sanitized.prompt || '').replace(/</g, '&lt;')}</textarea>
+    </div>
+  `
+
+  const providerSelect = container.querySelector('#mode-provider')
+  if (providerSelect) providerSelect.value = providerId
+
+  await updateModeModelList(container, providerId, sanitized.model)
+}
+
+async function updateModeModelList(editorEl, providerId, selectedModelId) {
+  const list = editorEl.querySelector('#mode-model-list')
+  const search = editorEl.querySelector('#mode-model-search')
+
+  const state = await fetchConfigurationState()
+  const providerMeta = (state.providers || []).find(p => p.id === providerId)
+  const models = extractModelsFromProviderMeta(providerMeta).sort((a, b) => (a.id || '').localeCompare(b.id || ''))
+  const q = (search?.value || '').trim().toLowerCase()
+
+  let filtered = q ? models.filter(m => (m.id || '').toLowerCase().includes(q)) : models
+
+  if (selectedModelId) {
+    const idx = filtered.findIndex(m => m.id === selectedModelId)
+    if (idx > 0) {
+      const [sel] = filtered.splice(idx, 1)
+      filtered = [sel, ...filtered]
+    }
+  }
+
+  if (!list) return
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="status-line">No models found</div>'
+    return
+  }
+
+  list.innerHTML = filtered
+    .map(m => {
+      const isActive = m.id === selectedModelId
+      return `
+        <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${m.id}">
+          <span>${m.id}</span>
+          ${isActive ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 16px; height: 16px;"></span>' : ''}
+        </div>
+      `
+    })
+    .join('')
+
+  list.querySelectorAll('[data-icon="check"]').forEach(el => insertIcon(el, 'check'))
+}
+
+function scheduleModeSave(mode) {
+  if (modeSaveTimer) clearTimeout(modeSaveTimer)
+  modeSaveTimer = setTimeout(async () => {
+    try {
+      await window.electronAPI.saveMode(mode)
+      cachedModes = null
+    } catch (e) {
+      console.error('Failed to save mode:', e)
+    }
+  }, 250)
+}
+
+async function applyModeDefaultsIfActive(modeId) {
+  const { modes, activeModeId } = await fetchModesState(true)
+  if (modeId !== activeModeId) return
+
+  const mode = modes.find(m => m.id === modeId)
+  if (!mode) return
+
+  if (mode.provider) {
+    await window.electronAPI.setActiveProvider(mode.provider)
+    cachedActiveProvider = mode.provider
+
+    if (mode.model) {
+      const cfg = await window.electronAPI.getProviderConfig(mode.provider)
+      if (cfg?.success) {
+        await window.electronAPI.setProviderConfig(mode.provider, { ...cfg.config, model: mode.model })
+      }
+    }
+  }
+}
+
+async function initModesView() {
+  const listEl = document.getElementById('modes-list')
+  const editorEl = document.getElementById('mode-editor')
+  const searchEl = document.getElementById('modes-search')
+  const newBtn = document.getElementById('mode-new')
+
+  if (!listEl || !editorEl) return
+
+  const state = await fetchModesState(true)
+  selectedModeId = selectedModeId || state.activeModeId || (state.modes?.[0]?.id || 'default')
+
+  const rerender = async () => {
+    const s = await fetchModesState(true)
+    renderModesList(listEl, s, searchEl?.value || '')
+    await renderModeEditor(editorEl, s)
+  }
+
+  searchEl?.addEventListener('input', () => {
+    fetchModesState(true).then(s => renderModesList(listEl, s, searchEl.value)).catch(console.error)
+  })
+
+  newBtn?.addEventListener('click', async () => {
+    const mode = {
+      id: 'mode-' + Date.now(),
+      name: 'New Mode',
+      prompt: '',
+      provider: cachedActiveProvider || '',
+      model: ''
+    }
+    await window.electronAPI.saveMode(mode)
+    cachedModes = null
+    const s = await fetchModesState(true)
+    selectedModeId = mode.id
+    renderModesList(listEl, s, searchEl?.value || '')
+    await renderModeEditor(editorEl, s)
+  })
+
+  listEl.addEventListener('click', async (e) => {
+    const card = e.target.closest('.mode-card')
+    const action = e.target.closest('[data-action]')
+
+    if (action) {
+      const modeId = action.getAttribute('data-mode-id')
+      const act = action.getAttribute('data-action')
+      if (!modeId) return
+
+      if (act === 'delete') {
+        if (!window.confirm('Delete this mode?')) return
+        await window.electronAPI.deleteMode(modeId)
+        cachedModes = null
+        const s = await fetchModesState(true)
+        if (selectedModeId === modeId) selectedModeId = s.activeModeId
+        renderModesList(listEl, s, searchEl?.value || '')
+        await renderModeEditor(editorEl, s)
+      } else if (act === 'activate') {
+        await window.electronAPI.setActiveMode(modeId)
+        cachedActiveModeId = modeId
+        cachedModes = null
+        await applyModeDefaultsIfActive(modeId)
+        await rerender()
+      }
+      return
+    }
+
+    if (card) {
+      const modeId = card.getAttribute('data-mode-id')
+      if (!modeId) return
+      selectedModeId = modeId
+      await rerender()
+    }
+  })
+
+  // editor events (delegated)
+  editorEl.addEventListener('input', async (e) => {
+    const s = await fetchModesState(true)
+    const mode = sanitizeMode(s.modes.find(m => m.id === selectedModeId) || {})
+    if (!mode.id) return
+
+    if (e.target.id === 'mode-name') {
+      mode.name = e.target.value
+    } else if (e.target.id === 'mode-model-search') {
+      const providerId = editorEl.querySelector('#mode-provider')?.value || ''
+      await updateModeModelList(editorEl, providerId, mode.model)
+      return
+    } else if (e.target.id === 'mode-prompt') {
+      mode.prompt = e.target.value
+    }
+
+    scheduleModeSave(mode)
+  })
+
+  editorEl.addEventListener('change', async (e) => {
+    const s = await fetchModesState(true)
+    const mode = sanitizeMode(s.modes.find(m => m.id === selectedModeId) || {})
+    if (!mode.id) return
+
+    if (e.target.id === 'mode-provider') {
+      mode.provider = e.target.value
+      mode.model = ''
+      scheduleModeSave(mode)
+      await updateModeModelList(editorEl, mode.provider, mode.model)
+    }
+  })
+
+  editorEl.addEventListener('click', async (e) => {
+    if (e.target.id === 'mode-activate') {
+      await window.electronAPI.setActiveMode(selectedModeId)
+      cachedActiveModeId = selectedModeId
+      cachedModes = null
+      await applyModeDefaultsIfActive(selectedModeId)
+      await rerender()
+      return
+    }
+
+    if (e.target.id === 'mode-delete') {
+      if (!window.confirm('Delete this mode?')) return
+      await window.electronAPI.deleteMode(selectedModeId)
+      cachedModes = null
+      const s = await fetchModesState(true)
+      selectedModeId = s.activeModeId
+      await rerender()
+      return
+    }
+
+    const modelItem = e.target.closest('.model-item')
+    if (modelItem && modelItem.getAttribute('data-model-id')) {
+      const modelId = modelItem.getAttribute('data-model-id')
+      const s = await fetchModesState(true)
+      const mode = sanitizeMode(s.modes.find(m => m.id === selectedModeId) || {})
+      const providerId = editorEl.querySelector('#mode-provider')?.value || ''
+      mode.provider = providerId
+      mode.model = modelId
+      scheduleModeSave(mode)
+      await updateModeModelList(editorEl, providerId, modelId)
+      if (mode.id === (await fetchModesState(true)).activeModeId) {
+        await applyModeDefaultsIfActive(mode.id)
+      }
+    }
+  })
+
+  await rerender()
+  modesViewInitialized = true
+}
+
 async function updateProviderDependentUI(container, providerId) {
   const keyInput = container.querySelector('#config-api-key')
   const keyStatus = container.querySelector('#config-key-status')
-  const modelSelect = container.querySelector('#config-model-select')
+  const modelList = container.querySelector('#config-model-list')
   const modelStatus = container.querySelector('#config-model-status')
   const modelSearch = container.querySelector('#config-model-search')
   const apiKeyCard = container.querySelector('#config-api-key-card')
@@ -741,28 +1107,30 @@ async function updateProviderDependentUI(container, providerId) {
     }
   }
 
-  if (modelSelect) {
+  if (modelList) {
     if (!filteredModels.length) {
-      modelSelect.innerHTML = '<option value="">No models found</option>'
-      modelSelect.value = ''
-      modelSelect.disabled = true
+      modelList.innerHTML = '<div class="status-line">No models found</div>'
       return
     }
 
-    modelSelect.disabled = false
-    modelSelect.innerHTML = filteredModels
-      .map(m => `<option value="${m.id}">${m.id}</option>`)
+    modelList.innerHTML = filteredModels
+      .map(m => {
+        const isActive = m.id === selectedModelId
+        return `
+          <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${m.id}">
+            <span style="font-size: 13px; font-weight: 500;">${m.id}</span>
+            ${isActive ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 14px; height: 14px;"></span>' : ''}
+          </div>
+        `
+      })
       .join('')
 
-    // Preserve current selection if present; otherwise fall back to first option
-    const candidate = selectedModelId && filteredModels.some(m => m.id === selectedModelId)
-      ? selectedModelId
-      : (filteredModels[0]?.id || '')
+    // Inject check icons
+    modelList.querySelectorAll('[data-icon="check"]').forEach(el => {
+      insertIcon(el, 'check')
+    })
 
-    modelSelect.value = candidate
-
-    // If selection differs from stored config (e.g., config empty), show a hint
-    if (selectedModelId && candidate !== selectedModelId) {
+    if (selectedModelId && !filteredModels.some(m => m.id === selectedModelId)) {
       setStatus(modelStatus, 'Selected model is filtered out by search.', null)
     } else {
       setStatus(modelStatus, '', null)
@@ -785,7 +1153,7 @@ async function initConfigurationView() {
   const testBtn = container.querySelector('#config-key-test')
   const refreshModelsBtn = container.querySelector('#config-refresh-models')
   const modelSearch = container.querySelector('#config-model-search')
-  const modelSelect = container.querySelector('#config-model-select')
+  const modelList = container.querySelector('#config-model-list')
   const modelStatus = container.querySelector('#config-model-status')
 
   const autoTitleToggle = container.querySelector('#config-auto-title')
@@ -1020,7 +1388,7 @@ async function initConfigurationView() {
     const providerId = getSelectedProvider()
     const result = await window.electronAPI.refreshModels(providerId)
     if (!result?.success) {
-      setStatus(keyStatus, result?.error || 'Failed to refresh models.', 'bad')
+      setStatus(modelStatus, result?.error || 'Failed to refresh models.', 'bad')
       return
     }
 
@@ -1030,16 +1398,19 @@ async function initConfigurationView() {
     // Keep provider selection as-is
     if (providerSelect) providerSelect.value = providerId
     await updateProviderDependentUI(container, providerId)
-    setStatus(keyStatus, 'Models refreshed.', 'good')
+    setStatus(modelStatus, 'Models refreshed.', 'good')
   })
 
   modelSearch?.addEventListener('input', async () => {
     await updateProviderDependentUI(container, getSelectedProvider())
   })
 
-  modelSelect?.addEventListener('change', async () => {
+  modelList?.addEventListener('click', async (e) => {
+    const item = e.target.closest('.model-item')
+    if (!item) return
+
     const providerId = getSelectedProvider()
-    const modelId = modelSelect.value
+    const modelId = item.dataset.modelId
     if (!providerId || !modelId) return
 
     setStatus(modelStatus, 'Saving…', null)
@@ -1077,8 +1448,17 @@ function wireNavigation() {
   }
 
   if (navModes) {
-    navModes.addEventListener('click', () => {
-      showToast('Modes page is coming soon.', 'info')
+    navModes.addEventListener('click', async () => {
+      navSessions?.classList.remove('active')
+      navConfiguration?.classList.remove('active')
+      navShortcuts?.classList.remove('active')
+      navModes.classList.add('active')
+
+      showView('view-modes')
+
+      if (!modesViewInitialized) {
+        await initModesView()
+      }
     })
   }
 

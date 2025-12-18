@@ -359,13 +359,10 @@ async function init() {
     window.electronAPI.hideWindow()
   })
 
-  // Display button - show coming soon toast
-  displayBtn.addEventListener('click', () => {
-    showToast('Multi-monitor support coming soon!', 'info', 3000)
-  })
 
   // Mode dropdown - switch active mode
   modeDropdownInput.addEventListener('change', handleModeSwitch)
+
 
   // New Chat button
   newChatBtn.addEventListener('click', handleNewChat)
@@ -406,8 +403,6 @@ async function init() {
   await initIcons()
 
    // Insert icons into UI elements
-   insertIcon(homeBtn, 'home', 'icon-svg')
-   insertIcon(displayBtn, 'display', 'icon-svg')
    insertIcon(closeBtn, 'close', 'icon-svg')
    insertIcon(hideBtn, 'minus', 'icon-svg')
    insertIcon(collapseBtn, 'collapse', 'icon-svg')
@@ -1379,6 +1374,22 @@ async function handleModeSwitch(event) {
   try {
     // Set active mode in config
     await window.electronAPI.setActiveMode(modeId)
+
+    // If the mode defines provider/model defaults, apply them immediately
+    const modesResult = await window.electronAPI.getModes()
+    const modes = modesResult?.modes || []
+    const mode = modes.find(m => m.id === modeId)
+
+    if (mode?.provider) {
+      await window.electronAPI.setActiveProvider(mode.provider)
+
+      if (mode.model) {
+        const cfg = await window.electronAPI.getProviderConfig(mode.provider)
+        if (cfg?.success) {
+          await window.electronAPI.setProviderConfig(mode.provider, { ...cfg.config, model: mode.model })
+        }
+      }
+    }
 
     // Update dropdown
     modeDropdownInput.value = modeId

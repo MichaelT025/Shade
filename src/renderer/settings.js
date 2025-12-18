@@ -113,12 +113,20 @@ function generateProviderSections() {
     section.id = `${providerId}-section`
     section.style.display = currentSettings.activeProvider === providerId ? 'block' : 'none'
 
-    // Generate models dropdown options from models object
-    const modelOptions = provider.models && Object.keys(provider.models).length > 0
-      ? Object.entries(provider.models).map(([modelId, modelMeta]) =>
-          `<option value="${modelId}">${modelMeta.name}</option>`
-        ).join('')
-      : '<option value="">Enter custom model</option>'
+    // Generate models list instead of dropdown
+    const modelsListHtml = provider.models && Object.keys(provider.models).length > 0
+      ? `<div id="${providerId}-model-list" class="model-list">
+          ${Object.entries(provider.models).map(([modelId, modelMeta]) => {
+            const isActive = currentSettings.providers[providerId]?.model === modelId
+            return `
+              <div class="model-item $\{isActive ? 'active' : ''}" data-model-id="$\{modelId}" onclick="selectModel('$\{providerId}', '$\{modelId}')">
+                <span style="font-size: 13px; font-weight: 500;">$\{modelMeta.name || modelId}</span>
+                $\{isActive ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 14px; height: 14px;"></span>' : ''}
+              </div>
+            `
+          }).join('')}
+        </div>`
+      : `<input type="text" id="${providerId}-model" placeholder="Enter model name">`
 
     // Generate section HTML
     section.innerHTML = `
@@ -134,28 +142,16 @@ function generateProviderSections() {
       </div>
 
        <div class="form-group">
-         <label for="${providerId}-model">Model</label>
-         ${provider.models && Object.keys(provider.models).length > 0 ? `
-           <select id="${providerId}-model">
-             ${modelOptions}
-           </select>
-         ` : `
-           <input type="text" id="${providerId}-model" placeholder="Enter model name">
-         `}
+         <label>Model</label>
+         <div id="${providerId}-refresh-status" class="status-message" style="margin-top: 4px; margin-bottom: 8px;"></div>
+         ${modelsListHtml}
          <div style="font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 6px;">
            Note: Some models don't support screenshots and some models might not work with this application.
          </div>
          <button class="btn-refresh-models" onclick="refreshProviderModels('${providerId}')" style="margin-top: 8px;">
            <span class="refresh-icon">↻</span> Refresh Models
          </button>
-         <div id="${providerId}-refresh-status" class="status-message" style="margin-top: 4px;"></div>
        </div>
-
-      ${provider.baseUrl ? `
-        <div class="form-group">
-          <label for="${providerId}-baseurl">Base URL</label>
-          <input type="text" id="${providerId}-baseurl" placeholder="${provider.baseUrl}">
-        </div>
       ` : ''}
 
       <button class="btn-test" onclick="testProvider('${providerId}')">Test Connection</button>
@@ -253,7 +249,12 @@ async function loadSettings() {
       const baseUrlField = document.getElementById(`${providerId}-baseurl`)
 
       if (apiKeyField) apiKeyField.value = apiKey
-      if (modelField) modelField.value = currentSettings.providers[providerId].model
+      if (modelField) {
+        modelField.value = currentSettings.providers[providerId].model
+      } else {
+        // If no modelField, it might be using model-list
+        selectModel(providerId, currentSettings.providers[providerId].model)
+      }
       if (baseUrlField) baseUrlField.value = currentSettings.providers[providerId].baseUrl
     }
 
@@ -380,6 +381,41 @@ function setupEventListeners() {
 }
 
 /**
+ * Select a model for a provider
+ */
+function selectModel(providerId, modelId) {
+  if (!currentSettings.providers[providerId]) {
+    currentSettings.providers[providerId] = {}
+  }
+  currentSettings.providers[providerId].model = modelId
+
+  // Update UI
+  const list = document.getElementById(`${providerId}-model-list`)
+  if (list) {
+    list.querySelectorAll('.model-item').forEach(el => {
+      el.classList.remove('active')
+      const check = el.querySelector('[data-icon="check"]')
+      if (check) check.remove()
+    })
+
+    const selectedItem = list.querySelector(`.model-item[data-model-id="${modelId}"]`)
+    if (selectedItem) {
+      selectedItem.classList.add('active')
+      const check = document.createElement('span')
+      check.className = 'nav-icon'
+      check.dataset.icon = 'check'
+      check.style.color = 'var(--accent)'
+      check.style.width = '16px'
+      check.style.height = '16px'
+      selectedItem.appendChild(check)
+      initIcons()
+    }
+  }
+}
+
+window.selectModel = selectModel
+
+/**
  * Update UI based on selected provider
  */
 function updateProviderUI() {
@@ -414,6 +450,43 @@ function updateProviderUI() {
     `
   }
 }
+
+/**
+ * Select a model for a provider
+ */
+function selectModel(providerId, modelId) {
+  if (!currentSettings.providers[providerId]) {
+    currentSettings.providers[providerId] = {}
+  }
+  currentSettings.providers[providerId].model = modelId
+
+  // Update UI: remove active class from all items and add to selected one
+  const list = document.getElementById(`${providerId}-model-list`)
+  if (list) {
+    list.querySelectorAll('.model-item').forEach(el => {
+      el.classList.remove('active')
+      // Remove checkmark if exists
+      const check = el.querySelector('[data-icon="check"]')
+      if (check) check.remove()
+    })
+
+    const selectedItem = list.querySelector(`.model-item[data-model-id="${modelId}"]`)
+    if (selectedItem) {
+      selectedItem.classList.add('active')
+      // Add checkmark
+      const check = document.createElement('span')
+      check.className = 'nav-icon'
+      check.dataset.icon = 'check'
+      check.style.color = 'var(--accent)'
+      check.style.width = '16px'
+      check.style.height = '16px'
+      selectedItem.appendChild(check)
+      initIcons() // Re-initialize icons
+    }
+  }
+}
+
+window.selectModel = selectModel
 
 /**
  * Toggle password visibility

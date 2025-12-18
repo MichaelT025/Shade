@@ -299,3 +299,45 @@
   background: var(--border);
   margin: 0 var(--space-16);
 }
+
+/* ========================================
+   MODEL SELECTOR
+   ======================================== */
+
+.model-list {
+  margin-top: var(--space-12);
+  display: grid;
+  gap: var(--space-8);
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.model-list::-webkit-scrollbar { width: 4px; }
+.model-list::-webkit-scrollbar-track { background: transparent; }
+.model-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+
+.model-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-8) var(--space-12);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-quick) var(--easing);
+  color: var(--text-secondary);
+}
+
+.model-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.model-item.active {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+  color: var(--text-primary);
+  outline: 1px solid var(--accent);
+}

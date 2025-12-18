@@ -763,6 +763,143 @@
       margin: 0 0 var(--space-12) 0;
     }
 
+    /* Modes view */
+    .modes-root {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: var(--space-16);
+      overflow: hidden;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .modes-list {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .modes-editor {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 6px;
+    }
+
+    .mode-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-12);
+      padding: var(--space-12) var(--space-16);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.02);
+      cursor: pointer;
+      transition: all var(--duration-quick) var(--easing);
+      margin-bottom: var(--space-8);
+    }
+
+    .mode-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-elev-1);
+    }
+
+    .mode-card.active {
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .mode-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .mode-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mode-sub {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mode-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-8);
+      flex-shrink: 0;
+    }
+
+    .pill.small {
+      font-size: 11px;
+      padding: 2px 8px;
+    }
+
+    .icon-mini {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: all var(--duration-quick) var(--easing);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .icon-mini:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.12);
+      color: var(--text-primary);
+    }
+
+    .icon-mini.danger:hover {
+      background: rgba(255, 107, 107, 0.14);
+      border-color: rgba(255, 107, 107, 0.35);
+      color: rgba(255, 107, 107, 0.95);
+    }
+
+    .textarea {
+      width: 100%;
+      min-height: 220px;
+      resize: vertical;
+      padding: var(--space-12);
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(0, 0, 0, 0.18);
+      color: var(--text-primary);
+      outline: none;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .textarea:focus-visible {
+      box-shadow: var(--focus-ring);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    @media (max-width: 980px) {
+      .modes-root { grid-template-columns: 1fr; }
+    }
+
     .form-row {
       display: flex;
       gap: var(--space-12);
@@ -925,35 +1062,6 @@
     .status-line.good { color: var(--success); }
     .status-line.bad { color: var(--danger); }
 
-    .model-list {
-      margin-top: var(--space-12);
-      display: grid;
-      gap: var(--space-8);
-    }
-
-    .model-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: var(--space-12) var(--space-16);
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      transition: all var(--duration-quick) var(--easing);
-    }
-
-    .model-item:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.12);
-    }
-
-    .model-item.active {
-      border-color: rgba(255, 255, 255, 0.22);
-      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.10), inset 0 0 0 1px rgba(182, 179, 180, 0.28);
-      background: rgba(255, 255, 255, 0.05);
-    }
-
     @media (max-width: 720px) {
       #root { grid-template-columns: 1fr; }
       .sidebar { display: none; }
@@ -1054,6 +1162,36 @@
         </div>
 
         <div id="content" class="content" aria-label="Sessions"></div>
+      </div>
+
+      <!-- Modes View -->
+      <div id="view-modes" class="view-container" style="display: none;">
+        <div class="header" style="padding-top: 6px;">
+          <div>
+            <h1>Modes</h1>
+            <p>Configure prompts and default models</p>
+          </div>
+        </div>
+
+        <div id="modes-root" class="modes-root" aria-label="Modes">
+          <div class="modes-list">
+            <div class="search" style="margin-bottom: var(--space-12);">
+              <span class="search-icon" data-icon="search"></span>
+              <input id="modes-search" type="text" placeholder="Search modes" autocomplete="off" />
+            </div>
+            <div class="quick-actions" style="margin-bottom: var(--space-12);">
+              <button id="mode-new" class="action-btn primary" type="button">
+                <span class="nav-icon" data-icon="newchat"></span>
+                New mode
+              </button>
+            </div>
+            <div id="modes-list" class="content" aria-label="Mode list" style="padding: 0;"></div>
+          </div>
+
+          <div class="modes-editor">
+            <div id="mode-editor" class="config-card" style="margin-bottom: 0;"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Configuration View -->
