@@ -45,10 +45,10 @@ describe('GeminiProvider', () => {
       expect(customProvider.modelName).toBe('gemini-2.0-flash')
     })
 
-    test('should throw error without API key', () => {
-      expect(() => {
-        new GeminiProvider('')
-      }).toThrow('API key is required')
+    test('should initialize with empty API key (validation happens at use-time)', () => {
+      const provider = new GeminiProvider('')
+      expect(provider.apiKey).toBe('')
+      // API key validation happens when making requests, not on construction
     })
 
     test('should return correct provider name', () => {
