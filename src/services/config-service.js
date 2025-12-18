@@ -514,12 +514,16 @@ Memory:
    * @param {string} modeId
    */
   deleteMode(modeId) {
-    if (modeId === 'default') {
+    const modes = this.getModes()
+    const mode = modes.find(m => m.id === modeId)
+
+    // Back-compat: old configs may have a single 'default' mode.
+    // Current behavior: prevent deleting any mode marked as default.
+    if (modeId === 'default' || mode?.isDefault) {
       throw new Error('Cannot delete default mode')
     }
 
-    const modes = this.getModes()
-    this.config.modes = modes.filter(mode => mode.id !== modeId)
+    this.config.modes = modes.filter(m => m.id !== modeId)
 
     // If the deleted mode was active, switch to default
     if (this.config.activeMode === modeId) {

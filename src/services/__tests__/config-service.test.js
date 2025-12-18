@@ -67,9 +67,11 @@ describe('ConfigService', () => {
       const modes = configService.getModes()
       expect(Array.isArray(modes)).toBe(true)
       expect(modes.length).toBeGreaterThanOrEqual(1)
-      expect(modes[0].id).toBe('default')
-      expect(modes[0].name).toBe('Default')
-      expect(modes[0].isDefault).toBe(true)
+
+      const defaultMode = modes.find(m => m.isDefault)
+      expect(defaultMode).toBeDefined()
+      expect(defaultMode.id).toBe('bolt')
+      expect(defaultMode.name).toBeTruthy()
     })
 
     test('should initialize with default memory settings', () => {
@@ -338,7 +340,7 @@ describe('ConfigService', () => {
 
     test('should not allow deleting default mode', () => {
       expect(() => {
-        configService.deleteMode('default')
+        configService.deleteMode('bolt')
       }).toThrow('Cannot delete default mode')
     })
 
@@ -381,7 +383,7 @@ describe('ConfigService', () => {
 
       configService.deleteMode('temp-mode')
 
-      expect(configService.getActiveMode()).toBe('default')
+      expect(configService.getActiveMode()).toBe('bolt')
     })
   })
 
