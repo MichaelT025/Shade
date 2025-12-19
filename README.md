@@ -146,17 +146,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing/build commands, 
 ## Roadmap
 
 ### V1.0 (Current)
-- [x] Multi-provider LLM support
+- [x] Multi-provider LLM support (Cloud & Local)
 - [x] Screen capture with overlay exclusion
 - [x] Rich text rendering (Markdown, LaTeX, code)
-- [x] Collapsible overlay
-- [x] Session history dashboard
+- [x] Collapsible overlay with state synchronization
+- [x] Session history dashboard (search, rename, bulk actions)
 - [x] OpenAI-compatible local endpoints (Ollama / LM Studio)
 - [x] Automatic screenshot mode
-- [x] Model selection dropdown + refresh
+- [x] Model selection & quick-switcher (`Ctrl+M`)
 - [x] System prompt modes (built-in + editable)
+- [x] Smart memory management with summarization
 - [x] Unit test suite (Vitest)
-- [x] Model switcher (keyboard shortcut `Ctrl+M`)
+- [x] Encrypted local storage for API keys
 
 ### V1.1
 - [ ] macOS support

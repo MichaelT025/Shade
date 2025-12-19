@@ -689,20 +689,21 @@ userData/
 **Theme:** Core Functionality + Session Management
 
 **Features:**
-- [x] Multi-provider LLM support (Gemini, OpenAI, Anthropic)
+- [x] Multi-provider LLM support (Gemini, OpenAI, Anthropic, Grok, OpenRouter)
 - [x] Screen capture with overlay exclusion
 - [x] Streaming responses with markdown/LaTeX/code
-- [x] Settings window with API key management
-- [x] Collapsible overlay
-- [x] Homepage with session history
-- [x] Provider registry refactor
+- [x] Dashboard with Sessions, Configuration, Modes, and Shortcuts
+- [x] Collapsible overlay with persistent position/width sync
+- [x] Provider registry with auto-migration and encrypted storage
 - [x] Local model support (OpenAI-compatible: Ollama / LM Studio)
-- [x] Fixed memory limits
-- [x] Model selection dropdown + refresh
+- [x] Smart memory management with summarization
+- [x] Model selection dropdown + auto-refresh
 - [x] Automatic screenshot mode
 - [x] System prompt modes (built-in + editable)
+- [x] Model switcher (keyboard shortcut `Ctrl+M` + separate window)
 - [x] Unit test suite (Vitest)
-- [ ] Model switcher (keyboard shortcut + command palette)
+- [x] Resizability caps and window state synchronization
+- [x] First-run onboarding experience
 
 ### 10.2 V1.x - Polish & Expansion
 
@@ -710,12 +711,13 @@ userData/
 **Theme:** UX Improvements + More Providers
 
 **Features:**
-- [ ] Session search and filtering
+- [x] Session search and filtering (by title and saved status)
 - [ ] Additional providers (Groq, Mistral, Cohere)
 - [ ] Usage/cost tracking dashboard
 - [ ] Export sessions as markdown
 - [ ] Keyboard shortcut customization
-- [ ] Improved onboarding flow
+- [ ] Improved onboarding flow (multi-step wizard)
+- [ ] Multi-platform support (macOS priority)
 
 ### 10.3 V2.0 - File Support & Automation
 
