@@ -38,7 +38,8 @@ describe('SessionStorage', () => {
   describe('Initialization', () => {
     test('should create SessionStorage instance', () => {
       expect(sessionStorage).toBeDefined()
-      expect(sessionStorage.sessionsDir).toBe(path.join(testDir, 'sessions'))
+      // Service adds 'data/sessions' to userDataPath
+      expect(sessionStorage.sessionsDir).toBe(path.join(testDir, 'data', 'sessions'))
     })
 
     test('should throw error without userDataPath', () => {
@@ -141,7 +142,7 @@ describe('SessionStorage', () => {
     test('should save session with screenshots', async () => {
       const session = {
         messages: [
-          { type: 'user', text: 'Look at this', hasScreenshot: true },
+          { type: 'user', text: 'Look at this', hasScreenshot: true, screenshotBase64: 'base64data' },
           { type: 'ai', text: 'I see it', hasScreenshot: false }
         ]
       }
@@ -151,6 +152,7 @@ describe('SessionStorage', () => {
       const loaded = await sessionStorage.loadSession(result.id)
       expect(loaded.messages[0].hasScreenshot).toBe(true)
       expect(loaded.messages[1].hasScreenshot).toBe(false)
+      expect(loaded.messages[0].screenshotPath).toBeDefined()
     })
 
     test('should create sessions directory if not exists', async () => {

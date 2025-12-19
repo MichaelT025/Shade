@@ -29,38 +29,45 @@
       "output": "dist"
     },
     "files": [
-      "src/**/*",
+      "src/main/**/*",
+      "src/services/**/*",
+      "dist/renderer/**/*",
       "package.json",
       "build/icon.ico"
     ],
+    "npmRebuild": false,
+    "asar": true,
     "win": {
       "icon": "build/icon.ico",
       "target": [
         "nsis"
-      ]
+      ],
+      "verifyUpdateCodeSignature": false
     }
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/generative-ai": "^0.24.1",
-    "@vitejs/plugin-react": "^5.1.1",
-    "electron": "^32.2.7",
-    "electron-builder": "^26.0.12",
     "openai": "^6.10.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "sharp": "^0.34.5",
-    "vite": "^7.2.4"
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.7.1",
+    "@emnapi/runtime": "^1.7.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.6",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
     "@vitest/ui": "^4.0.15",
     "concurrently": "^9.2.1",
+    "electron": "^32.2.7",
+    "electron-builder": "^26.0.12",
     "happy-dom": "^20.0.11",
     "to-ico": "^1.1.5",
     "typescript": "^5.9.3",
+    "vite": "^7.2.4",
     "vitest": "^4.0.15"
   }
 }

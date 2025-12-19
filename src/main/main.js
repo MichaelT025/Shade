@@ -30,6 +30,11 @@ function broadcastConfigChanged() {
   sendToWindows('config-changed')
 }
 
+// Path to renderer assets (Vite build output in production, source files in dev)
+const rendererPath = !app.isPackaged 
+  ? path.join(__dirname, '../renderer')
+  : path.join(__dirname, '../../dist/renderer')
+
 // Create the main overlay window
 function createMainWindow() {
   // Get primary display work area
@@ -74,8 +79,8 @@ function createMainWindow() {
   // Content protection will be enabled temporarily during app screenshot capture
   mainWindow.setContentProtection(false)
 
-  // Load the overlay first
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+  // Load the overlay
+  mainWindow.loadFile(path.join(rendererPath, 'index.html'))
 
   // Open DevTools for debugging (disabled for production)
   // mainWindow.webContents.openDevTools()
@@ -177,7 +182,7 @@ function createDashboardWindow() {
   })
 
   // Load dashboard/homepage
-  settingsWindow.loadFile(path.join(__dirname, '../renderer/homepage.html'))
+  settingsWindow.loadFile(path.join(rendererPath, 'homepage.html'))
 
   // Show when ready
   settingsWindow.once('ready-to-show', () => {
@@ -249,7 +254,7 @@ function createModelSwitcherWindow() {
     },
   })
 
-  modelSwitcherWindow.loadFile(path.join(__dirname, '../renderer/model-switcher.html'))
+  modelSwitcherWindow.loadFile(path.join(rendererPath, 'model-switcher.html'))
 
   modelSwitcherWindow.once('ready-to-show', () => {
     modelSwitcherWindow.show()
