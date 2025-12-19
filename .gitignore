@@ -1,6 +1,8 @@
 node_modules/
 dist/
-build/
+# build/ is used for electron-builder inputs (e.g., build/icon.png)
+# Keep it tracked so CI/dev builds have the icon.
+# build/
 *.log
 config.json
 .env
