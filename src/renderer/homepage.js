@@ -448,7 +448,20 @@ function renderSessionList(container, sessions) {
       right.appendChild(renameBtn)
       right.appendChild(deleteBtn)
 
-      const activate = () => handleSessionClick(session.id)
+      const activate = () => {
+        if (selectedSessionIds.size > 0) {
+          if (selectedSessionIds.has(session.id)) {
+            selectedSessionIds.delete(session.id)
+            checkbox.checked = false
+          } else {
+            selectedSessionIds.add(session.id)
+            checkbox.checked = true
+          }
+          updateBulkModeUI()
+          return
+        }
+        handleSessionClick(session.id)
+      }
 
       card.addEventListener('click', activate)
       card.addEventListener('keydown', (e) => {
@@ -1500,8 +1513,8 @@ async function initConfigurationView() {
     if (!screenshotModeMsg) return
     screenshotModeMsg.textContent = isAuto
       ? 'Auto mode: captures and attaches your screen on every send.'
-      : 'Manual mode: use the camera button / hotkey to attach a screenshot.'
-  }
+      : 'Manual mode: use the screenshot button / shorcut to attach a screenshot.'
+  } 
 
   const setStartCollapsedMsg = (startCollapsed) => {
     if (!startCollapsedMsg) return

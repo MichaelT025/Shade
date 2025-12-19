@@ -12,6 +12,7 @@ let modelSwitcherWindow = null
 let configService = null
 let sessionStorage = null
 let overlayExpandedBounds = null
+let overlayCollapsedBounds = null
 let overlayIsCollapsed = false
 
 // Global state for current message request to allow interruption
@@ -37,8 +38,8 @@ function createMainWindow() {
   const { workArea } = primaryDisplay
 
   // Calculate position - right side but more centered vertically
-  const width = 550
-  const height = 500
+  const width = 500
+  const height = 450
   const paddingRight = 100  // More space from right edge
   const paddingTop = 80     // More space from top edge
   
@@ -55,6 +56,10 @@ function createMainWindow() {
     alwaysOnTop: true,
     resizable: true,
     skipTaskbar: false,
+    minWidth: 450,
+    minHeight: 400, // Start with expanded constraint
+    maxWidth: 1000,
+    maxHeight: 1000,
     icon: path.join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       nodeIntegration: false,
@@ -75,23 +80,36 @@ function createMainWindow() {
   // Open DevTools for debugging (disabled for production)
   // mainWindow.webContents.openDevTools()
 
-  // Track expanded size so we can restore after collapse
+  // Track both expanded and collapsed bounds so resizing in either state is preserved
   mainWindow.on('resize', () => {
-    if (!mainWindow || overlayIsCollapsed) return
-    overlayExpandedBounds = mainWindow.getBounds()
-  })
-
-  // Track position changes so expand() restores the latest location.
-  // - When expanded: keep full bounds in sync with user moves.
-  // - When collapsed: only update x/y so we preserve the remembered expanded size.
-  mainWindow.on('move', () => {
-    if (!mainWindow || !overlayExpandedBounds) return
+    if (!mainWindow) return
 
     const currentBounds = mainWindow.getBounds()
+    if (overlayIsCollapsed) {
+      overlayCollapsedBounds = currentBounds
+    } else {
+      overlayExpandedBounds = currentBounds
+    }
+  })
 
-    overlayExpandedBounds = overlayIsCollapsed
-      ? { ...overlayExpandedBounds, x: currentBounds.x, y: currentBounds.y }
-      : currentBounds
+  // Track position changes for both states
+  mainWindow.on('move', () => {
+    if (!mainWindow) return
+
+    const currentBounds = mainWindow.getBounds()
+    if (overlayIsCollapsed) {
+      if (overlayCollapsedBounds) {
+        overlayCollapsedBounds = { ...overlayCollapsedBounds, x: currentBounds.x, y: currentBounds.y }
+      } else {
+        overlayCollapsedBounds = currentBounds
+      }
+    } else {
+      if (overlayExpandedBounds) {
+        overlayExpandedBounds = { ...overlayExpandedBounds, x: currentBounds.x, y: currentBounds.y }
+      } else {
+        overlayExpandedBounds = currentBounds
+      }
+    }
   })
 
   // Handle window closed
@@ -120,7 +138,7 @@ function createDashboardWindow() {
   const dashboardHeight = 720
 
   // Keep dashboard clear of the right-edge overlay by default
-  const overlayWidth = 550
+  const overlayWidth = 500
   const overlayPaddingRight = 100
   const gapBetweenWindows = 60
 
@@ -146,6 +164,10 @@ function createDashboardWindow() {
     transparent: true,
     alwaysOnTop: false,
     backgroundColor: '#00000000',
+    minWidth: 800,
+    minHeight: 600,
+    maxWidth: 2000,
+    maxHeight: 1400,
     icon: path.join(__dirname, '../../build/icon.ico'),
     webPreferences: {
       nodeIntegration: false,
@@ -1053,26 +1075,43 @@ ipcMain.on('set-collapsed', (_event, payload) => {
     : defaultCollapsedHeight
 
   if (collapsed) {
-    // Capture current expanded bounds right before shrinking
+    // Save current bounds as expanded bounds before collapsing
     if (!overlayIsCollapsed) {
-      overlayExpandedBounds = mainWindow.getBounds()
-    } else if (!overlayExpandedBounds) {
       overlayExpandedBounds = mainWindow.getBounds()
     }
 
     overlayIsCollapsed = true
     const currentBounds = mainWindow.getBounds()
 
-    // Keep top-left anchored; preserve width
-    mainWindow.setBounds({
-      x: currentBounds.x,
-      y: currentBounds.y,
-      width: currentBounds.width,
-      height: collapsedHeight
-    })
+    // Relax min height to allow collapse
+    mainWindow.setMinimumSize(450, 100)
+
+    // Use saved collapsed bounds if available, otherwise use current bounds with collapsed height
+    let targetBounds
+    if (overlayCollapsedBounds) {
+      targetBounds = overlayCollapsedBounds
+    } else {
+      targetBounds = {
+        x: currentBounds.x,
+        y: currentBounds.y,
+        width: currentBounds.width,
+        height: collapsedHeight
+      }
+    }
+
+    mainWindow.setBounds(targetBounds)
   } else {
+    // Save current bounds as collapsed bounds before expanding
+    if (overlayIsCollapsed) {
+      overlayCollapsedBounds = mainWindow.getBounds()
+    }
+
     overlayIsCollapsed = false
 
+    // Restore expanded min height
+    mainWindow.setMinimumSize(450, 400)
+
+    // Use saved expanded bounds if available
     if (overlayExpandedBounds) {
       mainWindow.setBounds(overlayExpandedBounds)
     }
@@ -1398,6 +1437,20 @@ ipcMain.handle('load-session', async (_event, id) => {
     return { success: true, session }
   } catch (error) {
     console.error('Failed to load session:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('get-screenshot', async (_event, { sessionId, screenshotPath }) => {
+  try {
+    if (!sessionStorage) {
+      return { success: false, error: 'Session storage not initialized' }
+    }
+
+    const base64 = await sessionStorage.readScreenshotBase64(sessionId, screenshotPath)
+    return { success: true, base64 }
+  } catch (error) {
+    console.error('Failed to get screenshot:', error)
     return { success: false, error: error.message }
   }
 })

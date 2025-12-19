@@ -191,6 +191,14 @@ async function loadSessionIntoChat(sessionId) {
       const meta = document.createElement('div')
       meta.className = 'message-meta'
       meta.textContent = 'Sent with screenshot'
+      
+      // Setup hover preview
+      setupScreenshotPreview(meta, () => ({
+        sessionId: currentSessionId || session.id,
+        screenshotPath: m.screenshotPath,
+        base64: m.screenshotBase64
+      }))
+
       chatWrapper.appendChild(meta)
     }
 
@@ -334,6 +342,12 @@ async function init() {
   console.log('MemoryManager initialized with limit:', historyLimit)
 
   await loadBehaviorSettings()
+
+  // Setup preview for screenshot button
+  setupScreenshotPreview(screenshotBtn, () => {
+    if (!isScreenshotActive || !capturedScreenshot) return null
+    return { base64: capturedScreenshot }
+  })
 
   // Screenshot button - toggle screenshot attachment in manual mode
   screenshotBtn.addEventListener('click', async () => {
@@ -807,7 +821,8 @@ async function handleSendMessage() {
     const conversationHistory = context.messages.map(m => ({
       type: m.role === 'user' ? 'user' : 'ai',
       text: m.content,
-      hasScreenshot: false,
+      // Only include screenshot in AI context if not excluded
+      hasScreenshot: false, 
       timestamp: new Date(m.timestamp)
     }))
 
@@ -865,6 +880,154 @@ async function handleSendMessage() {
       messageInput.placeholder = 'Ask about your screen or conversation, or ↩ for Assist'
     }
   }
+}
+
+/**
+ * Setup hover preview for screenshot metadata
+ * @param {HTMLElement} element - The "Sent with screenshot" element
+ * @param {object} params - { sessionId, screenshotPath, base64 }
+ */
+function setupScreenshotPreview(element, paramsOrGetter) {
+  let popup = null
+  let isHovering = false
+  let hideTimeout = null
+  let fetchPromise = null
+
+  const getParams = () => {
+    return typeof paramsOrGetter === 'function' ? paramsOrGetter() : paramsOrGetter
+  }
+
+  const showPopup = async () => {
+    if (popup) return
+
+    const params = getParams()
+    if (!params) return
+
+    // Fetch base64 if needed
+    let imgSrc = params.base64
+    
+    // If no base64 but we have path, fetch it
+    if (!imgSrc && params.sessionId && params.screenshotPath) {
+      if (!fetchPromise) {
+        fetchPromise = window.electronAPI.getScreenshot(params.sessionId, params.screenshotPath)
+      }
+      
+      try {
+        const result = await fetchPromise
+        if (result.success && result.base64) {
+          imgSrc = result.base64
+        }
+      } catch (e) {
+        console.error('Failed to fetch screenshot preview', e)
+        return
+      }
+    }
+
+    if (!imgSrc) return
+    if (!isHovering) return // User left while fetching
+
+    popup = document.createElement('div')
+    popup.className = 'screenshot-preview-popup'
+    
+    Object.assign(popup.style, {
+      position: 'fixed',
+      zIndex: '9999',
+      background: 'var(--bg-secondary)',
+      border: '2px solid var(--accent)',
+      borderRadius: 'var(--radius-md)',
+      padding: '4px',
+      boxShadow: 'var(--shadow-glow), var(--shadow-elev-3)',
+      width: '240px',
+      height: 'auto',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      opacity: '0',
+      transform: 'translateY(10px)',
+      transition: 'opacity 0.2s ease, transform 0.2s ease',
+      backdropFilter: 'var(--blur-overlay)',
+      webkitBackdropFilter: 'var(--blur-overlay)'
+    })
+
+    const img = document.createElement('img')
+    img.src = `data:image/jpeg;base64,${imgSrc}`
+    
+    Object.assign(img.style, {
+      maxWidth: '100%',
+      maxHeight: '100%',
+      borderRadius: '0',
+      display: 'block',
+      border: '1px solid var(--accent-muted)'
+    })
+    
+    popup.appendChild(img)
+    document.body.appendChild(popup)
+
+    // Keep popup alive when hovering it
+    popup.addEventListener('mouseenter', () => {
+      isHovering = true
+      if (hideTimeout) clearTimeout(hideTimeout)
+    })
+    
+    popup.addEventListener('mouseleave', () => {
+      isHovering = false
+      hidePopup()
+    })
+
+    // Position it
+    const rect = element.getBoundingClientRect()
+    const popupRect = popup.getBoundingClientRect()
+    
+    // Default: above the text
+    let top = rect.top - popupRect.height - 12
+    let left = rect.left + (rect.width / 2) - (popupRect.width / 2)
+    
+    // If not enough space on top, show below
+    if (top < 10) {
+        top = rect.bottom + 12
+    }
+    
+    // Keep within horizontal bounds
+    if (left < 10) left = 10
+    if (left + popupRect.width > window.innerWidth - 10) {
+        left = window.innerWidth - popupRect.width - 10
+    }
+
+    popup.style.top = `${top}px`
+    popup.style.left = `${left}px`
+    
+    // Trigger animation
+    requestAnimationFrame(() => {
+      if (popup) {
+        popup.style.opacity = '1'
+        popup.style.transform = 'translateY(0)'
+      }
+    })
+  }
+
+  const hidePopup = () => {
+    if (hideTimeout) clearTimeout(hideTimeout)
+    hideTimeout = setTimeout(() => {
+      if (!isHovering && popup) {
+        popup.remove()
+        popup = null
+      }
+    }, 150)
+  }
+
+  element.addEventListener('mouseenter', () => {
+    isHovering = true
+    if (hideTimeout) clearTimeout(hideTimeout)
+    // Small delay to prevent flashing on accidental mouse over
+    setTimeout(() => {
+        if (isHovering) showPopup()
+    }, 200) 
+  })
+  
+  element.addEventListener('mouseleave', () => {
+    isHovering = false
+    hidePopup()
+  })
 }
 
 /**
@@ -959,6 +1122,14 @@ function addMessage(type, text, hasScreenshot = false, screenshotBase64 = null) 
     const meta = document.createElement('div')
     meta.className = 'message-meta'
     meta.textContent = 'Sent with screenshot'
+    
+    // Setup hover preview
+    setupScreenshotPreview(meta, () => ({
+      sessionId: currentSessionId,
+      screenshotPath: null,
+      base64: screenshotBase64
+    }))
+
     chatWrapper.appendChild(meta)
   }
   
@@ -972,6 +1143,7 @@ function addMessage(type, text, hasScreenshot = false, screenshotBase64 = null) 
   const persistScreenshotBase64 = persistHasScreenshot && type === 'user' && typeof screenshotBase64 === 'string'
     ? screenshotBase64
     : null
+
 
   const persistScreenshotPath = persistHasScreenshot && type === 'user'
     ? `screenshots/${safePathPart(id) || id}.jpg`

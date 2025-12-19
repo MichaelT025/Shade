@@ -337,6 +337,9 @@ class SessionStorage {
     const maxAgeMs = 30 * 24 * 60 * 60 * 1000
 
     const toDelete = sessions.filter(s => {
+      // Never delete sessions that the user has explicitly saved.
+      if (s.isSaved) return false
+
       const updated = new Date(s.updatedAt).getTime()
       const created = new Date(s.createdAt).getTime()
       const reference = Number.isFinite(updated) ? updated : created

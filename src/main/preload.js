@@ -147,6 +147,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleSessionSaved: (id) => ipcRenderer.invoke('toggle-session-saved', id),
   setSessionSaved: (id, isSaved) => ipcRenderer.invoke('set-session-saved', { id, isSaved }),
   searchSessions: (query) => ipcRenderer.invoke('search-sessions', query),
+  getScreenshot: (sessionId, screenshotPath) => ipcRenderer.invoke('get-screenshot', { sessionId, screenshotPath }),
 
   // Update checking
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
