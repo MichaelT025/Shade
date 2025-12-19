@@ -1357,7 +1357,31 @@ ipcMain.handle('open-data-folder', async () => {
 // Load custom icons from directory
 ipcMain.handle('load-custom-icons', async () => {
   try {
-    const iconsPath = path.join(__dirname, '../renderer/assets/icons/custom-icons')
+    // Prefer packaged renderer output if it contains the directory.
+    // Fallback to the source tree path (packaged via electron-builder files).
+    const candidates = [
+      path.join(rendererPath, 'assets', 'icons', 'custom-icons'),
+      path.join(__dirname, '../renderer/assets/icons/custom-icons')
+    ]
+
+    let iconsPath = null
+    for (const candidate of candidates) {
+      try {
+        const stat = await fs.stat(candidate)
+        if (stat && stat.isDirectory()) {
+          iconsPath = candidate
+          break
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!iconsPath) {
+      console.warn('Custom icons directory not found in any known location')
+      return {}
+    }
+
     const icons = {}
 
     // Read all files in custom-icons directory
