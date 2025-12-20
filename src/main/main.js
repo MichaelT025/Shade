@@ -35,6 +35,15 @@ const rendererPath = !app.isPackaged
   ? path.join(__dirname, '../renderer')
   : path.join(__dirname, '../../dist/renderer')
 
+// BrowserWindow's `icon` is mainly relevant on Windows/Linux. On macOS the app icon
+// comes from the bundled .icns at build time, but we still provide a valid path so
+// `npm start` works cross-platform.
+const getIconPath = () => {
+  return process.platform === 'win32'
+    ? path.join(__dirname, '../../build/icon.ico')
+    : path.join(__dirname, '../../build/appicon.png')
+}
+
 // Create the main overlay window
 function createMainWindow() {
   // Get primary display work area
@@ -65,7 +74,7 @@ function createMainWindow() {
     minHeight: 400, // Start with expanded constraint
     maxWidth: 1000,
     maxHeight: 1000,
-    icon: path.join(__dirname, '../../build/icon.ico'),
+    icon: getIconPath(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -173,7 +182,7 @@ function createDashboardWindow() {
     minHeight: 600,
     maxWidth: 2000,
     maxHeight: 1400,
-    icon: path.join(__dirname, '../../build/icon.ico'),
+    icon: getIconPath(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -246,7 +255,7 @@ function createModelSwitcherWindow() {
     resizable: false,
     skipTaskbar: true,
     backgroundColor: '#00000000',
-    icon: path.join(__dirname, '../../build/icon.ico'),
+    icon: getIconPath(),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -314,7 +323,12 @@ function registerHotkeys() {
   })
 
   // Ctrl+M to open model switcher
-  globalShortcut.register('CommandOrControl+M', () => {
+  // On macOS, Cmd+M is the standard "minimize window" shortcut, so avoid overriding it.
+  const modelSwitcherShortcut = process.platform === 'darwin'
+    ? 'CommandOrControl+Shift+M'
+    : 'CommandOrControl+M'
+
+  globalShortcut.register(modelSwitcherShortcut, () => {
     if (!isOverlayVisible()) return
     createModelSwitcherWindow()
   })
