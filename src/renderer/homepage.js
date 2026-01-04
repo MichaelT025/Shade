@@ -1915,7 +1915,7 @@ function showFirstRunExperience() {
     <img src="../../build/appicon.png" alt="Shade Logo" class="welcome-logo" />
     <h1>Welcome to Shade</h1>
     <p>
-      Shade is your invisible AI assistant. To begin, connect to a cloud provider 
+      Shade makes your screen, smarter. To begin, connect to a cloud provider 
       using an API key or link a local model running on your machine.
     </p>
 

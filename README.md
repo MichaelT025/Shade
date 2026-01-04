@@ -1,6 +1,6 @@
 # Shade
 
-**The Invisible AI Assistant**
+**Your screen, smarter**
 
 A Windows desktop application providing real-time AI assistance through a translucent, always-on-top overlay. Capture your screen and ask questions - powered by your choice of LLM provider.
 

@@ -12,7 +12,7 @@
 
 **Shade** is a Windows desktop application that provides a translucent, always-on-top AI overlay for screen-based assistance. Users capture screenshots and ask questions about their screen content using their own API keys from major LLM providers.
 
-**Tagline:** *"The Invisible AI Assistant"*
+**Tagline:** *"Your screen, smarter"*
 
 **Core Value Proposition:**
 - **Privacy-first** - All data stays local on the user's machine
