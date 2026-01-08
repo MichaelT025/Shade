@@ -1353,17 +1353,21 @@ ipcMain.handle('open-data-folder', async () => {
   try {
     const { shell } = require('electron')
     const userDataPath = app.getPath('userData')
-    const dataPath = path.join(userDataPath, 'data')
-    
-    // Check if data folder exists, if not fall back to userData
-    const targetPath = (await fs.stat(dataPath).catch(() => false)) 
-      ? dataPath 
-      : userDataPath
-      
-    await shell.openPath(targetPath)
+    await shell.openPath(userDataPath)
     return { success: true }
   } catch (error) {
     console.error('Failed to open data folder:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('open-external', async (_event, url) => {
+  try {
+    const { shell } = require('electron')
+    await shell.openExternal(url)
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to open external URL:', error)
     return { success: false, error: error.message }
   }
 })

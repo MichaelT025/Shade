@@ -1788,6 +1788,17 @@ async function initConfigurationView() {
     setStatus(modelStatus, refreshed.error || 'Failed to refresh models.', 'bad')
   }
 
+  // Social links behavior: open in external browser
+  container.querySelectorAll('.social-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault()
+      const url = link.getAttribute('href')
+      if (url && url !== '#') {
+        window.electronAPI.openExternal(url)
+      }
+    })
+  })
+
   // dashboard config icons
   container.querySelectorAll('[data-icon]').forEach(el => {
     const name = el.getAttribute('data-icon')
@@ -1795,6 +1806,19 @@ async function initConfigurationView() {
   })
 
   configViewInitialized = true
+}
+
+function wireSocialLinks() {
+  // Wire up sidebar social links to open in external browser
+  document.querySelectorAll('.sidebar .social-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault()
+      const url = link.getAttribute('href')
+      if (url && url !== '#') {
+        window.electronAPI.openExternal?.(url)
+      }
+    })
+  })
 }
 
 function wireNavigation() {
@@ -2257,6 +2281,7 @@ async function init() {
   })
 
   wireNavigation()
+  wireSocialLinks()
   loadSessions().catch(console.error)
 }
 
