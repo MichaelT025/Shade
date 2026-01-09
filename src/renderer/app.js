@@ -7,6 +7,12 @@ import { getIcon, insertIcon, initIcons } from './assets/icons/icons.js';
 import { createScreenshotChip, formatTimestamp, showToast, copyToClipboard } from './utils/ui-helpers.js';
 import MemoryManager from './utils/memory-manager.js';
 
+// Security and rendering libraries (bundled via npm, not CDN)
+import { marked } from 'marked';
+import katex from 'katex';
+import hljs from 'highlight.js';
+import DOMPurify from 'dompurify';
+
 // State management
 const messages = [] // Chat history array (for UI display)
 let currentSessionId = null
@@ -1672,33 +1678,30 @@ async function handleModeSwitch(event) {
 
 /**
  * Configure marked.js for GitHub-flavored markdown with code highlighting
+ * Security: Raw HTML output will be sanitized with DOMPurify
  */
-if (typeof marked !== 'undefined') {
-  marked.setOptions({
-    gfm: true, // GitHub Flavored Markdown
-    breaks: true, // Convert \n to <br>
-    headerIds: false, // Don't add IDs to headers
-    highlight: function(code, lang) {
-      // Use highlight.js for code highlighting
-      if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
-        try {
-          return hljs.highlight(code, { language: lang }).value
-        } catch (err) {
-          console.error('Highlight error:', err)
-        }
+marked.use({
+  gfm: true, // GitHub Flavored Markdown
+  breaks: true, // Convert \n to <br>
+  headerIds: false, // Don't add IDs to headers
+  highlight: function(code, lang) {
+    // Use highlight.js for code highlighting
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return hljs.highlight(code, { language: lang }).value
+      } catch (err) {
+        console.error('Highlight error:', err)
       }
-      // Auto-detect language if not specified
-      if (typeof hljs !== 'undefined') {
-        try {
-          return hljs.highlightAuto(code).value
-        } catch (err) {
-          console.error('Auto-highlight error:', err)
-        }
-      }
-      return code
     }
-  })
-}
+    // Auto-detect language if not specified
+    try {
+      return hljs.highlightAuto(code).value
+    } catch (err) {
+      console.error('Auto-highlight error:', err)
+    }
+    return code
+  }
+})
 
 /**
  * Extract and protect LaTeX blocks from text before markdown processing
@@ -1769,14 +1772,6 @@ function normalizeLatexBackslashes(latex) {
  * @returns {string} - HTML with rendered LaTeX
  */
 function restoreAndRenderLatex(html, blocks) {
-  if (typeof katex === 'undefined') {
-    // Fallback: just restore the original LaTeX text
-    for (const block of blocks) {
-      html = html.replace(block.placeholder, block.content)
-    }
-    return html
-  }
-
   for (const block of blocks) {
     let latex = block.content
     let displayMode = false
@@ -1804,7 +1799,7 @@ function restoreAndRenderLatex(html, blocks) {
         displayMode: displayMode,
         throwOnError: false,
         strict: false,
-        trust: true
+        trust: false  // Security: Don't trust macros from LLM output
       })
       html = html.replace(block.placeholder, rendered)
     } catch (err) {
@@ -1822,14 +1817,11 @@ function restoreAndRenderLatex(html, blocks) {
 /**
  * Render markdown with LaTeX support
  * Uses pre-processing to protect LaTeX from markdown parser corruption
+ * Security: Sanitizes output with DOMPurify to prevent XSS from LLM output
  * @param {string} text - Raw markdown text
- * @returns {string} - Rendered HTML
+ * @returns {string} - Rendered and sanitized HTML
  */
 function renderMarkdown(text) {
-  if (typeof marked === 'undefined') {
-    return text // Fallback if marked is not loaded
-  }
-
   try {
     // Step 1: Extract and protect LaTeX blocks before markdown processing
     const { text: textWithPlaceholders, blocks } = extractLatexBlocks(text)
@@ -1840,10 +1832,37 @@ function renderMarkdown(text) {
     // Step 3: Restore LaTeX blocks and render with KaTeX
     html = restoreAndRenderLatex(html, blocks)
 
+    // Step 4: Sanitize HTML to prevent XSS attacks from LLM output
+    // Allow KaTeX-specific elements and MathML for math rendering
+    html = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'a', 'img',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li', 'blockquote', 'hr',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'span', 'div', // For KaTeX and code blocks
+        // MathML elements for KaTeX
+        'math', 'semantics', 'mrow', 'mi', 'mn', 'mo', 'mtext', 'mspace',
+        'msup', 'msub', 'msubsup', 'mfrac', 'msqrt', 'mroot', 'mstyle',
+        'mtable', 'mtr', 'mtd', 'mover', 'munder', 'munderover', 'annotation'
+      ],
+      ALLOWED_ATTR: [
+        'href', 'src', 'alt', 'title', 'class', 'style', 'target', 'rel',
+        // KaTeX attributes
+        'xmlns', 'encoding', 'displaystyle', 'scriptlevel', 'mathvariant',
+        'mathsize', 'dir', 'fontfamily', 'fontweight', 'fontstyle',
+        'fontsize', 'color', 'background', 'mathbackground', 'mathcolor',
+        'columnalign', 'columnlines', 'columnspacing', 'rowlines', 'rowspacing',
+        'width', 'height', 'viewBox', 'preserveAspectRatio'
+      ],
+      ALLOW_DATA_ATTR: true,
+      KEEP_CONTENT: true
+    })
+
     return html
   } catch (err) {
     console.error('Markdown render error:', err)
-    return text // Fallback to plain text on error
+    return DOMPurify.sanitize(text) // Fallback to sanitized plain text on error
   }
 }
 
