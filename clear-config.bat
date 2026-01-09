@@ -1,10 +1,10 @@
 @echo off
-echo Deleting old Shade config file...
-del "%APPDATA%\shade\shade-config.json" 2>nul
+echo Deleting Shade config and data...
+rmdir /s /q "%APPDATA%\Shade\data" 2>nul
 if %errorlevel% equ 0 (
-    echo Config file deleted successfully!
+    echo Data folder deleted successfully!
 ) else (
-    echo No config file found or already deleted.
+    echo No data folder found or already deleted.
 )
 echo.
 echo Now restart the app with: npm start

@@ -4,7 +4,7 @@
 
 A Windows desktop application providing real-time AI assistance through a translucent, always-on-top overlay. Capture your screen and ask questions - powered by your choice of LLM provider.
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.9.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 

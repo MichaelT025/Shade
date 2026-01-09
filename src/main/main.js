@@ -1670,6 +1670,15 @@ ipcMain.handle('search-sessions', async (_event, query) => {
   }
 })
 
+ipcMain.handle('get-app-version', (event) => {
+  const senderUrl = event?.senderFrame?.url || ''
+  if (!senderUrl.startsWith('file://') && !senderUrl.startsWith('http://localhost')) {
+    throw new Error('Unauthorized IPC call')
+  }
+
+  return app.getVersion()
+})
+
 ipcMain.handle('check-for-updates', async () => {
   try {
     const https = require('https')

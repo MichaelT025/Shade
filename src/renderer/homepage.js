@@ -2009,6 +2009,16 @@ window.checkFirstRunState = checkFirstRunState
 async function init() {
   await initIcons()
 
+  try {
+    const versionEl = document.querySelector('.version-text')
+    if (versionEl && window.electronAPI?.getAppVersion) {
+      const version = await window.electronAPI.getAppVersion()
+      if (version) versionEl.textContent = `v${version}`
+    }
+  } catch (error) {
+    console.error('Failed to load app version:', error)
+  }
+
   document.querySelectorAll('[data-icon]').forEach(el => {
     insertIcon(el, el.dataset.icon, el.classList.contains('nav-icon') || el.classList.contains('search-icon') ? undefined : 'icon-svg')
   })

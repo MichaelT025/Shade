@@ -3,6 +3,9 @@
  * Handles conversation history, summarization, and context optimization
  */
 
+// Gate verbose logs in test environment
+const DEBUG = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'test';
+
 class MemoryManager {
   constructor(historyLimit = 10) {
     this.messages = []              // Full conversation history
@@ -35,10 +38,12 @@ class MemoryManager {
   checkSummarizationNeeded() {
     // Only summarize if we have more messages than threshold and no summary yet
     if (this.messages.length > this.summarizationThreshold && !this.summary) {
-      console.log('Summarization needed:', {
-        messageCount: this.messages.length,
-        threshold: this.summarizationThreshold
-      })
+      if (DEBUG) {
+        console.log('Summarization needed:', {
+          messageCount: this.messages.length,
+          threshold: this.summarizationThreshold
+        })
+      }
       // Note: Actual summarization is triggered externally via generateSummary()
       // This just logs that it's needed
     }
@@ -50,7 +55,7 @@ class MemoryManager {
    */
   async generateSummary(summaryGenerator) {
     if (this.messages.length <= this.historyLimit) {
-      console.log('Not enough messages to summarize')
+      if (DEBUG) console.log('Not enough messages to summarize')
       return
     }
 
@@ -58,12 +63,12 @@ class MemoryManager {
     const messagesToSummarize = this.messages.slice(0, -this.historyLimit)
 
     if (messagesToSummarize.length === 0) {
-      console.log('No messages to summarize')
+      if (DEBUG) console.log('No messages to summarize')
       return
     }
 
     try {
-      console.log('Generating summary for', messagesToSummarize.length, 'messages')
+      if (DEBUG) console.log('Generating summary for', messagesToSummarize.length, 'messages')
       
       // Call the summary generator (passed from app.js)
       const summaryText = await summaryGenerator(messagesToSummarize)
@@ -75,11 +80,13 @@ class MemoryManager {
         version: ++this.summaryVersion
       }
 
-      console.log('Summary generated:', {
-        length: summaryText.length,
-        messageCount: this.summary.messageCount,
-        version: this.summary.version
-      })
+      if (DEBUG) {
+        console.log('Summary generated:', {
+          length: summaryText.length,
+          messageCount: this.summary.messageCount,
+          version: this.summary.version
+        })
+      }
     } catch (error) {
       console.error('Failed to generate summary:', error)
       throw error
@@ -114,7 +121,7 @@ class MemoryManager {
   updateHistoryLimit(newLimit) {
     this.historyLimit = newLimit
     this.summarizationThreshold = newLimit + this.bufferZone
-    console.log('History limit updated to:', newLimit, '(threshold:', this.summarizationThreshold + ')')
+    if (DEBUG) console.log('History limit updated to:', newLimit, '(threshold:', this.summarizationThreshold + ')')
   }
 
   /**
@@ -124,7 +131,7 @@ class MemoryManager {
     this.messages = []
     this.summary = null
     this.summaryVersion = 0
-    console.log('Conversation cleared')
+    if (DEBUG) console.log('Conversation cleared')
   }
 
   /**

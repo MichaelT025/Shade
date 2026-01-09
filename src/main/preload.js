@@ -151,6 +151,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   searchSessions: (query) => ipcRenderer.invoke('search-sessions', query),
   getScreenshot: (sessionId, screenshotPath) => ipcRenderer.invoke('get-screenshot', { sessionId, screenshotPath }),
 
+  // App metadata
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+ 
   // Update checking
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 

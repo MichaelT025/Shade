@@ -27,10 +27,12 @@ Run the app and open the Dashboard:
 
 In **Configuration** you can also control:
 - **Screenshot mode**: manual vs auto-capture per message
+- **Save screenshots in history**: when enabled, screenshots are persisted with the session for later review (off by default for privacy)
 - **Memory**:
   - **History Limit** (how many recent messages are sent as context)
   - **Summarization** (optional)
-  - **Exclude screenshots from memory** (recommended if you don’t want old images reused as context)
+
+Note: Screenshots are never re-sent to the LLM as prior context—they only apply to the message they're attached to.
 
 ### 4) Start chatting
 
@@ -131,8 +133,10 @@ High-level shape:
   "memoryLimit": 30,
   "memorySettings": {
     "historyLimit": 10,
-    "enableSummarization": true,
-    "excludeScreenshotsFromMemory": true
+    "enableSummarization": true
+  },
+  "screenshotSettings": {
+    "saveScreenshotsInHistory": false
   },
   "sessionSettings": {
     "autoTitleSessions": true,

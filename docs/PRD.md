@@ -226,7 +226,7 @@ Shade is an invisible assistant that:
 | P0-2 | **Homepage with Sessions** | Session history (last 30 days), searchable by title, deletable, resumable |
 | P0-3 | **Provider Registry** | Unified config system for all providers (LLredo.md architecture) |
 | P0-4 | **Local Model Support** | OpenAI-compatible local endpoints (Ollama / LM Studio) |
-| P0-5 | **Conversation Memory Controls** | Configurable history limit + optional summarization; option to exclude screenshots from memory |
+| P0-5 | **Conversation Memory Controls** | Configurable history limit + optional summarization; screenshots not persisted by default (privacy-first) |
 | P0-6 | **Manual Screenshot** | "Use Screen" button captures current screen |
 | P0-7 | **Multi-provider Support** | Gemini, OpenAI, Anthropic, plus OpenAI-compatible providers (e.g., Grok, OpenRouter) |
 | P0-8 | **Streaming Responses** | Real-time response rendering with markdown/LaTeX/code |
@@ -427,7 +427,7 @@ providers/*.js (provider implementations)
 - Save full session history locally
 - Send only the most recent N messages to the LLM (**History Limit**, configurable)
 - Optional **summarization** to preserve older context without sending the entire transcript
-- Optional **Exclude screenshots from memory** so the LLM doesn’t get prior image context unless explicitly re-attached
+- Screenshots are **not persisted by default** (privacy-first); users can enable "Save screenshots in history" to keep them for session review. Prior screenshots are never re-sent to the LLM regardless of this setting.
 
 **Rationale:**
 - Keeps latency/cost predictable
@@ -447,7 +447,7 @@ providers/*.js (provider implementations)
 **Description:** Provide explicit controls for local-only data retention.
 
 **Behavior:**
-- Sessions (and any persisted screenshots) live under the user data folder
+- Sessions live under the user data folder; screenshots are only persisted if the user enables "Save screenshots in history"
 - Dashboard supports deleting single sessions and a **Delete all data** wipe
 - Users can open the data folder directly from the UI
 
