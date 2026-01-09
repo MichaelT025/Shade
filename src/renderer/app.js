@@ -1804,7 +1804,7 @@ function restoreAndRenderLatex(html, blocks) {
         displayMode: displayMode,
         throwOnError: false,
         strict: false,
-        trust: true
+        trust: false // Security: disable trust to prevent macro exploits
       })
       html = html.replace(block.placeholder, rendered)
     } catch (err) {
@@ -1839,6 +1839,14 @@ function renderMarkdown(text) {
 
     // Step 3: Restore LaTeX blocks and render with KaTeX
     html = restoreAndRenderLatex(html, blocks)
+
+    // Step 4: Sanitize HTML to prevent XSS from untrusted LLM output
+    if (typeof DOMPurify !== 'undefined') {
+      html = DOMPurify.sanitize(html, {
+        ADD_TAGS: ['semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mroot', 'msqrt', 'mtable', 'mtr', 'mtd', 'mtext', 'mspace', 'mover', 'munder', 'munderover', 'math'],
+        ADD_ATTR: ['mathvariant', 'encoding', 'xmlns', 'display', 'accent', 'accentunder', 'columnalign', 'rowalign', 'columnspacing', 'rowspacing', 'aria-hidden']
+      })
+    }
 
     return html
   } catch (err) {

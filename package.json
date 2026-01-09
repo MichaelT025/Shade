@@ -49,6 +49,11 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/generative-ai": "^0.24.1",
+    "@vitest/coverage-v8": "^4.0.16",
+    "dompurify": "^3.3.1",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.27",
+    "marked": "^17.0.1",
     "openai": "^6.10.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
