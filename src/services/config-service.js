@@ -533,16 +533,6 @@ Memory:
   }
 
   /**
-   * Check if a provider has an API key configured
-   * @param {string} providerName
-   * @returns {boolean}
-   */
-  hasApiKey(providerName) {
-    const apiKey = this.getApiKey(providerName)
-    return apiKey && apiKey.length > 0
-  }
-
-  /**
    * Get all configuration data (for debugging/export)
    * @returns {Object}
    */
@@ -739,48 +729,6 @@ Memory:
     this.saveConfig()
   }
 
-  /**
-   * Check if summarization is enabled
-   * @returns {boolean}
-   */
-  isSummarizationEnabled() {
-    const settings = this.getMemorySettings()
-    return settings.enableSummarization !== false
-  }
-
-  /**
-   * Set summarization enabled state
-   * @param {boolean} enabled
-   */
-  setSummarizationEnabled(enabled) {
-    if (!this.config.memorySettings) {
-      this.config.memorySettings = this.defaultConfig.memorySettings
-    }
-    this.config.memorySettings.enableSummarization = enabled
-    this.saveConfig()
-  }
-
-  /**
-   * Get summarization threshold
-   * @returns {number}
-   */
-  getSummarizationThreshold() {
-    const settings = this.getMemorySettings()
-    return settings.summarizationThreshold || 15
-  }
-
-  /**
-   * Set summarization threshold
-   * @param {number} threshold
-   */
-  setSummarizationThreshold(threshold) {
-    if (!this.config.memorySettings) {
-      this.config.memorySettings = this.defaultConfig.memorySettings
-    }
-    this.config.memorySettings.summarizationThreshold = threshold
-    this.saveConfig()
-  }
-
   getExcludeScreenshotsFromMemory() {
     const settings = this.getMemorySettings()
     return settings.excludeScreenshotsFromMemory !== false
@@ -810,11 +758,6 @@ Memory:
       this.saveConfig()
     }
     return this.config.sessionSettings
-  }
-
-  getAutoTitleSessions() {
-    const settings = this.getSessionSettings()
-    return settings.autoTitleSessions !== false
   }
 
   setAutoTitleSessions(enabled) {

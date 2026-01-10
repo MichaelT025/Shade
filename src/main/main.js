@@ -88,11 +88,8 @@ function createMainWindow() {
   // Content protection will be enabled temporarily during app screenshot capture
   mainWindow.setContentProtection(false)
 
-  // Load the overlay
+// Load the overlay
   mainWindow.loadFile(path.join(rendererPath, 'index.html'))
-
-  // Open DevTools for debugging (disabled for production)
-  // mainWindow.webContents.openDevTools()
 
   // Track both expanded and collapsed bounds so resizing in either state is preserved
   // Synchronize x, y, and width across both states whenever one is moved or resized
@@ -1687,10 +1684,10 @@ ipcMain.handle('check-for-updates', async () => {
     return new Promise((resolve) => {
       const options = {
         hostname: 'api.github.com',
-        path: '/repos/project-ghostpad/ghostpad/releases/latest',
+        path: '/repos/MichaelT025/Shade/releases/latest',
         method: 'GET',
         headers: {
-          'User-Agent': 'GhostPad-App',
+          'User-Agent': 'Shade-App',
           'Accept': 'application/vnd.github.v3+json'
         }
       }

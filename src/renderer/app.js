@@ -42,7 +42,6 @@ const hideBtn = document.getElementById('hide-btn')
 const collapseBtn = document.getElementById('collapse-btn')
 const modeDropdownInput = document.getElementById('mode-dropdown-input')
 const newChatBtn = document.getElementById('new-chat-btn')
-const displayBtn = document.getElementById('display-btn')
 const scrollBottomBtn = document.getElementById('scroll-bottom-btn')
 
 // Session persistence
@@ -648,8 +647,7 @@ async function handleScreenshotCapture() {
       isScreenshotActive = true
       screenshotBtn.title = 'Remove screenshot'
       
-      // Show screenshot chip preview
-      // showScreenshotChip(capturedThumbnail)
+// Show screenshot chip preview
       
       // Update input placeholder
       messageInput.placeholder = 'Ask about the captured screen...'

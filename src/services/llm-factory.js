@@ -77,29 +77,11 @@ class LLMFactory {
   }
 
   /**
-   * Get models for a provider
-   * @param {string} providerName - Provider name
-   * @returns {Array} - Array of models
-   */
-  static getModelsForProvider(providerName) {
-    return ProviderRegistry.getModels(providerName)
-  }
-
-  /**
    * Get list of available provider names
    * @returns {Array<string>} - List of provider names
    */
   static getAvailableProviders() {
     return ProviderRegistry.getProviderIds()
-  }
-
-  /**
-   * Check if a provider is supported
-   * @param {string} providerName - Provider name to check
-   * @returns {boolean} - True if supported
-   */
-  static isProviderSupported(providerName) {
-    return ProviderRegistry.hasProvider(providerName)
   }
 }
 

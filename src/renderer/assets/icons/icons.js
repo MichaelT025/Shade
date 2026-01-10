@@ -168,47 +168,6 @@ export function insertIcon(element, iconName, className = 'icon-svg') {
   element.innerHTML = getIcon(iconName, className);
 }
 
-/**
- * Add a custom icon at runtime
- * @param {string} name - Icon name (without .svg extension)
- * @param {string} svgContent - SVG content as string
- */
-export function addCustomIcon(name, svgContent) {
-  customIcons[name] = svgContent;
-  console.log(`✓ Custom icon "${name}" added`);
-}
-
-/**
- * Get list of all loaded icons
- * @returns {Array<string>} Array of icon names
- */
-export function getLoadedIcons() {
-  return Object.keys(customIcons);
-}
-
-/**
- * Get list of missing required icons
- * @returns {Array<string>} Array of missing icon names
- */
-export function getMissingIcons() {
-  const missing = [];
-  for (const iconName of Object.keys(REQUIRED_ICONS)) {
-    if (!customIcons[iconName]) {
-      missing.push(iconName);
-    }
-  }
-  return missing;
-}
-
-/**
- * Check if a specific icon is loaded
- * @param {string} name - Icon name
- * @returns {boolean} True if icon is loaded
- */
-export function hasIcon(name) {
-  return !!customIcons[name];
-}
-
 // Export for backward compatibility
 export const icons = {}; // Empty - all icons come from custom-icons directory
 
@@ -216,9 +175,5 @@ export default {
   initIcons,
   getIcon,
   insertIcon,
-  addCustomIcon,
-  getLoadedIcons,
-  getMissingIcons,
-  hasIcon,
   REQUIRED_ICONS
 };

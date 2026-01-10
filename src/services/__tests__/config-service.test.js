@@ -111,14 +111,6 @@ describe('ConfigService', () => {
       expect(configService.getApiKey('anthropic')).toBe('test-anthropic-key-789')
     })
 
-    test('should check if provider has API key', () => {
-      // Empty string means no API key
-      expect(configService.hasApiKey('gemini')).toBeFalsy()
-
-      configService.setApiKey('gemini', 'test-key')
-      expect(configService.hasApiKey('gemini')).toBe(true)
-    })
-
     test('should return empty string for unknown provider', () => {
       expect(configService.getApiKey('unknown')).toBe('')
     })
@@ -401,19 +393,6 @@ describe('ConfigService', () => {
       expect(configService.getHistoryLimit()).toBe(20)
     })
 
-    test('should enable and disable summarization', () => {
-      configService.setSummarizationEnabled(false)
-      expect(configService.isSummarizationEnabled()).toBe(false)
-
-      configService.setSummarizationEnabled(true)
-      expect(configService.isSummarizationEnabled()).toBe(true)
-    })
-
-    test('should set and get summarization threshold', () => {
-      configService.setSummarizationThreshold(25)
-      expect(configService.getSummarizationThreshold()).toBe(25)
-    })
-
     test('should set and get exclude screenshots from memory', () => {
       configService.setExcludeScreenshotsFromMemory(false)
       expect(configService.getExcludeScreenshotsFromMemory()).toBe(false)
@@ -424,13 +403,11 @@ describe('ConfigService', () => {
 
     test('should persist memory settings', () => {
       configService.setHistoryLimit(15)
-      configService.setSummarizationEnabled(false)
       configService.setExcludeScreenshotsFromMemory(false)
 
       // Create new instance to verify persistence
       const newService = new ConfigService(testDir)
       expect(newService.getHistoryLimit()).toBe(15)
-      expect(newService.isSummarizationEnabled()).toBe(false)
       expect(newService.getExcludeScreenshotsFromMemory()).toBe(false)
     })
   })
@@ -460,12 +437,12 @@ describe('ConfigService', () => {
   })
 
   describe('Session Settings', () => {
-    test('should set and get auto title sessions', () => {
+    test('should set auto title sessions', () => {
       configService.setAutoTitleSessions(false)
-      expect(configService.getAutoTitleSessions()).toBe(false)
+      expect(configService.getSessionSettings().autoTitleSessions).toBe(false)
 
       configService.setAutoTitleSessions(true)
-      expect(configService.getAutoTitleSessions()).toBe(true)
+      expect(configService.getSessionSettings().autoTitleSessions).toBe(true)
     })
 
     test('should set and get start collapsed', () => {
@@ -481,7 +458,7 @@ describe('ConfigService', () => {
       configService.setStartCollapsed(false)
 
       const newService = new ConfigService(testDir)
-      expect(newService.getAutoTitleSessions()).toBe(false)
+      expect(newService.getSessionSettings().autoTitleSessions).toBe(false)
       expect(newService.getStartCollapsed()).toBe(false)
     })
   })

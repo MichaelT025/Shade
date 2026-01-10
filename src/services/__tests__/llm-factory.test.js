@@ -57,32 +57,9 @@ describe('LLMFactory', () => {
       expect(providers.length).toBeGreaterThan(0)
       expect(providers).toContain('gemini')
     })
-
-    test('should check if Gemini is supported', () => {
-      expect(LLMFactory.isProviderSupported('gemini')).toBe(true)
-    })
-
-    test('should check if unsupported provider returns false', () => {
-      expect(LLMFactory.isProviderSupported('invalid')).toBe(false)
-    })
-
-    test('should handle case-insensitive provider check', () => {
-      expect(LLMFactory.isProviderSupported('GEMINI')).toBe(true)
-      expect(LLMFactory.isProviderSupported('Gemini')).toBe(true)
-    })
   })
 
   describe('Multi-Provider Support', () => {
-    test('should support all main providers', () => {
-      expect(LLMFactory.isProviderSupported('gemini')).toBe(true)
-      expect(LLMFactory.isProviderSupported('openai')).toBe(true)
-      expect(LLMFactory.isProviderSupported('anthropic')).toBe(true)
-      expect(LLMFactory.isProviderSupported('grok')).toBe(true)
-      expect(LLMFactory.isProviderSupported('openrouter')).toBe(true)
-      expect(LLMFactory.isProviderSupported('ollama')).toBe(true)
-      expect(LLMFactory.isProviderSupported('lm-studio')).toBe(true)
-    })
-
     test('should create OpenAI provider with valid API key', () => {
       const provider = LLMFactory.createProvider('openai', 'sk-test-key-123')
       expect(provider).toBeDefined()
@@ -149,33 +126,6 @@ describe('LLMFactory', () => {
       expect(allMeta.gemini).toBeDefined()
       expect(allMeta.openai).toBeDefined()
       expect(allMeta.anthropic).toBeDefined()
-    })
-
-    test('should get models for a provider', () => {
-      const geminiModels = LLMFactory.getModelsForProvider('gemini')
-      expect(Array.isArray(geminiModels)).toBe(true)
-      expect(geminiModels.length).toBeGreaterThan(0)
-      expect(geminiModels[0]).toHaveProperty('id')
-      expect(geminiModels[0]).toHaveProperty('name')
-    })
-
-    test('should get OpenAI models', () => {
-      const openaiModels = LLMFactory.getModelsForProvider('openai')
-      expect(Array.isArray(openaiModels)).toBe(true)
-      expect(openaiModels.length).toBeGreaterThan(0)
-
-      const modelIds = openaiModels.map(m => m.id)
-      expect(modelIds).toContain('gpt-4o')
-      expect(modelIds).toContain('gpt-4o-mini')
-    })
-
-    test('should get Anthropic models', () => {
-      const anthropicModels = LLMFactory.getModelsForProvider('anthropic')
-      expect(Array.isArray(anthropicModels)).toBe(true)
-      expect(anthropicModels.length).toBeGreaterThan(0)
-
-      const modelIds = anthropicModels.map(m => m.id)
-      expect(modelIds).toContain('claude-sonnet-4-5')
     })
 
     test('should handle model-specific options', () => {

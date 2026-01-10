@@ -176,11 +176,6 @@ class SessionStorage {
     return path.join(this.screenshotsDir, safeId)
   }
 
-  // Deprecated helper, kept just in case but ideally unused
-  sessionAssetsDirForId(id) {
-    return this.screenshotDirForSession(id)
-  }
-
   async writeScreenshot(sessionId, messageId, base64) {
     const dir = this.screenshotDirForSession(sessionId)
     await fs.mkdir(dir, { recursive: true })
