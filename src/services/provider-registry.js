@@ -184,14 +184,12 @@ function loadProviders() {
     if (providersPath && fs.existsSync(providersPath)) {
       const data = fs.readFileSync(providersPath, 'utf8')
       providers = JSON.parse(data)
-      console.log('Loaded providers from:', providersPath)
 
       // Migrate: Add any missing providers from defaults and update models
       let needsSave = false
       for (const [providerId, providerData] of Object.entries(defaultProviders)) {
         if (!providers[providerId]) {
           // Add completely new provider
-          console.log(`Migrating: Adding missing provider '${providerId}'`)
           providers[providerId] = { ...providerData }
           needsSave = true
         } else {
@@ -202,7 +200,6 @@ function loadProviders() {
           // Add any missing models from defaults
           for (const [modelId, modelData] of Object.entries(defaultModels)) {
             if (!existingModels[modelId]) {
-              console.log(`Migrating: Adding model '${modelId}' to provider '${providerId}'`)
               existingModels[modelId] = { ...modelData }
               needsSave = true
             }
@@ -221,14 +218,12 @@ function loadProviders() {
       // Save if we added any missing providers or models
       if (needsSave) {
         saveProviders()
-        console.log('Provider migration completed')
       }
     } else {
       // Create default providers file
       providers = { ...defaultProviders }
       if (providersPath) {
         saveProviders()
-        console.log('Created default providers file at:', providersPath)
       }
     }
   } catch (error) {

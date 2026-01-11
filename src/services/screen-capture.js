@@ -49,12 +49,6 @@ async function captureScreen() {
 async function compressImage(imageBuffer) {
   try {
     const metadata = await sharp(imageBuffer).metadata()
-    console.log('Original image:', {
-      width: metadata.width,
-      height: metadata.height,
-      format: metadata.format,
-      size: `${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB`
-    })
 
     // Target max size: 5MB
     const MAX_SIZE = 5 * 1024 * 1024
@@ -66,12 +60,6 @@ async function compressImage(imageBuffer) {
         .toBuffer()
 
       const base64 = compressed.toString('base64')
-
-      console.log('Compressed image:', {
-        originalSize: `${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB`,
-        compressedSize: `${(compressed.length / 1024 / 1024).toFixed(2)}MB`,
-        base64Length: base64.length
-      })
 
       return {
         buffer: compressed,

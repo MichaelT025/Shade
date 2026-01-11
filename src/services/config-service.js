@@ -65,8 +65,6 @@ function migrateConfig(oldConfig) {
     return oldConfig
   }
 
-  console.log('Migrating config from old format to new format')
-
   // Create new config structure
   const newConfig = {
     activeProvider: oldConfig.llmProvider || 'gemini',
@@ -153,7 +151,6 @@ class ConfigService {
     const oldConfigPath = path.join(userDataPath, 'shade-config.json')
     if (fs.existsSync(oldConfigPath) && !fs.existsSync(this.configPath)) {
       try {
-        console.log('Migrating config file to data directory...')
         fs.renameSync(oldConfigPath, this.configPath)
       } catch (e) {
         console.error('Failed to migrate config file:', e)
@@ -345,7 +342,6 @@ Memory:
         }
       } catch (error) {
         // If decryption fails, it might be a plain text key (from migration or manual edit)
-        // console.debug('Decryption failed, treating as plain text', error)
         return encryptedText
       }
     }
@@ -378,7 +374,6 @@ Memory:
         
         // Check if config needs migration from old format
         if (needsMigration(loadedConfig)) {
-          console.log('Config needs migration from old format')
           loadedConfig = migrateConfig(loadedConfig)
           // Save the migrated config (will trigger encryption if implemented in save)
           this.config = loadedConfig
@@ -423,7 +418,6 @@ Memory:
                   // Decryption failed, assume plain text and encrypt it.
                   // Only encrypt if it looks like a real key (length > 0)
                   if (provider.apiKey.length > 0) {
-                      console.log(`Encrypting plain text API key for ${providerId}`)
                       provider.apiKey = this.encryptKey(provider.apiKey)
                       needsSave = true
                   }

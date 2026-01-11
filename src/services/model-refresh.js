@@ -268,16 +268,6 @@ class ModelRefreshService {
   }
 
   /**
-   * Check if an Ollama model supports vision
-   * @param {string} modelName - Model name
-   * @returns {boolean}
-   */
-  isOllamaVisionModel(modelName) {
-    const visionModels = ['llava', 'bakllava', 'llama3.2-vision', 'minicpm-v']
-    return visionModels.some(vm => modelName.toLowerCase().includes(vm))
-  }
-
-  /**
    * Fetch models from OpenRouter API
    * @param {string} apiKey - OpenRouter API key (optional)
    * @returns {Promise<Object>} Models object

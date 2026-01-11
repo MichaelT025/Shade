@@ -84,7 +84,6 @@ export async function initIcons() {
     if (window.electronAPI && window.electronAPI.loadCustomIcons) {
       customIcons = await window.electronAPI.loadCustomIcons();
       iconsLoaded = true;
-      console.log(`✓ Loaded ${Object.keys(customIcons).length} custom icons`);
 
       // Check for missing required icons
       const missing = [];
@@ -97,8 +96,6 @@ export async function initIcons() {
       if (missing.length > 0) {
         console.warn(`⚠ Missing ${missing.length} required icons:`, missing);
         console.warn('See: src/renderer/assets/icons/custom-icons/REQUIRED_ICONS.md');
-      } else {
-        console.log('✓ All required icons loaded successfully');
       }
 
       return true;

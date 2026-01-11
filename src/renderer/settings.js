@@ -68,7 +68,6 @@ async function loadProviderMetadata() {
     const result = await window.electronAPI.getAllProvidersMeta()
     if (result.success) {
       providerRegistry = result.providers
-      console.log('Provider metadata loaded:', Object.keys(providerRegistry))
       return true
     } else {
       console.error('Failed to load provider metadata:', result.error)
@@ -95,8 +94,6 @@ function populateProviderDropdown() {
     option.textContent = provider.name
     providerSelect.appendChild(option)
   }
-
-  console.log('Provider dropdown populated')
 }
 
 /**
