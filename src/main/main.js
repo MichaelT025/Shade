@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron')
+const { app, BrowserWindow, globalShortcut, ipcMain, Tray, Menu, nativeImage } = require('electron')
 const path = require('path')
 const fs = require('fs').promises
 const { captureAndCompress } = require('../services/screen-capture')
@@ -9,6 +9,7 @@ const SessionStorage = require('../services/session-storage')
 let mainWindow = null
 let settingsWindow = null
 let modelSwitcherWindow = null
+let tray = null
 let configService = null
 let sessionStorage = null
 let overlayExpandedBounds = null
@@ -122,6 +123,12 @@ function createMainWindow() {
 
   mainWindow.on('resize', syncBounds)
   mainWindow.on('move', syncBounds)
+
+  // Intercept minimize to hide to tray instead
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault()
+    mainWindow.hide()
+  })
 
   // Handle window closed
   mainWindow.on('closed', () => {
@@ -279,24 +286,74 @@ function createModelSwitcherWindow() {
   })
 }
 
+// Show main window (from tray or shortcut)
+function showMainWindow() {
+  if (!mainWindow) return
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+// Hide main window to tray
+function hideMainWindow() {
+  if (!mainWindow) return
+  mainWindow.hide()
+}
+
+// Create system tray with context menu
+function createTray() {
+  const iconPath = getIconPath()
+  const icon = nativeImage.createFromPath(iconPath)
+  
+  tray = new Tray(icon)
+  tray.setToolTip('Shade')
+  
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show',
+      click: () => {
+        showMainWindow()
+      }
+    },
+    {
+      label: 'Open Dashboard',
+      click: () => {
+        createDashboardWindow()
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit()
+      }
+    }
+  ])
+  
+  tray.setContextMenu(contextMenu)
+  
+  // Left-click on tray shows the main window
+  tray.on('click', () => {
+    showMainWindow()
+  })
+}
+
 // Register global hotkeys
 function registerHotkeys() {
   const isOverlayVisible = () => {
     if (!mainWindow) return false
     // Treat minimized/hidden as "overlay hidden" for shortcut gating.
     if (mainWindow.isMinimized()) return false
-    if (typeof mainWindow.isVisible === 'function' && !mainWindow.isVisible()) return false
+    if (!mainWindow.isVisible()) return false
     return true
   }
 
-  // Ctrl+/ to toggle window visibility (minimize to taskbar)
+  // Ctrl+/ to toggle window visibility (hide to tray / show)
   globalShortcut.register('CommandOrControl+/', () => {
     if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore()
-        mainWindow.focus()
+      if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
+        showMainWindow()
       } else {
-        mainWindow.minimize()
+        hideMainWindow()
       }
     }
   })
@@ -367,6 +424,7 @@ app.whenReady().then(() => {
   })()
 
   createMainWindow()
+  createTray()
   registerHotkeys()
 
   // On macOS it's common to re-create a window when dock icon is clicked
@@ -384,9 +442,13 @@ app.on('window-all-closed', () => {
   }
 })
 
-// Unregister shortcuts when app quits
+// Unregister shortcuts and destroy tray when app quits
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  if (tray) {
+    tray.destroy()
+    tray = null
+  }
 })
 
 // IPC Handlers
@@ -1060,9 +1122,10 @@ ipcMain.handle('start-new-chat-in-overlay', async () => {
 })
 
 // Hide main window
+// Hide main window to tray
 ipcMain.handle('hide-window', async () => {
   if (mainWindow) {
-    mainWindow.minimize()
+    mainWindow.hide()
   }
 })
 
