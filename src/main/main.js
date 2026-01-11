@@ -1423,6 +1423,11 @@ ipcMain.handle('open-data-folder', async () => {
 
 ipcMain.handle('open-external', async (_event, url) => {
   try {
+    // Validate URL protocol for security
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { success: false, error: 'Only http and https URLs are allowed' }
+    }
     const { shell } = require('electron')
     await shell.openExternal(url)
     return { success: true }

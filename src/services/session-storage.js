@@ -204,8 +204,11 @@ class SessionStorage {
     if (!rel) return ''
     if (rel.includes('..') || path.isAbsolute(rel)) return ''
 
+    // Normalize path separators for cross-platform compatibility
+    rel = path.normalize(rel)
+
     // Normalize legacy paths: "screenshots/foo.jpg" -> "foo.jpg"
-    if (rel.startsWith('screenshots') && (rel.includes('/') || rel.includes('\\'))) {
+    if (rel.startsWith('screenshots' + path.sep)) {
         rel = path.basename(rel)
     }
 
