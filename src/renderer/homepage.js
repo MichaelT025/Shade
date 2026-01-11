@@ -2197,8 +2197,14 @@ async function init() {
     }
   })
 
-  reportBugBtn?.addEventListener('click', () => {
-    showToast('Bug reporter coming soon. Open an issue on GitHub.', 'info')
+  reportBugBtn?.addEventListener('click', async () => {
+    try {
+      await window.electronAPI.openExternal('https://github.com/MichaelT025/Shade/issues/new')
+      showToast('Opening GitHub issues in your browser...', 'success')
+    } catch (error) {
+      console.error('Failed to open GitHub issues:', error)
+      showToast('Failed to open GitHub. Please visit: github.com/MichaelT025/Shade/issues', 'error')
+    }
   })
 
   quitBtn?.addEventListener('click', async () => {
