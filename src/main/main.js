@@ -69,7 +69,7 @@ function createMainWindow() {
     frame: false,
     alwaysOnTop: true,
     resizable: true,
-    skipTaskbar: false,
+    skipTaskbar: true,
     minWidth: 450,
     minHeight: 400, // Start with expanded constraint
     maxWidth: 1000,
