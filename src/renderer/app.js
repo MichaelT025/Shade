@@ -28,6 +28,8 @@ let autoTitleSessions = true
 
 let startCollapsedSetting = true
 
+// Cached asset paths (resolved at startup to work in packaged app)
+let appLogoSrc = '../../build/appicon.png' // Will be resolved from DOM
 
 // DOM element references
 const messagesContainer = document.getElementById('messages-container')
@@ -334,6 +336,13 @@ async function maybeAutoTitleSessionFromFirstReply(replyText) {
  * Initialize the application
  */
 async function init() {
+  // Capture the working logo path from the existing DOM element
+  // This ensures the path works in both dev and packaged builds
+  const existingLogo = document.querySelector('#home-btn .app-icon')
+  if (existingLogo && existingLogo.src) {
+    appLogoSrc = existingLogo.src
+  }
+
   // Initialize memory manager with history limit from settings
   const historyLimitResult = await window.electronAPI.getHistoryLimit()
   const historyLimit = historyLimitResult.success ? historyLimitResult.limit : 10
@@ -1589,7 +1598,7 @@ function handleNewChat() {
   messagesContainer.innerHTML = `
     <div class="chat-wrapper" id="chat-wrapper">
       <div class="empty-state">
-        <img src="../../build/appicon.png" alt="Shade Logo" class="welcome-logo" />
+        <img src="${appLogoSrc}" alt="Shade Logo" class="welcome-logo" />
         <h2>Welcome to Shade</h2>
         <p>Capture your screen and ask questions</p>
       </div>
