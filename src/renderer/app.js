@@ -384,7 +384,9 @@ async function init() {
 
       // Ctrl+Enter: Quick send with screenshot (capture if needed)
       if (e.ctrlKey) {
-        if (!isScreenshotActive) {
+        // Always capture a fresh screenshot for Ctrl+Enter "Assist" if we don't have one.
+        // In auto mode, isScreenshotActive is true but capturedScreenshot may be null.
+        if (!capturedScreenshot) {
           await handleScreenshotCapture()
         }
         sendBtn.click()
@@ -741,11 +743,12 @@ async function handleSendMessage() {
   let sendHasScreenshot = isScreenshotActive
 
   // Auto mode: capture a fresh screenshot for each message
-  if (screenshotMode === 'auto') {
+  // Exception: if we already have a pre-captured screenshot (from Ctrl+Enter), use it
+  if (screenshotMode === 'auto' && !capturedScreenshot) {
     sendScreenshot = null
     sendHasScreenshot = false
 
-    // Avoid capturing screenshots for empty sends
+    // Capture screenshot if there's text, or skip for empty sends (prevents accidental Assist)
     if (text) {
       try {
         const captureResult = await window.electronAPI.captureScreen()

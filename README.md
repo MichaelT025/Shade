@@ -78,6 +78,8 @@ npm run dev
 |----------|--------|
 | `Ctrl+/` | Toggle overlay visibility (minimize/restore) |
 | `Ctrl+R` | Start new chat |
+| `Enter` | Send message (Shift+Enter for newline) |
+| `Ctrl+Enter` | Quick send with fresh screenshot ("Assist") |
 | `Ctrl+'` | Toggle collapsed/expanded |
 | `Ctrl+Shift+S` | Capture screenshot |
 | `Ctrl+M` | Open model switcher (macOS: `Cmd+Shift+M`) |
