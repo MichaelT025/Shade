@@ -6,47 +6,6 @@
 import { getIcon } from '../assets/icons/icons.js';
 
 /**
- * Create a screenshot preview chip
- * @param {string} thumbnailBase64 - Base64 encoded thumbnail image
- * @returns {HTMLElement} Screenshot chip element
- */
-export function createScreenshotChip(thumbnailBase64) {
-  const chip = document.createElement('div');
-  chip.className = 'screenshot-chip';
-  chip.id = 'screenshot-chip';
-  
-  chip.innerHTML = `
-    <div class="screenshot-thumbnail">
-      <img src="data:image/jpeg;base64,${thumbnailBase64}" alt="Screenshot preview" />
-    </div>
-    <span class="screenshot-chip-text">Screenshot attached</span>
-    <button class="screenshot-remove" id="screenshot-remove" title="Remove screenshot" aria-label="Remove screenshot">
-      ${getIcon('close', 'icon-svg-sm')}
-    </button>
-  `;
-  
-  return chip;
-}
-
-/**
- * Format timestamp for message display
- * @param {Date} date - Date object
- * @returns {string} Formatted timestamp
- */
-export function formatTimestamp(date) {
-  const now = new Date();
-  const diffMins = Math.floor((now - date) / 60000);
-  
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
-/**
  * Show a toast notification
  * @param {string} message - Toast message
  * @param {string} type - Toast type: 'success', 'error', 'warning', 'info'

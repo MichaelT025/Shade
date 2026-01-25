@@ -1031,16 +1031,6 @@ ipcMain.handle('open-settings', async () => {
   }
 })
 
-ipcMain.handle('open-model-switcher', async () => {
-  try {
-    createModelSwitcherWindow()
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to open model switcher:', error)
-    return { success: false, error: error.message }
-  }
-})
-
 ipcMain.handle('close-model-switcher', async () => {
   try {
     if (modelSwitcherWindow && !modelSwitcherWindow.isDestroyed()) {
@@ -1053,24 +1043,6 @@ ipcMain.handle('close-model-switcher', async () => {
   }
 })
 
-ipcMain.handle('focus-overlay', async () => {
-  try {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return { success: false, error: 'Main window not available' }
-    }
-
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore()
-    }
-
-    mainWindow.show()
-    mainWindow.focus()
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to focus overlay:', error)
-    return { success: false, error: error.message }
-  }
-})
 
 ipcMain.handle('resume-session-in-overlay', async (_event, sessionId) => {
   try {
@@ -1197,46 +1169,6 @@ ipcMain.on('set-collapsed', (_event, payload) => {
   }
 })
 
-let overlayTempBounds = null
-ipcMain.handle('adjust-overlay-height', async (_event, extraHeight) => {
-  if (!mainWindow) return { success: false, error: 'Overlay not available' }
-  if (overlayIsCollapsed) return { success: false, error: 'Overlay is collapsed' }
-
-  const extra = Number(extraHeight)
-  if (!Number.isFinite(extra)) return { success: false, error: 'Invalid height' }
-
-  // Store current bounds the first time we expand
-  if (!overlayTempBounds) overlayTempBounds = mainWindow.getBounds()
-
-  if (extra <= 0) {
-    // Restore original bounds
-    mainWindow.setBounds(overlayTempBounds)
-    overlayTempBounds = null
-    return { success: true }
-  }
-
-  const base = overlayTempBounds
-  mainWindow.setBounds({
-    x: base.x,
-    y: base.y,
-    width: base.width,
-    height: base.height + Math.ceil(extra)
-  })
-
-  return { success: true }
-})
-
-// Memory settings IPC handlers
-ipcMain.handle('get-memory-settings', async () => {
-  try {
-    const settings = configService.getMemorySettings()
-    return { success: true, settings }
-  } catch (error) {
-    console.error('Failed to get memory settings:', error)
-    return { success: false, error: error.message }
-  }
-})
-
 ipcMain.handle('get-history-limit', async () => {
   try {
     const limit = configService.getHistoryLimit()
@@ -1254,17 +1186,6 @@ ipcMain.handle('set-history-limit', async (_event, limit) => {
     return { success: true }
   } catch (error) {
     console.error('Failed to set history limit:', error)
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('set-summarization-enabled', async (_event, enabled) => {
-  try {
-    configService.setSummarizationEnabled(enabled)
-    console.log(`Summarization enabled: ${enabled}`)
-    return { success: true }
-  } catch (error) {
-    console.error('Failed to set summarization enabled:', error)
     return { success: false, error: error.message }
   }
 })
@@ -1499,29 +1420,6 @@ ipcMain.handle('get-all-providers-meta', async () => {
     return { success: true, providers }
   } catch (error) {
     console.error('Failed to get provider metadata:', error)
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('get-configured-providers', async () => {
-  try {
-    if (!configService) {
-      return { success: false, error: 'Config service not initialized' }
-    }
-    
-    const providers = configService.getAllConfig().providers || {}
-    const configured = {}
-    
-    // Return only providers that have API keys configured
-    for (const [providerId, providerConfig] of Object.entries(providers)) {
-      if (providerConfig.apiKey && providerConfig.apiKey.length > 0) {
-        configured[providerId] = providerConfig
-      }
-    }
-    
-    return { success: true, providers: configured }
-  } catch (error) {
-    console.error('Failed to get configured providers:', error)
     return { success: false, error: error.message }
   }
 })

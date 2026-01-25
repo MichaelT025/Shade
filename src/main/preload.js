@@ -51,11 +51,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('active-mode-changed', (_event, modeId) => callback(modeId))
   },
 
-  // Listen for reload settings request (when settings window is refocused)
-  onReloadSettings: (callback) => {
-    ipcRenderer.on('reload-settings', () => callback())
-  },
-
   // Listen for collapse toggle (from Ctrl+')
   onToggleCollapse: (callback) => {
     ipcRenderer.on('toggle-collapse', () => callback())
@@ -90,10 +85,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setActiveMode: (modeId) => ipcRenderer.invoke('set-active-mode', modeId),
 
   // Memory settings
-  getMemorySettings: () => ipcRenderer.invoke('get-memory-settings'),
   getHistoryLimit: () => ipcRenderer.invoke('get-history-limit'),
   setHistoryLimit: (limit) => ipcRenderer.invoke('set-history-limit', limit),
-  setSummarizationEnabled: (enabled) => ipcRenderer.invoke('set-summarization-enabled', enabled),
   getExcludeScreenshotsFromMemory: () => ipcRenderer.invoke('get-exclude-screenshots-from-memory'),
   setExcludeScreenshotsFromMemory: (exclude) => ipcRenderer.invoke('set-exclude-screenshots-from-memory', exclude),
 
@@ -113,15 +106,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Window management
   openSettings: () => ipcRenderer.invoke('open-settings'),
-  openModelSwitcher: () => ipcRenderer.invoke('open-model-switcher'),
   closeModelSwitcher: () => ipcRenderer.invoke('close-model-switcher'),
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   hideWindow: () => ipcRenderer.invoke('hide-window'),
   deleteAllData: () => ipcRenderer.invoke('delete-all-data'),
   setCollapsed: (collapsed, height) => ipcRenderer.send('set-collapsed', { collapsed, height }),
-  adjustOverlayHeight: (extraHeight) => ipcRenderer.invoke('adjust-overlay-height', extraHeight),
-  focusOverlay: () => ipcRenderer.invoke('focus-overlay'),
   resumeSessionInOverlay: (sessionId) => ipcRenderer.invoke('resume-session-in-overlay', sessionId),
   startNewChatInOverlay: () => ipcRenderer.invoke('start-new-chat-in-overlay'),
   quitApp: () => ipcRenderer.invoke('quit-app'),
@@ -134,7 +124,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Provider registry methods
   getAllProvidersMeta: () => ipcRenderer.invoke('get-all-providers-meta'),
-  getConfiguredProviders: () => ipcRenderer.invoke('get-configured-providers'),
 
   // Model refresh methods
   refreshModels: (providerId) => ipcRenderer.invoke('refresh-models', providerId),
@@ -156,9 +145,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
  
   // Update checking
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-
-  // Cleanup listeners
-  removeAllListeners: (channel) => {
-    ipcRenderer.removeAllListeners(channel)
-  }
 })

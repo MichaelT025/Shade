@@ -4,7 +4,7 @@
  */
 
 import { getIcon, insertIcon, initIcons } from './assets/icons/icons.js';
-import { createScreenshotChip, formatTimestamp, showToast, copyToClipboard } from './utils/ui-helpers.js';
+import { showToast, copyToClipboard } from './utils/ui-helpers.js';
 import MemoryManager from './utils/memory-manager.js';
 
 // State management
