@@ -746,7 +746,12 @@ async function handleSendMessage() {
   // Auto-expand on first message
   expand()
 
-  const text = messageInput.value.trim()
+  let text = messageInput.value.trim()
+
+  // Empty input defaults to "Assist" (enables screenshot auto-capture and Ctrl+Enter)
+  if (!text) {
+    text = 'Assist'
+  }
 
   let sendScreenshot = capturedScreenshot
   let sendHasScreenshot = isScreenshotActive
@@ -757,7 +762,7 @@ async function handleSendMessage() {
     sendScreenshot = null
     sendHasScreenshot = false
 
-    // Capture screenshot if there's text, or skip for empty sends (prevents accidental Assist)
+    // Capture screenshot for every message in auto mode (text is guaranteed to be truthy)
     if (text) {
       try {
         const captureResult = await window.electronAPI.captureScreen()

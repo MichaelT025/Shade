@@ -63,7 +63,7 @@ function scoreModelMatch(model, query) {
 }
 
 const els = {
-  providerLine: document.getElementById('provider-line'),
+  providerSelect: document.getElementById('provider-select'),
   modeNote: document.getElementById('mode-note'),
   keyNote: document.getElementById('key-note'),
   search: document.getElementById('search'),
@@ -77,10 +77,12 @@ let state = {
   providerId: '',
   providerLabel: '',
   currentModelId: '',
+  allProviders: [],
   allModels: [],
   filteredModels: [],
   highlightedIndex: -1,
-  isSaving: false
+  isSaving: false,
+  isLoading: false
 }
 
 function setStatus(text) {
@@ -202,6 +204,16 @@ async function loadProviderState() {
 
   const allProvidersResult = await window.electronAPI.getAllProvidersMeta()
   const providers = normalizeProvidersMeta(allProvidersResult?.success ? allProvidersResult.providers : null)
+  state.allProviders = providers
+
+  // Populate provider dropdown
+  if (els.providerSelect) {
+    els.providerSelect.innerHTML = providers.map(p => {
+      const label = getProviderLabel(p)
+      const isSelected = p.id === providerId
+      return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${label}</option>`
+    }).join('')
+  }
 
   const providerMeta = providers.find(p => p.id === providerId)
   state.providerLabel = getProviderLabel(providerMeta) || providerId
@@ -214,10 +226,6 @@ async function loadProviderState() {
     .sort((a, b) => (a.id || '').localeCompare(b.id || ''))
 
   state.allModels = models
-
-  if (els.providerLine) {
-    els.providerLine.textContent = providerId ? `Provider: ${state.providerLabel}` : 'Provider: (unknown)'
-  }
 
   // Mode override note (initial scope: changes Configuration only)
   try {
@@ -316,7 +324,40 @@ async function selectHighlighted() {
   }
 }
 
+async function handleProviderChange(newProviderId) {
+  if (!newProviderId || newProviderId === state.providerId || state.isLoading) return
+
+  state.isLoading = true
+  setStatus('Switching provider…')
+
+  try {
+    // Update active provider
+    await window.electronAPI.setActiveProvider(newProviderId)
+    state.providerId = newProviderId
+
+    // Reload provider state and models
+    await loadModelsFlow({ forceRefresh: false })
+
+    setStatus('Provider switched.')
+  } catch (error) {
+    setStatus(error?.message || 'Failed to switch provider.')
+    // Revert dropdown to current provider
+    if (els.providerSelect) {
+      els.providerSelect.value = state.providerId
+    }
+  } finally {
+    state.isLoading = false
+  }
+}
+
 function wireEvents() {
+  els.providerSelect?.addEventListener('change', async () => {
+    const newProviderId = els.providerSelect?.value
+    if (newProviderId) {
+      await handleProviderChange(newProviderId)
+    }
+  })
+
   els.search?.addEventListener('input', () => {
     applyFilter(els.search.value)
   })

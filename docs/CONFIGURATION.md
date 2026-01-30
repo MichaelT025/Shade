@@ -38,7 +38,7 @@ Note: Screenshots are never re-sent to the LLM as prior context—they only appl
 
 - Attach a screenshot (“Use Screen”) when needed
 - Send a message
-- Use the model switcher (`Ctrl+M`; macOS uses `Cmd+Shift+M` to avoid overriding system minimize)
+- Use the model switcher (`Ctrl+M`; macOS uses `Cmd+Shift+M` to avoid overriding system minimize). You can also switch the active provider directly from the switcher.
 
 ## Where config lives
 

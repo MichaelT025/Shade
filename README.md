@@ -28,7 +28,7 @@ A Windows desktop application providing real-time AI assistance through a transl
 - **Session history dashboard** - Browse, search, rename, save, and resume conversations (stored locally)
 - **System prompt modes** - Built-in modes and editable prompts (per-mode)
 - **In-app configuration** - Provider, API key validation, model selection + refresh, and screenshot/memory toggles
-- **Model switcher** - Open a dedicated model picker window (`Ctrl+M`)
+- **Model switcher** - Dedicated model picker window (`Ctrl+M`) with provider switching support
 - **Keyboard shortcuts** - Toggle visibility, start new chat, collapse/expand, capture screenshot
 
 ## Installation

@@ -67,12 +67,65 @@
     }
 
     .meta {
-      padding: var(--space-12) var(--space-16);
+      padding: var(--space-16);
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
+      gap: var(--space-8);
       background: rgba(255, 255, 255, 0.02);
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .provider-selector-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-12);
+      padding: var(--space-12) 0;
+    }
+
+    .provider-label {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .provider-select {
+      flex: 1;
+      height: 44px;
+      padding: 0 var(--space-12);
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      font-size: var(--font-size-base);
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      transition: all var(--duration-quick) var(--easing);
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    .provider-select:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+      background-color: rgba(0, 0, 0, 0.35);
+    }
+
+    .provider-select:focus {
+      border-color: var(--accent);
+      box-shadow: var(--focus-ring);
+      background-color: rgba(0, 0, 0, 0.4);
+    }
+
+    .provider-select option {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      padding: var(--space-12);
     }
 
     .provider-info {
@@ -249,7 +302,7 @@
 <body>
   <div id="root">
     <div class="title-bar">
-      <span class="title-text">Select Model</span>
+      <span class="title-text">Model Switcher</span>
       <div class="title-bar-right">
         <button id="refresh" class="icon-btn" title="Refresh models">
           <span class="nav-icon" data-icon="refresh"></span>
@@ -261,7 +314,12 @@
     </div>
 
     <div class="meta">
-      <div id="provider-line" class="provider-info"></div>
+      <div class="provider-selector-row">
+        <label for="provider-select" class="provider-label">Provider</label>
+        <select id="provider-select" class="provider-select">
+          <option value="" disabled>Select a provider</option>
+        </select>
+      </div>
       <div id="mode-note" class="note" style="display:none;"></div>
       <div id="key-note" class="note warn" style="display:none;"></div>
     </div>

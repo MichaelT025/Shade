@@ -408,16 +408,18 @@ providers/*.js (provider implementations)
 
 ### 6.6 Model Switcher
 
-**Description:** Quick way to change models without leaving the overlay.
+**Description:** Quick way to change models and providers without leaving the overlay.
 
 **Implementation:**
 - **Global shortcut:** `Ctrl+M` opens a dedicated model switcher window (macOS: `Cmd+Shift+M`)
 - Lists models for the current provider and updates the active selection
+- **Provider selector:** Allows switching the active provider directly from the switcher UI.
 
 **Selector UI:**
-- Shows current selection
-- Search/filter
+- Shows current selection (Provider + Model)
+- Search/filter for models
 - Fast keyboard-driven selection
+- Provider dropdown for quick switching between configured backends
 
 ### 6.7 Memory Management
 
@@ -840,6 +842,7 @@ userData/
 | 1.0 | 2025-12-16 | Initial PRD creation |
 | 1.1 | 2025-12-19 | Updated storage architecture (Data consolidation, safeStorage), added "Open Data Folder" feature |
 | 1.2 | 2025-12-20 | Updated PRD to match shipped features (shortcuts, model switcher, stop response, local data controls) |
+| 1.3 | 2026-01-30 | Enhanced Model Switcher with provider selection and improved "Assist" mode behavior |
 
 ---
 
