@@ -61,6 +61,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('capture-screenshot', () => callback())
   },
 
+  // Listen for window shown event (for predictive screenshot capture)
+  onWindowShown: (callback) => {
+    ipcRenderer.on('window-shown', () => callback())
+  },
+
   // Context menu commands
   onContextMenuCommand: (callback) => {
     ipcRenderer.on('context-menu-command', (_event, data) => callback(data))

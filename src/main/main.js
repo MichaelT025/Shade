@@ -291,6 +291,8 @@ function showMainWindow() {
   if (!mainWindow) return
   mainWindow.show()
   mainWindow.focus()
+  // Notify renderer that window is now visible (for predictive screenshot capture)
+  mainWindow.webContents.send('window-shown')
 }
 
 // Hide main window to tray

@@ -23,6 +23,7 @@ A Windows desktop application providing real-time AI assistance through a transl
 - **Always-on-top translucent overlay** - Floats above all windows, always accessible
 - **Collapsible interface** - Minimal input bar by default, expands when you need it
 - **Screen capture** - Overlay automatically excluded from screenshots
+- **Automatic screenshot mode** - Predictive capture for zero-latency AI assistance
 - **Multi-provider support** - Gemini, OpenAI, Anthropic, plus OpenAI-compatible endpoints (Ollama / LM Studio)
 - **Rich responses** - Markdown, LaTeX math, and syntax highlighting for 50+ languages
 - **Session history dashboard** - Browse, search, rename, save, and resume conversations (stored locally)
@@ -159,7 +160,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing/build commands, 
 - [x] Collapsible overlay with state synchronization
 - [x] Session history dashboard (search, rename, bulk actions)
 - [x] OpenAI-compatible local endpoints (Ollama / LM Studio)
-- [x] Automatic screenshot mode
+- [x] Automatic screenshot mode (with predictive caching)
+- [x] Predictive screenshot caching for zero-latency auto-capture
 - [x] Model selection & quick-switcher (`Ctrl+M`, macOS: `Cmd+Shift+M`)
 - [x] System prompt modes (built-in + editable)
 - [x] Smart memory management with summarization

@@ -28,6 +28,12 @@ let autoTitleSessions = true
 
 let startCollapsedSetting = true
 
+// Predictive screenshot cache (for auto mode - capture before send to reduce perceived delay)
+let predictiveScreenshot = null // Cached screenshot base64
+let predictiveScreenshotTimestamp = null // When the screenshot was captured
+let predictiveCaptureInProgress = false // Whether a predictive capture is currently running
+const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000 // 15 seconds - max age for cached screenshot
+
 // Cached asset paths (resolved at startup to work in packaged app)
 let appLogoSrc = '../../build/appicon.png' // Will be resolved from DOM
 
@@ -516,6 +522,29 @@ async function init() {
     })
   })
 
+  // Window shown handler (for predictive screenshot capture in auto mode)
+  window.electronAPI.onWindowShown?.(() => {
+    if (screenshotMode === 'auto') {
+      console.log('Window shown - triggering predictive screenshot capture')
+      performPredictiveCapture()
+    }
+  })
+
+  // Input focus handler (trigger predictive capture when user focuses input in auto mode)
+  messageInput.addEventListener('focus', () => {
+    if (screenshotMode === 'auto' && !capturedScreenshot) {
+      performPredictiveCapture()
+    }
+  })
+
+  // Visibility change handler (clear stale screenshots when window is hidden)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // Window is being hidden - clear predictive screenshot as it will be stale
+      clearPredictiveScreenshot()
+    }
+  })
+
   console.log('Shade initialized')
 }
 
@@ -658,7 +687,10 @@ async function handleScreenshotCapture() {
       isScreenshotActive = true
       screenshotBtn.title = 'Remove screenshot'
       
-// Show screenshot chip preview
+      // Clear any predictive screenshot since we now have a manual one
+      clearPredictiveScreenshot()
+      
+      // Show screenshot chip preview
       
       // Update input placeholder
       messageInput.placeholder = 'Ask about the captured screen...'
@@ -686,6 +718,67 @@ function showScreenshotChip(thumbnailBase64) {
 }
 
 /**
+ * Perform predictive screenshot capture in the background
+ * This captures a screenshot before the user hits send to reduce perceived delay
+ */
+async function performPredictiveCapture() {
+  // Only capture in auto mode and if not already in progress
+  if (screenshotMode !== 'auto' || predictiveCaptureInProgress) {
+    return
+  }
+
+  // Don't capture if we already have a fresh cached screenshot
+  if (isPredictiveScreenshotFresh()) {
+    return
+  }
+
+  // Don't capture if we have a manually captured screenshot
+  if (capturedScreenshot) {
+    return
+  }
+
+  predictiveCaptureInProgress = true
+  console.log('Starting predictive screenshot capture...')
+
+  try {
+    const result = await window.electronAPI.captureScreen()
+
+    if (result.success) {
+      predictiveScreenshot = result.base64
+      predictiveScreenshotTimestamp = Date.now()
+      console.log('Predictive screenshot captured successfully')
+    } else {
+      console.error('Predictive screenshot capture failed:', result.error)
+    }
+  } catch (error) {
+    console.error('Predictive screenshot error:', error)
+  } finally {
+    predictiveCaptureInProgress = false
+  }
+}
+
+/**
+ * Check if the cached predictive screenshot is still fresh (within max age)
+ */
+function isPredictiveScreenshotFresh() {
+  if (!predictiveScreenshot || !predictiveScreenshotTimestamp) {
+    return false
+  }
+
+  const age = Date.now() - predictiveScreenshotTimestamp
+  return age < PREDICTIVE_SCREENSHOT_MAX_AGE
+}
+
+/**
+ * Clear the predictive screenshot cache
+ */
+function clearPredictiveScreenshot() {
+  predictiveScreenshot = null
+  predictiveScreenshotTimestamp = null
+  console.log('Predictive screenshot cache cleared')
+}
+
+/**
  * Remove screenshot
  */
 function removeScreenshot() {
@@ -705,6 +798,9 @@ function removeScreenshot() {
   capturedScreenshot = null
   capturedThumbnail = null
   isScreenshotActive = false
+  
+  // Clear predictive cache as well
+  clearPredictiveScreenshot()
   
   // Remove chip
   const chip = document.getElementById('screenshot-chip')
@@ -756,14 +852,33 @@ async function handleSendMessage() {
   let sendScreenshot = capturedScreenshot
   let sendHasScreenshot = isScreenshotActive
 
-  // Auto mode: capture a fresh screenshot for each message
-  // Exception: if we already have a pre-captured screenshot (from Ctrl+Enter), use it
+  // Auto mode: use cached predictive screenshot if fresh, otherwise capture fresh
+  // Exception: if we already have a manually captured screenshot (from Ctrl+Enter), use it
   if (screenshotMode === 'auto' && !capturedScreenshot) {
     sendScreenshot = null
     sendHasScreenshot = false
 
-    // Capture screenshot for every message in auto mode (text is guaranteed to be truthy)
-    if (text) {
+    // Check if predictive capture is in progress - wait for it briefly
+    if (predictiveCaptureInProgress) {
+      console.log('Predictive capture in progress, waiting...')
+      let waitCount = 0
+      while (predictiveCaptureInProgress && waitCount < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        waitCount++
+      }
+      if (predictiveCaptureInProgress) {
+        console.log('Predictive capture timed out, proceeding without it')
+      }
+    }
+
+    // Check if we have a fresh predictive screenshot cached
+    if (isPredictiveScreenshotFresh()) {
+      // Use cached predictive screenshot for instant sending
+      sendScreenshot = predictiveScreenshot
+      sendHasScreenshot = true
+      console.log('Using cached predictive screenshot (age:', Date.now() - predictiveScreenshotTimestamp, 'ms)')
+    } else if (text) {
+      // No fresh cached screenshot - capture now (this will block sending)
       try {
         const captureResult = await window.electronAPI.captureScreen()
         if (captureResult?.success) {
@@ -776,6 +891,9 @@ async function handleSendMessage() {
         showToast('Failed to capture screenshot: ' + error.message, 'error', 3000)
       }
     }
+
+    // Clear the predictive cache after using it
+    clearPredictiveScreenshot()
   }
 
   // Don't send if both text and screenshot are empty
@@ -1615,6 +1733,9 @@ function handleNewChat() {
 
   // Reset screenshot state
   removeScreenshot()
+
+  // Clear predictive screenshot cache
+  clearPredictiveScreenshot()
 
   // Clear input
   messageInput.value = ''
