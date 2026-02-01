@@ -4,7 +4,7 @@
 
 A Windows desktop application providing real-time AI assistance through a translucent, always-on-top overlay. Capture your screen and ask questions - powered by your choice of LLM provider.
 
-![Version](https://img.shields.io/badge/version-0.9.0-blue)
+![Version](https://img.shields.io/badge/version-0.9.1-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -29,7 +29,7 @@ A Windows desktop application providing real-time AI assistance through a transl
 - **Session history dashboard** - Browse, search, rename, save, and resume conversations (stored locally)
 - **System prompt modes** - Built-in modes and editable prompts (per-mode)
 - **In-app configuration** - Provider, API key validation, model selection + refresh, and screenshot/memory toggles
-- **Model switcher** - Dedicated model picker window (`Ctrl+M`) with provider switching support
+- **Model switcher** - Dedicated model picker window (`Ctrl+M`) with provider switching and toggle support
 - **Keyboard shortcuts** - Toggle visibility, start new chat, collapse/expand, capture screenshot
 
 ## Installation
@@ -83,7 +83,7 @@ npm run dev
 | `Ctrl+Enter` | Quick send with fresh screenshot ("Assist") |
 | `Ctrl+'` | Toggle collapsed/expanded |
 | `Ctrl+Shift+S` | Capture screenshot |
-| `Ctrl+M` | Open model switcher (macOS: `Cmd+Shift+M`) |
+| `Ctrl+M` | Toggle model switcher (macOS: `Cmd+Shift+M`) |
 
 ### Basic Workflow
 

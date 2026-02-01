@@ -697,7 +697,6 @@
       margin: var(--space-12) 0;
       border-radius: var(--radius-md);
       overflow: hidden;
-      position: relative;
       background: var(--panel-strong) !important;
       border: 1px solid var(--border);
     }
@@ -712,6 +711,8 @@
       line-height: var(--line-height);
       background: transparent !important;
       color: var(--text-primary);
+      position: relative;
+      z-index: 1; /* Ensure code content layers above the label in the reserved space */
     }
 
     /* Inline code */
@@ -742,7 +743,7 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       font-weight: 600;
-      z-index: 1;
+      /* Remove z-index so code content can layer naturally in the reserved padding space */
     }
 
     /* Copy button (icon only) */

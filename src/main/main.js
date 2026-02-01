@@ -208,9 +208,14 @@ function createDashboardWindow() {
   })
 }
 
-function createModelSwitcherWindow() {
-  // Don't create if already exists
+function toggleModelSwitcherWindow() {
+  // If already exists and visible, close it (toggle off)
   if (modelSwitcherWindow && !modelSwitcherWindow.isDestroyed()) {
+    if (modelSwitcherWindow.isVisible()) {
+      modelSwitcherWindow.close()
+      return
+    }
+    // Otherwise show/focus it
     if (modelSwitcherWindow.isMinimized()) {
       modelSwitcherWindow.restore()
     }
@@ -386,7 +391,7 @@ function registerHotkeys() {
 
   globalShortcut.register(modelSwitcherShortcut, () => {
     if (!isOverlayVisible()) return
-    createModelSwitcherWindow()
+    toggleModelSwitcherWindow()
   })
 }
 
