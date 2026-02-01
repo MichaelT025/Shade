@@ -1,0 +1,38 @@
+name: CI - Test and Build
+
+# When to run this workflow
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# What to do
+jobs:
+  test:
+    name: Test on Windows
+    runs-on: windows-latest
+    
+    steps:
+      # Step 1: Get your code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Step 2: Setup Node.js (version 20)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'  # Caches node_modules for faster builds
+      
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm ci
+      
+      # Step 4: Run tests
+      - name: Run tests
+        run: npm run test:run
+      
+      # Step 5: Build the app (but don't package yet)
+      - name: Build renderer
+        run: npm run build
