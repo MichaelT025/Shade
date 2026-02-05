@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 # What to do
 jobs:
   test:
@@ -33,6 +36,6 @@ jobs:
       - name: Run tests
         run: npm run test:run
       
-      # Step 5: Build the app (but don't package yet)
-      - name: Build renderer
-        run: npm run build
+      # Step 5: Build the app (CI should not publish)
+      - name: Build Windows installer
+        run: npm run build:win -- --publish never
