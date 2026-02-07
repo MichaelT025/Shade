@@ -2186,11 +2186,19 @@ async function init() {
   checkUpdateBtn?.addEventListener('click', async () => {
     try {
       const result = await window.electronAPI.checkForUpdates()
-      if (result.updateAvailable) {
-        showToast(`Update available: v${result.version}`, 'info', 5000)
-       } else {
-         showToast('You are running the latest version.', 'info')
-       }
+
+      if (result?.error) {
+        showToast(`Failed to check for updates: ${result.error}`, 'error')
+        return
+      }
+
+      if (result?.updateAvailable) {
+        const version = result.latestVersion || result.version || result.tag_name
+        const versionLabel = version ? `v${version}` : 'a newer release'
+        showToast(`Update available: ${versionLabel}`, 'info', 5000)
+      } else {
+        showToast('You are running the latest version.', 'info')
+      }
     } catch (error) {
       console.error('Update check failed:', error)
       showToast('Failed to check for updates. Please try again later.', 'error')

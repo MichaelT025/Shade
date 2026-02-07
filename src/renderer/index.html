@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; connect-src 'self' ws://localhost:* http://localhost:* https://*.googleapis.com https://*.anthropic.com https://*.openai.com https://openrouter.ai https://api.x.ai;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ws://localhost:* http://localhost:* https://*.googleapis.com https://*.anthropic.com https://*.openai.com https://openrouter.ai https://api.x.ai;">
   <title>Shade</title>
 
   <!-- Design Tokens -->
@@ -17,20 +17,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-  <!-- Markdown rendering -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
-
-  <!-- HTML sanitization (security) -->
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
-
-  <!-- LaTeX rendering -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-
-  <!-- Code syntax highlighting -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+  <!-- Local renderer dependencies (no CDN) -->
+  <script src="../../node_modules/marked/marked.min.js"></script>
+  <script src="../../node_modules/dompurify/dist/purify.min.js"></script>
+  <link rel="stylesheet" href="../../node_modules/katex/dist/katex.min.css">
+  <script src="../../node_modules/katex/dist/katex.min.js"></script>
+  <script src="../../node_modules/katex/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="../../node_modules/@highlightjs/cdn-assets/styles/vs2015.min.css">
+  <script src="../../node_modules/@highlightjs/cdn-assets/highlight.min.js"></script>
 
   <style>
     * {

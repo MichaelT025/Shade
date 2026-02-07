@@ -48,7 +48,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "@highlightjs/cdn-assets": "11.9.0",
     "@google/generative-ai": "^0.24.1",
+    "dompurify": "3.0.6",
+    "highlight.js": "11.9.0",
+    "katex": "0.16.9",
+    "marked": "11.0.0",
     "openai": "^6.10.0",
     "sharp": "^0.33.5"
   },
