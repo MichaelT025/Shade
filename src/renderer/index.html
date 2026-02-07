@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ws://localhost:* http://localhost:* https://*.googleapis.com https://*.anthropic.com https://*.openai.com https://openrouter.ai https://api.x.ai;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ws://localhost:* http://localhost:* https://*.googleapis.com https://*.anthropic.com https://*.openai.com https://openrouter.ai https://api.x.ai; object-src 'none'; base-uri 'self';">
   <title>Shade</title>
 
   <!-- Design Tokens -->
@@ -162,8 +162,61 @@
     }
 
     .icon-btn.close-btn:hover {
-      background: var(--danger);
-      color: white;
+      background: rgba(255, 107, 107, 0.22);
+      color: #ff7b7b;
+      box-shadow:
+        0 0 0 1px rgba(255, 123, 123, 0.35),
+        0 0 16px rgba(255, 107, 107, 0.28);
+      transform: translateY(-1px);
+    }
+
+    .icon-btn.close-btn:hover .icon-svg {
+      animation: power-glow 800ms ease-in-out infinite alternate;
+      transform-origin: center;
+    }
+
+    .update-ready-btn {
+      position: relative;
+      color: #ffd17a;
+      background: rgba(255, 209, 122, 0.08);
+      border: 1px solid rgba(255, 209, 122, 0.24);
+      box-shadow: 0 0 0 1px rgba(255, 209, 122, 0.15) inset;
+      animation: update-ready-pulse 1800ms ease-in-out infinite;
+    }
+
+    .update-ready-btn::after {
+      content: '';
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #70eab5;
+      box-shadow: 0 0 0 2px rgba(18, 18, 18, 0.95);
+    }
+
+    @keyframes update-ready-pulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 1px rgba(255, 209, 122, 0.15) inset;
+      }
+      50% {
+        box-shadow:
+          0 0 0 1px rgba(255, 209, 122, 0.26) inset,
+          0 0 14px rgba(255, 209, 122, 0.3);
+      }
+    }
+
+    @keyframes power-glow {
+      from {
+        transform: scale(1) rotate(0deg);
+        filter: drop-shadow(0 0 0 rgba(255, 107, 107, 0));
+      }
+      to {
+        transform: scale(1.08) rotate(-4deg);
+        filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.65));
+      }
     }
 
     /* Icon switch animation */
@@ -961,20 +1014,24 @@
       <!-- Centered App Title -->
       <span class="title-text">Shade</span>
 
-       <div class="title-bar-right">
-         <!-- Collapse Toggle Button -->
-         <button id="collapse-btn" class="icon-btn" title="Toggle Collapse (Ctrl+')" aria-label="Toggle collapse">
-           <!-- Icon loaded from custom-icons/collapse.svg -->
-         </button>
+        <div class="title-bar-right">
+          <button id="update-ready-btn" class="icon-btn update-ready-btn" title="Update ready - restart to apply" aria-label="Update ready" style="display: none;">
+            <!-- Icon loaded from custom-icons/download.svg -->
+          </button>
+
+          <!-- Collapse Toggle Button -->
+          <button id="collapse-btn" class="icon-btn" title="Toggle Collapse (Ctrl+')" aria-label="Toggle collapse">
+            <!-- Icon loaded from custom-icons/collapse.svg -->
+          </button>
 
          <!-- Hide Button -->
          <button id="hide-btn" class="icon-btn" title="Hide (Ctrl+/)" aria-label="Hide application">
            <!-- Icon loaded from custom-icons/minus.svg -->
          </button>
 
-        <!-- Close Button -->
-        <button id="close-btn" class="icon-btn close-btn" title="Close" aria-label="Close application">
-          <!-- Icon loaded from custom-icons/close.svg -->
+        <!-- Quit Button -->
+        <button id="close-btn" class="icon-btn close-btn" title="Quit Shade" aria-label="Quit Shade">
+          <!-- Icon loaded from custom-icons/power.svg -->
         </button>
       </div>
     </div>

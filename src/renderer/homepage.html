@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; base-uri 'self';">
   <title>Shade</title>
 
   <!-- Design Tokens -->
@@ -1245,6 +1245,111 @@
     .status-line.good { color: var(--success); }
     .status-line.bad { color: var(--danger); }
 
+    .nav-with-margin-top {
+      margin-top: var(--space-32);
+    }
+
+    .view-active-flex {
+      display: flex;
+    }
+
+    .header-compact {
+      padding-top: 6px;
+    }
+
+    .sessions-footer {
+      margin-top: auto;
+      padding-top: var(--space-16);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .full-width {
+      width: 100%;
+    }
+
+    .row-space-between-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: var(--space-12);
+    }
+
+    .mode-new-btn {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      min-width: 34px;
+      flex-shrink: 0;
+      justify-content: center;
+    }
+
+    .modes-list-compact {
+      max-height: 240px;
+      margin-top: 0;
+    }
+
+    .modes-restore-row {
+      margin-top: var(--space-12);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .modes-restore-btn {
+      font-size: 11px;
+      padding: 4px 10px;
+      background: transparent;
+      border-color: rgba(255, 107, 107, 0.2);
+    }
+
+    .modes-restore-icon {
+      width: 12px;
+      height: 12px;
+      margin-right: 4px;
+    }
+
+    .shortcut-plus {
+      color: var(--text-tertiary);
+      align-self: center;
+    }
+
+    .form-field-min-width {
+      min-width: 0;
+    }
+
+    .modal-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .modal-danger-icon-wrap {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 107, 107, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--danger);
+    }
+
+    .modal-danger-icon {
+      width: 20px;
+      height: 20px;
+    }
+
+    .modal-title-reset {
+      margin: 0;
+    }
+
+    .btn-danger-solid {
+      background: var(--danger);
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+
     @media (max-width: 720px) {
       #root { grid-template-columns: 1fr; }
       .sidebar { display: none; }
@@ -1264,7 +1369,7 @@
           </div>
         </div>
 
-        <nav class="nav" style="margin-top: var(--space-32);">
+        <nav class="nav nav-with-margin-top">
           <button id="nav-sessions" class="nav-btn active" type="button">
             <span class="nav-icon" data-icon="session"></span>
             Sessions
@@ -1327,8 +1432,8 @@
       </div>
 
       <!-- Sessions View -->
-      <div id="view-sessions" class="view-container active" style="display: flex;">
-        <div class="header" style="padding-top: 6px;">
+      <div id="view-sessions" class="view-container active view-active-flex">
+        <div class="header header-compact">
           <div>
             <h1>All conversations</h1>
             <p>View all your conversations</p>
@@ -1353,8 +1458,8 @@
 
         <div id="content" class="content" aria-label="Sessions"></div>
 
-        <div id="sessions-footer" style="margin-top: auto; padding-top: var(--space-16); border-top: 1px solid rgba(255, 255, 255, 0.06);">
-          <button id="sessions-delete-all" class="action-btn danger" type="button" style="width: 100%;">
+        <div id="sessions-footer" class="sessions-footer">
+          <button id="sessions-delete-all" class="action-btn danger full-width" type="button">
             <span class="nav-icon" data-icon="trash"></span>
             Delete All Data
           </button>
@@ -1363,7 +1468,7 @@
 
       <!-- Modes View -->
       <div id="view-modes" class="view-container">
-        <div class="header" style="padding-top: 6px;">
+        <div class="header header-compact">
           <div>
             <h1>Modes</h1>
             <p>Configure prompts and default models</p>
@@ -1372,20 +1477,20 @@
 
         <div id="modes-root" class="modes-root" aria-label="Modes">
           <div class="config-card">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-12);">
+            <div class="row-space-between-top">
               <div>
                 <h2>Select Mode</h2>
                 <p>Choose a mode to edit its configuration.</p>
               </div>
-              <button id="mode-new" class="action-btn primary" type="button" title="New mode" style="width: 34px; height: 34px; padding: 0; min-width: 34px; flex-shrink: 0; justify-content: center;">
+              <button id="mode-new" class="action-btn primary mode-new-btn" type="button" title="New mode">
                 <span class="nav-icon" data-icon="plus"></span>
               </button>
             </div>
 
-            <div id="modes-list" class="model-list" style="max-height: 240px; margin-top: 0;"></div>
-            <div style="margin-top: var(--space-12); display: flex; justify-content: flex-end;">
-              <button id="modes-restore-defaults" class="mini-btn danger" type="button" style="font-size: 11px; padding: 4px 10px; background: transparent; border-color: rgba(255,107,107,0.2);">
-                <span class="nav-icon" data-icon="refresh" style="width: 12px; height: 12px; margin-right: 4px;"></span>
+            <div id="modes-list" class="model-list modes-list-compact"></div>
+            <div class="modes-restore-row">
+              <button id="modes-restore-defaults" class="mini-btn danger modes-restore-btn" type="button">
+                <span class="nav-icon modes-restore-icon" data-icon="refresh"></span>
                 Restore Defaults
               </button>
             </div>
@@ -1399,7 +1504,7 @@
 
       <!-- Configuration View -->
       <div id="view-configuration" class="view-container">
-        <div class="header" style="padding-top: 6px;">
+        <div class="header header-compact">
           <div>
             <h1>Configuration</h1>
             <p>Manage providers, API keys, and models</p>
@@ -1411,7 +1516,7 @@
 
       <!-- Shortcuts View -->
       <div id="view-shortcuts" class="view-container">
-        <div class="header" style="padding-top: 6px;">
+        <div class="header header-compact">
           <div>
             <h1>Keyboard Shortcuts</h1>
             <p>Master Shade with these shortcuts</p>
@@ -1423,7 +1528,7 @@
             <span class="shortcut-label">Toggle overlay visibility</span>
             <div class="shortcut-keys">
               <span class="key-badge">Ctrl</span>
-              <span style="color: var(--text-tertiary); align-self: center;">+</span>
+              <span class="shortcut-plus">+</span>
               <span class="key-badge">/</span>
             </div>
           </div>
@@ -1432,7 +1537,7 @@
             <span class="shortcut-label">Start new chat (clear conversation)</span>
             <div class="shortcut-keys">
               <span class="key-badge">Ctrl</span>
-              <span style="color: var(--text-tertiary); align-self: center;">+</span>
+              <span class="shortcut-plus">+</span>
               <span class="key-badge">R</span>
             </div>
           </div>
@@ -1441,7 +1546,7 @@
             <span class="shortcut-label">Collapse/expand overlay</span>
             <div class="shortcut-keys">
               <span class="key-badge">Ctrl</span>
-              <span style="color: var(--text-tertiary); align-self: center;">+</span>
+              <span class="shortcut-plus">+</span>
               <span class="key-badge">'</span>
             </div>
           </div>
@@ -1450,7 +1555,7 @@
             <span class="shortcut-label">Open model switcher</span>
             <div class="shortcut-keys">
               <span class="key-badge">Ctrl</span>
-              <span style="color: var(--text-tertiary); align-self: center;">+</span>
+              <span class="shortcut-plus">+</span>
               <span class="key-badge">M</span>
             </div>
           </div>
@@ -1459,7 +1564,7 @@
             <span class="shortcut-label">Quick send with screenshot</span>
             <div class="shortcut-keys">
               <span class="key-badge">Ctrl</span>
-              <span style="color: var(--text-tertiary); align-self: center;">+</span>
+              <span class="shortcut-plus">+</span>
               <span class="key-badge">Enter</span>
             </div>
           </div>
@@ -1468,9 +1573,9 @@
             <span class="shortcut-label">Capture screenshot</span>
             <div class="shortcut-keys">
               <span class="key-badge">Ctrl</span>
-              <span style="color: var(--text-tertiary); align-self: center;">+</span>
+              <span class="shortcut-plus">+</span>
               <span class="key-badge">Shift</span>
-              <span style="color: var(--text-tertiary); align-self: center;">+</span>
+              <span class="shortcut-plus">+</span>
               <span class="key-badge">S</span>
             </div>
           </div>
@@ -1490,7 +1595,7 @@
     <div class="modal">
       <h2>Rename conversation</h2>
       <p>Enter a new title.</p>
-      <div class="form-field" style="min-width: 0;">
+      <div class="form-field form-field-min-width">
         <label for="rename-input">Title</label>
         <input id="rename-input" class="text-input" type="text" autocomplete="off" />
         <div id="rename-status" class="status-line"></div>
@@ -1504,80 +1609,80 @@
 
   <div id="restore-modes-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Restore default modes">
     <div class="modal">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255,107,107,0.1); display: flex; align-items: center; justify-content: center; color: var(--danger);">
-          <span class="nav-icon" data-icon="refresh" style="width: 20px; height: 20px;"></span>
+      <div class="modal-title-row">
+        <div class="modal-danger-icon-wrap">
+          <span class="nav-icon modal-danger-icon" data-icon="refresh"></span>
         </div>
-        <h2 style="margin: 0;">Restore Defaults?</h2>
+        <h2 class="modal-title-reset">Restore Defaults?</h2>
       </div>
       <p>This will delete all custom modes and reset default modes to their original settings. This action cannot be undone.</p>
       <div class="modal-actions">
         <button id="restore-modes-cancel" class="mini-btn" type="button">Cancel</button>
-        <button id="restore-modes-confirm" class="mini-btn danger" type="button" style="background: var(--danger); color: white; border: none; font-weight: 600;">Reset Everything</button>
+        <button id="restore-modes-confirm" class="mini-btn danger btn-danger-solid" type="button">Reset Everything</button>
       </div>
     </div>
   </div>
 
   <div id="reset-prompt-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Reset system prompt">
     <div class="modal">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255,107,107,0.1); display: flex; align-items: center; justify-content: center; color: var(--danger);">
-          <span class="nav-icon" data-icon="refresh" style="width: 20px; height: 20px;"></span>
+      <div class="modal-title-row">
+        <div class="modal-danger-icon-wrap">
+          <span class="nav-icon modal-danger-icon" data-icon="refresh"></span>
         </div>
-        <h2 style="margin: 0;">Reset Prompt?</h2>
+        <h2 class="modal-title-reset">Reset Prompt?</h2>
       </div>
       <p>This will reset the system prompt. Default modes revert to their factory prompt; custom modes will be cleared. Your provider and model selections will not be changed.</p>
       <div class="modal-actions">
         <button id="reset-prompt-cancel" class="mini-btn" type="button">Cancel</button>
-        <button id="reset-prompt-confirm" class="mini-btn danger" type="button" style="background: var(--danger); color: white; border: none; font-weight: 600;">Reset Prompt</button>
+        <button id="reset-prompt-confirm" class="mini-btn danger btn-danger-solid" type="button">Reset Prompt</button>
       </div>
     </div>
   </div>
 
   <div id="delete-all-data-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Delete all data">
     <div class="modal">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255,107,107,0.1); display: flex; align-items: center; justify-content: center; color: var(--danger);">
-          <span class="nav-icon" data-icon="trash" style="width: 20px; height: 20px;"></span>
+      <div class="modal-title-row">
+        <div class="modal-danger-icon-wrap">
+          <span class="nav-icon modal-danger-icon" data-icon="trash"></span>
         </div>
-        <h2 style="margin: 0;">Delete All Data?</h2>
+        <h2 class="modal-title-reset">Delete All Data?</h2>
       </div>
       <p>This will permanently delete ALL conversations and screenshots. This action cannot be undone.</p>
       <div class="modal-actions">
         <button id="delete-all-data-cancel" class="mini-btn" type="button">Cancel</button>
-        <button id="delete-all-data-confirm" class="mini-btn danger" type="button" style="background: var(--danger); color: white; border: none; font-weight: 600;">Delete Everything</button>
+        <button id="delete-all-data-confirm" class="mini-btn danger btn-danger-solid" type="button">Delete Everything</button>
       </div>
     </div>
   </div>
 
   <div id="delete-sessions-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Delete conversations">
     <div class="modal">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255,107,107,0.1); display: flex; align-items: center; justify-content: center; color: var(--danger);">
-          <span class="nav-icon" data-icon="trash" style="width: 20px; height: 20px;"></span>
+      <div class="modal-title-row">
+        <div class="modal-danger-icon-wrap">
+          <span class="nav-icon modal-danger-icon" data-icon="trash"></span>
         </div>
-        <h2 id="delete-sessions-title" style="margin: 0;">Delete Conversations?</h2>
+        <h2 id="delete-sessions-title" class="modal-title-reset">Delete Conversations?</h2>
       </div>
       <p id="delete-sessions-msg">Are you sure you want to delete these conversations? This action cannot be undone.</p>
       <div class="modal-actions">
         <button id="delete-sessions-cancel" class="mini-btn" type="button">Cancel</button>
-        <button id="delete-sessions-confirm" class="mini-btn danger" type="button" style="background: var(--danger); color: white; border: none; font-weight: 600;">Delete</button>
+        <button id="delete-sessions-confirm" class="mini-btn danger btn-danger-solid" type="button">Delete</button>
       </div>
     </div>
   </div>
 
   <div id="delete-mode-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Delete mode">
     <div class="modal">
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255,107,107,0.1); display: flex; align-items: center; justify-content: center; color: var(--danger);">
-          <span class="nav-icon" data-icon="trash" style="width: 20px; height: 20px;"></span>
+      <div class="modal-title-row">
+        <div class="modal-danger-icon-wrap">
+          <span class="nav-icon modal-danger-icon" data-icon="trash"></span>
         </div>
-        <h2 style="margin: 0;">Delete Mode?</h2>
+        <h2 class="modal-title-reset">Delete Mode?</h2>
       </div>
       <p>Are you sure you want to delete this mode? This action cannot be undone.</p>
       <div class="modal-actions">
         <button id="delete-mode-cancel" class="mini-btn" type="button">Cancel</button>
-        <button id="delete-mode-confirm" class="mini-btn danger" type="button" style="background: var(--danger); color: white; border: none; font-weight: 600;">Delete Mode</button>
+        <button id="delete-mode-confirm" class="mini-btn danger btn-danger-solid" type="button">Delete Mode</button>
       </div>
     </div>
   </div>

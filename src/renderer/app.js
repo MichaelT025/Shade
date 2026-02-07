@@ -7,6 +7,14 @@ import { getIcon, insertIcon, initIcons } from './assets/icons/icons.js';
 import { showToast, copyToClipboard } from './utils/ui-helpers.js';
 import MemoryManager from './utils/memory-manager.js';
 import { renderMarkdownSafe } from './utils/rendering-adapter.js';
+import {
+  generateMessageId,
+  safePathPart,
+  buildSessionPayload,
+  prunePersistedScreenshotBase64,
+  normalizeSessionMessages
+} from './utils/session-client.js';
+import { setupScreenshotPreview, clearScreenshotChip } from './utils/screenshot-ui.js';
 
 // State management
 const messages = [] // Chat history array (for UI display)
@@ -49,33 +57,32 @@ const homeBtn = document.getElementById('home-btn')
 const closeBtn = document.getElementById('close-btn')
 const hideBtn = document.getElementById('hide-btn')
 const collapseBtn = document.getElementById('collapse-btn')
+const updateReadyBtn = document.getElementById('update-ready-btn')
 const modeDropdownInput = document.getElementById('mode-dropdown-input')
 const newChatBtn = document.getElementById('new-chat-btn')
 const scrollBottomBtn = document.getElementById('scroll-bottom-btn')
 
+let isUpdateReady = false
+
+function setUpdateReadyIndicator(ready) {
+  isUpdateReady = !!ready
+  if (!updateReadyBtn) return
+  updateReadyBtn.style.display = isUpdateReady ? 'inline-flex' : 'none'
+}
+
+async function restartAndInstallUpdate() {
+  try {
+    const result = await window.electronAPI.quitAndInstallUpdate?.()
+    if (!result?.success) {
+      showToast(result?.error || 'Failed to start update install.', 'error', 3000)
+    }
+  } catch (error) {
+    showToast(error?.message || 'Failed to start update install.', 'error', 3000)
+  }
+}
+
 // Session persistence
 let sessionSaveTimer = null
-
-function generateMessageId() {
-  return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function safePathPart(value) {
-  return (value || '').toString().replace(/[^a-zA-Z0-9_-]/g, '')
-}
-
-function toIsoTimestamp(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString()
-  }
-
-  const parsed = new Date(value)
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString()
-  }
-
-  return new Date().toISOString()
-}
 
 function scheduleSessionSave() {
   if (sessionSaveTimer) {
@@ -111,22 +118,12 @@ async function saveCurrentSession() {
     model = providerConfigResult?.success ? (providerConfigResult.config?.model || '') : ''
   }
 
-  const sessionPayload = {
-    id: currentSessionId,
-    title: '',
-    createdAt: null,
+  const sessionPayload = buildSessionPayload({
+    currentSessionId,
     provider,
     model,
-    messages: messages.map(m => ({
-      id: m.id,
-      type: m.type,
-      text: m.text,
-      hasScreenshot: !!m.hasScreenshot,
-      ...(typeof m.screenshotPath === 'string' && m.screenshotPath ? { screenshotPath: m.screenshotPath } : {}),
-      ...(typeof m.screenshotBase64 === 'string' && m.screenshotBase64 ? { screenshotBase64: m.screenshotBase64 } : {}),
-      timestamp: toIsoTimestamp(m.timestamp)
-    }))
-  }
+    messages
+  })
 
   const result = await window.electronAPI.saveSession(sessionPayload)
   if (result?.success && result.session?.id) {
@@ -135,11 +132,7 @@ async function saveCurrentSession() {
 
   // Once a screenshot message is persisted, keep only the on-disk reference.
   if (result?.success) {
-    for (const m of messages) {
-      if (m && typeof m.screenshotBase64 === 'string' && m.screenshotBase64 && typeof m.screenshotPath === 'string' && m.screenshotPath) {
-        delete m.screenshotBase64
-      }
-    }
+    prunePersistedScreenshotBase64(messages)
   }
 }
 
@@ -176,11 +169,12 @@ async function loadSessionIntoChat(sessionId) {
   }
 
   // Render all messages without re-saving during hydration
-  for (const m of session.messages) {
-    const type = m.type === 'ai' ? 'ai' : 'user'
-    const text = typeof m.text === 'string' ? m.text : ''
-    const hasScreenshot = !!m.hasScreenshot
-    const timestamp = m.timestamp ? new Date(m.timestamp) : new Date()
+  const hydratedMessages = normalizeSessionMessages(session.messages)
+  for (const m of hydratedMessages) {
+    const type = m.type
+    const text = m.text
+    const hasScreenshot = m.hasScreenshot
+    const timestamp = m.timestamp
 
     const messageEl = document.createElement('div')
     messageEl.className = `message ${type}`
@@ -205,13 +199,13 @@ async function loadSessionIntoChat(sessionId) {
         sessionId: currentSessionId || session.id,
         screenshotPath: m.screenshotPath,
         base64: m.screenshotBase64
-      }))
+      }), window.electronAPI.getScreenshot)
 
       chatWrapper.appendChild(meta)
     }
 
     messages.push({
-      id: typeof m.id === 'string' ? m.id : generateMessageId(),
+      id: m.id,
       type,
       text,
       hasScreenshot,
@@ -362,7 +356,7 @@ async function init() {
   setupScreenshotPreview(screenshotBtn, () => {
     if (!isScreenshotActive || !capturedScreenshot) return null
     return { base64: capturedScreenshot }
-  })
+  }, window.electronAPI.getScreenshot)
 
   // Screenshot button - toggle screenshot attachment in manual mode
   screenshotBtn.addEventListener('click', async () => {
@@ -433,6 +427,12 @@ async function init() {
     window.electronAPI.hideWindow()
   })
 
+  updateReadyBtn?.addEventListener('click', async () => {
+    const confirmed = window.confirm('Update is ready. Restart Shade now to apply it?')
+    if (!confirmed) return
+    await restartAndInstallUpdate()
+  })
+
 
   // Mode dropdown - switch active mode
   modeDropdownInput.addEventListener('change', handleModeSwitch)
@@ -476,6 +476,19 @@ async function init() {
   // Screenshot capture hotkey (Ctrl+Shift+S)
   window.electronAPI.onCaptureScreenshot(handleScreenshotCapture)
 
+  window.electronAPI.onUpdateStatus?.((status) => {
+    const ready = status?.status === 'downloaded' || status?.updateReady === true
+    setUpdateReadyIndicator(ready)
+  })
+
+  try {
+    const updateStatus = await window.electronAPI.getUpdateStatus?.()
+    const ready = updateStatus?.status === 'downloaded' || updateStatus?.updateReady === true
+    setUpdateReadyIndicator(ready)
+  } catch {
+    setUpdateReadyIndicator(false)
+  }
+
   // Listen for active mode changes from dashboard
   window.electronAPI.onActiveModeChanged(async (modeId) => {
     console.log('Active mode changed in dashboard, updating overlay...', modeId)
@@ -489,9 +502,10 @@ async function init() {
 
 
     // Insert icons into UI elements
-    insertIcon(closeBtn, 'close', 'icon-svg')
+    insertIcon(closeBtn, 'power', 'icon-svg')
     insertIcon(hideBtn, 'minus', 'icon-svg')
     insertIcon(newChatBtn, 'newchat', 'icon-svg')
+    if (updateReadyBtn) insertIcon(updateReadyBtn, 'download', 'icon-svg')
 
    const screenshotIcon = document.getElementById('screenshot-icon')
    if (screenshotIcon) {
@@ -710,14 +724,6 @@ async function handleScreenshotCapture() {
 /**
  * Show screenshot chip preview
  */
-function showScreenshotChip(thumbnailBase64) {
-  // Remove existing chip if any
-  const existingChip = document.getElementById('screenshot-chip')
-  if (existingChip) {
-    existingChip.remove()
-  }
-}
-
 /**
  * Perform predictive screenshot capture in the background
  * This captures a screenshot before the user hits send to reduce perceived delay
@@ -804,10 +810,7 @@ function removeScreenshot() {
   clearPredictiveScreenshot()
   
   // Remove chip
-  const chip = document.getElementById('screenshot-chip')
-  if (chip) {
-    chip.remove()
-  }
+  clearScreenshotChip()
   
   // Reset button state
   screenshotBtn.classList.remove('active')
@@ -1021,149 +1024,6 @@ async function handleSendMessage() {
  * @param {HTMLElement} element - The "Sent with screenshot" element
  * @param {object} params - { sessionId, screenshotPath, base64 }
  */
-function setupScreenshotPreview(element, paramsOrGetter) {
-  let popup = null
-  let isHovering = false
-  let hideTimeout = null
-  let fetchPromise = null
-
-  const getParams = () => {
-    return typeof paramsOrGetter === 'function' ? paramsOrGetter() : paramsOrGetter
-  }
-
-  const showPopup = async () => {
-    if (popup) return
-
-    const params = getParams()
-    if (!params) return
-
-    // Fetch base64 if needed
-    let imgSrc = params.base64
-    
-    // If no base64 but we have path, fetch it
-    if (!imgSrc && params.sessionId && params.screenshotPath) {
-      if (!fetchPromise) {
-        fetchPromise = window.electronAPI.getScreenshot(params.sessionId, params.screenshotPath)
-      }
-      
-      try {
-        const result = await fetchPromise
-        if (result.success && result.base64) {
-          imgSrc = result.base64
-        }
-      } catch (e) {
-        console.error('Failed to fetch screenshot preview', e)
-        return
-      }
-    }
-
-    if (!imgSrc) return
-    if (!isHovering) return // User left while fetching
-
-    popup = document.createElement('div')
-    popup.className = 'screenshot-preview-popup'
-    
-    Object.assign(popup.style, {
-      position: 'fixed',
-      zIndex: '9999',
-      background: 'var(--bg-secondary)',
-      border: '2px solid var(--accent)',
-      borderRadius: 'var(--radius-md)',
-      padding: '4px',
-      boxShadow: 'var(--shadow-glow), var(--shadow-elev-3)',
-      width: '240px',
-      height: 'auto',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      opacity: '0',
-      transform: 'translateY(10px)',
-      transition: 'opacity 0.2s ease, transform 0.2s ease',
-      backdropFilter: 'var(--blur-overlay)',
-      webkitBackdropFilter: 'var(--blur-overlay)'
-    })
-
-    const img = document.createElement('img')
-    img.src = `data:image/jpeg;base64,${imgSrc}`
-    
-    Object.assign(img.style, {
-      maxWidth: '100%',
-      maxHeight: '100%',
-      borderRadius: '0',
-      display: 'block',
-      border: '1px solid var(--accent-muted)'
-    })
-    
-    popup.appendChild(img)
-    document.body.appendChild(popup)
-
-    // Keep popup alive when hovering it
-    popup.addEventListener('mouseenter', () => {
-      isHovering = true
-      if (hideTimeout) clearTimeout(hideTimeout)
-    })
-    
-    popup.addEventListener('mouseleave', () => {
-      isHovering = false
-      hidePopup()
-    })
-
-    // Position it
-    const rect = element.getBoundingClientRect()
-    const popupRect = popup.getBoundingClientRect()
-    
-    // Default: above the text
-    let top = rect.top - popupRect.height - 12
-    let left = rect.left + (rect.width / 2) - (popupRect.width / 2)
-    
-    // If not enough space on top, show below
-    if (top < 10) {
-        top = rect.bottom + 12
-    }
-    
-    // Keep within horizontal bounds
-    if (left < 10) left = 10
-    if (left + popupRect.width > window.innerWidth - 10) {
-        left = window.innerWidth - popupRect.width - 10
-    }
-
-    popup.style.top = `${top}px`
-    popup.style.left = `${left}px`
-    
-    // Trigger animation
-    requestAnimationFrame(() => {
-      if (popup) {
-        popup.style.opacity = '1'
-        popup.style.transform = 'translateY(0)'
-      }
-    })
-  }
-
-  const hidePopup = () => {
-    if (hideTimeout) clearTimeout(hideTimeout)
-    hideTimeout = setTimeout(() => {
-      if (!isHovering && popup) {
-        popup.remove()
-        popup = null
-      }
-    }, 150)
-  }
-
-  element.addEventListener('mouseenter', () => {
-    isHovering = true
-    if (hideTimeout) clearTimeout(hideTimeout)
-    // Small delay to prevent flashing on accidental mouse over
-    setTimeout(() => {
-        if (isHovering) showPopup()
-    }, 200) 
-  })
-  
-  element.addEventListener('mouseleave', () => {
-    isHovering = false
-    hidePopup()
-  })
-}
-
 /**
  * Handle streaming message chunk
  * @param {string} chunk - Text chunk from LLM
@@ -1262,7 +1122,7 @@ function addMessage(type, text, hasScreenshot = false, screenshotBase64 = null) 
       sessionId: currentSessionId,
       screenshotPath: null,
       base64: screenshotBase64
-    }))
+    }), window.electronAPI.getScreenshot)
 
     chatWrapper.appendChild(meta)
   }

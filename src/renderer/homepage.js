@@ -1,47 +1,81 @@
 import { initIcons, insertIcon } from './assets/icons/icons.js'
 
 import { showToast } from './utils/ui-helpers.js'
+import {
+  formatTime,
+  groupSessionsByDay,
+  normalizeProvidersMeta,
+  getProviderLabel,
+  extractModelsFromProviderMeta,
+  scoreModelMatch
+} from './homepage/services/homepage-helpers.js'
+import { createHomepageApiClient } from './homepage/services/homepage-api.js'
+import {
+  wireNavigation as wireNavigationController,
+  wireSocialLinks as wireSocialLinksController
+} from './homepage/controllers/navigation-controller.js'
+
+const api = createHomepageApiClient(window.electronAPI)
 
 const selectedSessionIds = new Set()
+let latestUpdateStatus = null
+let updateReadyToastEl = null
 
-function formatTime(iso) {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+function clearUpdateReadyToast() {
+  if (!updateReadyToastEl) return
+  updateReadyToastEl.classList.remove('show')
+  const el = updateReadyToastEl
+  updateReadyToastEl = null
+  setTimeout(() => el.remove(), 220)
 }
 
-function isSameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
-
-function getDayLabel(iso) {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
-
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-
-  const atMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-
-  if (isSameDay(atMidnight, today)) return 'Today'
-  if (isSameDay(atMidnight, yesterday)) return 'Yesterday'
-
-  return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-}
-
-function groupSessionsByDay(sessions) {
-  const groups = new Map()
-
-  for (const session of sessions) {
-    const key = getDayLabel(session.updatedAt || session.createdAt)
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(session)
+function showUpdateReadyToast(version = '') {
+  const label = version ? `v${version}` : 'latest version'
+  if (updateReadyToastEl) {
+    const messageEl = updateReadyToastEl.querySelector('.toast-message')
+    if (messageEl) messageEl.textContent = `Update ${label} downloaded. Restart Shade to apply it.`
+    return
   }
 
-  return groups
+  const toast = document.createElement('div')
+  toast.className = 'toast toast-info'
+  toast.innerHTML = `
+    <span class="toast-message">Update ${label} downloaded. Restart Shade to apply it.</span>
+    <button type="button" class="toast-action-btn" id="update-restart-btn">Restart now</button>
+    <button type="button" class="toast-dismiss-btn" id="update-restart-dismiss" aria-label="Dismiss">Dismiss</button>
+  `
+
+  const restartBtn = toast.querySelector('#update-restart-btn')
+  const dismissBtn = toast.querySelector('#update-restart-dismiss')
+
+  restartBtn?.addEventListener('click', async () => {
+    const result = await api.quitAndInstallUpdate()
+    if (!result?.success) {
+      showToast(result?.error || 'Failed to restart and install update.', 'error')
+    }
+  })
+
+  dismissBtn?.addEventListener('click', () => {
+    clearUpdateReadyToast()
+  })
+
+  document.body.appendChild(toast)
+  setTimeout(() => toast.classList.add('show'), 10)
+  updateReadyToastEl = toast
+}
+
+function handleIncomingUpdateStatus(status) {
+  latestUpdateStatus = status || null
+  const updateStatus = status?.status
+
+  if (updateStatus === 'downloaded' || status?.updateReady === true) {
+    showUpdateReadyToast(status?.version || '')
+    return
+  }
+
+  if (updateStatus === 'up-to-date' || updateStatus === 'idle') {
+    clearUpdateReadyToast()
+  }
 }
 
 async function handleSessionClick(id) {
@@ -548,89 +582,6 @@ let cachedActiveModeId = null
 let selectedModeId = null
 let modeSaveTimer = null
 
-function normalizeProvidersMeta(providers) {
-  if (!providers) return []
-  if (!Array.isArray(providers) && typeof providers === 'object') {
-    return Object.entries(providers).map(([id, meta]) => ({
-      id,
-      ...meta
-    }))
-  }
-  return providers.map(p => ({
-    id: p.id || p.providerId || p.name,
-    ...p
-  })).filter(p => p.id)
-}
-
-function getProviderLabel(provider) {
-  return provider?.label || provider?.displayName || provider?.name || provider?.id
-}
-
-function extractModelsFromProviderMeta(providerMeta) {
-  const models = providerMeta?.models
-  if (!models) return []
-  if (Array.isArray(models)) {
-    return models.map(m => ({
-      id: m.id || m.model || m.name,
-      ...m
-    })).filter(m => m.id)
-  }
-  if (typeof models === 'object') {
-    return Object.entries(models).map(([id, meta]) => ({ id, ...meta }))
-  }
-  return []
-}
-
-function normalizeSearchText(value) {
-  const raw = (value || '').toString().toLowerCase().trim()
-  const spaced = raw.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
-  return {
-    raw,
-    spaced,
-    noSpace: spaced.replace(/\s+/g, '')
-  }
-}
-
-function scoreModelMatch(model, query) {
-  const q = normalizeSearchText(query)
-  if (!q.spaced) return { score: 0 }
-
-  const idText = normalizeSearchText(model?.id)
-  const nameText = normalizeSearchText(model?.name)
-
-  const candidates = [idText, nameText]
-    .filter(c => c && (c.spaced || c.noSpace))
-
-  let best = null
-
-  for (const c of candidates) {
-    let score = null
-
-    if (c.spaced === q.spaced) score = 1000
-    else if (c.noSpace === q.noSpace && q.noSpace) score = 950
-    else if (c.spaced.includes(q.spaced)) score = 800
-    else if (c.noSpace.includes(q.noSpace) && q.noSpace.length >= 3) score = 780
-    else {
-      const qTokens = q.spaced.split(' ').filter(Boolean)
-      const cTokens = new Set(c.spaced.split(' ').filter(Boolean))
-
-      const matched = qTokens.filter(t => cTokens.has(t))
-      if (matched.length === qTokens.length && qTokens.length) {
-        score = 700 + matched.length * 10
-      } else if (matched.length) {
-        score = 500 + matched.length * 10
-      }
-    }
-
-    if (score !== null && (best === null || score > best)) {
-      best = score
-    }
-  }
-
-  if (best === null) return null
-  return { score: best }
-}
-
 async function fetchConfigurationState(force = false) {
   if (!force && cachedProvidersMeta && cachedActiveProvider) {
     return { providers: cachedProvidersMeta, activeProvider: cachedActiveProvider }
@@ -770,6 +721,23 @@ function renderConfig(container, state) {
               <span class="toggle-slider"></span>
             </label>
             <div id="config-screenshot-mode-msg" class="helper-text" style="margin-top: 0;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="config-card">
+      <h2>Updates</h2>
+      <p>Automatically check and download updates in the background.</p>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Enable auto updates</label>
+          <div class="inline-actions">
+            <label class="toggle-switch" aria-label="Enable auto updates">
+              <input id="config-auto-update" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div id="config-auto-update-msg" class="helper-text" style="margin-top: 0;"></div>
           </div>
         </div>
       </div>
@@ -1524,6 +1492,8 @@ async function initConfigurationView() {
   const startCollapsedMsg = container.querySelector('#config-start-collapsed-msg')
   const screenshotModeToggle = container.querySelector('#config-screenshot-mode')
   const screenshotModeMsg = container.querySelector('#config-screenshot-mode-msg')
+  const autoUpdateToggle = container.querySelector('#config-auto-update')
+  const autoUpdateMsg = container.querySelector('#config-auto-update-msg')
   const excludeScreenshotsToggle = container.querySelector('#config-exclude-screenshots')
   const excludeScreenshotsMsg = container.querySelector('#config-exclude-screenshots-msg')
   const openDataBtn = container.querySelector('#config-open-data')
@@ -1556,13 +1526,21 @@ async function initConfigurationView() {
       : 'Off: screenshots are stored in session history.'
   }
 
+  const setAutoUpdateMsg = (enabled) => {
+    if (!autoUpdateMsg) return
+    autoUpdateMsg.textContent = enabled
+      ? 'On: Shade checks and downloads updates automatically.'
+      : 'Off: only manual update checks are performed.'
+  }
+
   const getSelectedProvider = () => providerSelect?.value || state.activeProvider || state.providers?.[0]?.id || ''
 
   try {
-    const [sessionSettingsResult, startCollapsedResult, screenshotModeResult, excludeResult] = await Promise.all([
+    const [sessionSettingsResult, startCollapsedResult, screenshotModeResult, autoUpdateResult, excludeResult] = await Promise.all([
       window.electronAPI.getSessionSettings(),
       window.electronAPI.getStartCollapsed(),
       window.electronAPI.getScreenshotMode(),
+      window.electronAPI.getAutoUpdateEnabled(),
       window.electronAPI.getExcludeScreenshotsFromMemory()
     ])
 
@@ -1586,6 +1564,12 @@ async function initConfigurationView() {
       const isAuto = mode === 'auto'
       screenshotModeToggle.checked = isAuto
       setScreenshotMsg(isAuto)
+    }
+
+    if (autoUpdateToggle) {
+      const enabled = autoUpdateResult?.success ? autoUpdateResult.enabled !== false : true
+      autoUpdateToggle.checked = enabled
+      setAutoUpdateMsg(enabled)
     }
 
     if (excludeScreenshotsToggle) {
@@ -1642,6 +1626,16 @@ async function initConfigurationView() {
       await window.electronAPI.setScreenshotMode(isAuto ? 'auto' : 'manual')
     } catch (error) {
       console.error('Failed to update screenshot mode:', error)
+    }
+  })
+
+  autoUpdateToggle?.addEventListener('change', async () => {
+    try {
+      const enabled = !!autoUpdateToggle.checked
+      setAutoUpdateMsg(enabled)
+      await api.setAutoUpdateEnabled(enabled)
+    } catch (error) {
+      console.error('Failed to update auto update setting:', error)
     }
   })
 
@@ -1794,7 +1788,7 @@ async function initConfigurationView() {
       e.preventDefault()
       const url = link.getAttribute('href')
       if (url && url !== '#') {
-        window.electronAPI.openExternal(url)
+        api.openExternal(url)
       }
     })
   })
@@ -1808,91 +1802,17 @@ async function initConfigurationView() {
   configViewInitialized = true
 }
 
-function wireSocialLinks() {
-  // Wire up sidebar social links to open in external browser
-  document.querySelectorAll('.sidebar .social-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault()
-      const url = link.getAttribute('href')
-      if (url && url !== '#') {
-        window.electronAPI.openExternal?.(url)
-      }
-    })
-  })
-}
-
-function wireNavigation() {
-  const navSessions = document.getElementById('nav-sessions')
-  const navModes = document.getElementById('nav-modes')
-  const navConfiguration = document.getElementById('nav-configuration')
-  const navShortcuts = document.getElementById('nav-shortcuts')
-
-  if (navSessions) {
-    navSessions.addEventListener('click', async () => {
-      // If the user hasn't configured providers yet, keep them on the welcome screen.
-      const isFirstRun = await checkFirstRunState()
-      if (isFirstRun) {
-        showFirstRunExperience()
-        return
-      }
-
-      navSessions.classList.add('active')
-      navModes?.classList.remove('active')
-      navConfiguration?.classList.remove('active')
-      navShortcuts?.classList.remove('active')
-      showView('view-sessions')
-      loadSessions().catch(console.error)
-    })
-  }
-
-  if (navModes) {
-    navModes.addEventListener('click', async () => {
-      navSessions?.classList.remove('active')
-      navConfiguration?.classList.remove('active')
-      navShortcuts?.classList.remove('active')
-      navModes.classList.add('active')
-      showView('view-modes')
-      if (!modesViewInitialized) {
-        await initModesView()
-      }
-    })
-  }
-
-  if (navConfiguration) {
-    navConfiguration.addEventListener('click', async () => {
-      navSessions?.classList.remove('active')
-      navModes?.classList.remove('active')
-      navShortcuts?.classList.remove('active')
-      navConfiguration.classList.add('active')
-      showView('view-configuration')
-      if (!configViewInitialized) {
-        await initConfigurationView()
-      }
-    })
-  }
-
-  if (navShortcuts) {
-    navShortcuts.addEventListener('click', () => {
-      navSessions?.classList.remove('active')
-      navModes?.classList.remove('active')
-      navConfiguration?.classList.remove('active')
-      navShortcuts.classList.add('active')
-      showView('view-shortcuts')
-    })
-  }
-}
-
 async function checkFirstRunState() {
   try {
     // 1. Check if we have any sessions at all
-    const sessionsResult = await window.electronAPI.getAllSessions()
+    const sessionsResult = await api.getAllSessions()
     const sessions = sessionsResult?.success ? (sessionsResult.sessions || []) : []
     if (sessions.length > 0) {
       return false // User has history, definitely not first run
     }
 
     // 2. Check for configured cloud providers
-    const providersResult = await window.electronAPI.getAllProvidersMeta()
+    const providersResult = await api.getAllProvidersMeta()
     if (!providersResult?.success) return false
 
     const providers = normalizeProvidersMeta(providersResult.providers)
@@ -1904,7 +1824,7 @@ async function checkFirstRunState() {
         continue
       }
       
-      const keyResult = await window.electronAPI.getApiKey(provider.id)
+      const keyResult = await api.getApiKey(provider.id)
       if (keyResult?.success && keyResult.apiKey && keyResult.apiKey.length > 0) {
         return false // Found a configured cloud provider
       }
@@ -2011,8 +1931,8 @@ async function init() {
 
   try {
     const versionEl = document.querySelector('.version-text')
-    if (versionEl && window.electronAPI?.getAppVersion) {
-      const version = await window.electronAPI.getAppVersion()
+    if (versionEl) {
+      const version = await api.getAppVersion()
       if (version) versionEl.textContent = `v${version}`
     }
   } catch (error) {
@@ -2071,8 +1991,8 @@ async function init() {
     loadSessions().catch(console.error)
   })
 
-  minimizeBtn?.addEventListener('click', () => window.electronAPI.minimizeDashboard?.())
-  closeBtn?.addEventListener('click', () => window.electronAPI.closeDashboard?.())
+  minimizeBtn?.addEventListener('click', () => api.minimizeDashboard())
+  closeBtn?.addEventListener('click', () => api.closeDashboard())
 
   sessionsDeleteAllBtn?.addEventListener('click', () => {
     deleteAllDataModal?.classList.add('open')
@@ -2089,7 +2009,7 @@ async function init() {
       deleteAllDataConfirm.disabled = true
       deleteAllDataConfirm.textContent = 'Deleting...'
 
-      const result = await window.electronAPI.deleteAllData?.()
+      const result = await api.deleteAllData()
 
       if (result?.success) {
         showToast('All data deleted', 'success')
@@ -2122,7 +2042,7 @@ async function init() {
       deleteSessionsConfirm.textContent = 'Deleting...'
 
       for (const id of selectedSessionIds) {
-        await window.electronAPI.deleteSession(id)
+        await api.deleteSession(id)
       }
       
       selectedSessionIds.clear()
@@ -2150,7 +2070,7 @@ async function init() {
       deleteModeConfirm.disabled = true
       deleteModeConfirm.textContent = 'Deleting...'
 
-      await window.electronAPI.deleteMode(selectedModeIdToDelete)
+      await api.deleteMode(selectedModeIdToDelete)
       cachedModes = null
       const s = await fetchModesState(true)
       if (selectedModeId === selectedModeIdToDelete) selectedModeId = s.activeModeId
@@ -2185,17 +2105,31 @@ async function init() {
 
   checkUpdateBtn?.addEventListener('click', async () => {
     try {
-      const result = await window.electronAPI.checkForUpdates()
+      const result = await api.checkForUpdates()
 
-      if (result?.error) {
+      if (!result?.success || result?.error) {
         showToast(`Failed to check for updates: ${result.error}`, 'error')
         return
       }
 
+      if (result?.status === 'unsupported') {
+        showToast('Auto-update is available only in packaged builds.', 'warning', 4000)
+        return
+      }
+
       if (result?.updateAvailable) {
-        const version = result.latestVersion || result.version || result.tag_name
+        const version = result.version || result.latestVersion || result.tag_name
         const versionLabel = version ? `v${version}` : 'a newer release'
-        showToast(`Update available: ${versionLabel}`, 'info', 5000)
+        showToast(`Update available: ${versionLabel}. Downloading now...`, 'info', 5000)
+
+        if (result.status !== 'downloading' && result.status !== 'downloaded') {
+          const downloadResult = await api.downloadUpdate()
+          if (!downloadResult?.success) {
+            showToast(downloadResult?.error || 'Failed to start update download.', 'error')
+          }
+        }
+
+        return
       } else {
         showToast('You are running the latest version.', 'info')
       }
@@ -2205,9 +2139,33 @@ async function init() {
     }
   })
 
+  api.onUpdateStatus((status) => {
+    handleIncomingUpdateStatus(status)
+
+    if (status?.status === 'downloading') {
+      const pct = Number(status?.percent || 0)
+      if (pct > 0 && pct < 100 && Math.round(pct) % 25 === 0) {
+        showToast(`Downloading update... ${Math.round(pct)}%`, 'info', 1800)
+      }
+    }
+
+    if (status?.status === 'error' && status?.error) {
+      showToast(`Update error: ${status.error}`, 'error', 5000)
+    }
+  })
+
+  try {
+    const status = await api.getUpdateStatus()
+    if (status?.success) {
+      handleIncomingUpdateStatus(status)
+    }
+  } catch (error) {
+    console.error('Failed to load update status:', error)
+  }
+
   reportBugBtn?.addEventListener('click', async () => {
     try {
-      await window.electronAPI.openExternal('https://github.com/MichaelT025/Shade/issues/new')
+      await api.openExternal('https://github.com/MichaelT025/Shade/issues/new')
       showToast('Opening GitHub issues in your browser...', 'success')
     } catch (error) {
       console.error('Failed to open GitHub issues:', error)
@@ -2216,15 +2174,15 @@ async function init() {
   })
 
   quitBtn?.addEventListener('click', async () => {
-    await window.electronAPI.quitApp?.()
+    await api.quitApp()
   })
 
-  window.electronAPI.onNewChat(() => {
+  api.onNewChat(() => {
     handleNewChat().catch(console.error)
   })
 
   // Keep Configuration view in sync when model changes elsewhere (e.g. model switcher)
-  window.electronAPI.onConfigChanged(async () => {
+  api.onConfigChanged(async () => {
     try {
       cachedProvidersMeta = null
       cachedActiveProvider = null
@@ -2294,7 +2252,7 @@ async function init() {
     }
   })
 
-  window.electronAPI.onContextMenuCommand(({ command, sessionId }) => {
+  api.onContextMenuCommand(({ command, sessionId }) => {
     if (command === 'delete') {
       handleDeleteSession(sessionId)
     } else if (command === 'rename') {
@@ -2304,8 +2262,19 @@ async function init() {
     }
   })
 
-  wireNavigation()
-  wireSocialLinks()
+  wireNavigationController({
+    checkFirstRunState,
+    showFirstRunExperience,
+    showView,
+    loadSessions,
+    initModesView,
+    initConfigurationView,
+    getModesViewInitialized: () => modesViewInitialized,
+    getConfigViewInitialized: () => configViewInitialized
+  })
+  wireSocialLinksController({
+    openExternal: (url) => api.openExternal(url)
+  })
   loadSessions().catch(console.error)
 }
 

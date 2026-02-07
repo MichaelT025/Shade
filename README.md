@@ -127,8 +127,13 @@ Shade is designed with privacy as a core principle:
 ```
 /src
   /main           - Electron main process
+    /ipc          - Domain-specific IPC handlers
+    /services     - Main-process services (e.g., updates)
+    /windows      - Window management and creation
   /renderer       - UI (HTML, JS, CSS)
-  /services       - LLM providers, config, screen capture
+    /homepage     - Dashboard logic (controllers, services)
+    /utils        - Shared renderer utilities (rendering, session)
+  /services       - Core business logic (LLM providers, config, persistence)
 /docs             - Documentation and plans
 ```
 

@@ -44,13 +44,22 @@
         "nsis"
       ],
       "verifyUpdateCodeSignature": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "MichaelT025",
+        "repo": "Shade"
+      }
+    ]
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
-    "@highlightjs/cdn-assets": "11.9.0",
     "@google/generative-ai": "^0.24.1",
+    "@highlightjs/cdn-assets": "11.9.0",
     "dompurify": "3.0.6",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.7.3",
     "highlight.js": "11.9.0",
     "katex": "0.16.9",
     "marked": "11.0.0",

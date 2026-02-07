@@ -81,6 +81,9 @@ function migrateConfig(oldConfig) {
     sessionSettings: {
       autoTitleSessions: true,
       startCollapsed: true
+    },
+    autoUpdate: {
+      enabled: true
     }
   }
 
@@ -301,6 +304,9 @@ Memory:
       sessionSettings: {
         autoTitleSessions: true,
         startCollapsed: true
+      },
+      autoUpdate: {
+        enabled: true
       }
     }
 
@@ -772,6 +778,22 @@ Memory:
       this.config.sessionSettings = this.defaultConfig.sessionSettings
     }
     this.config.sessionSettings.startCollapsed = !!startCollapsed
+    this.saveConfig()
+  }
+
+  getAutoUpdateEnabled() {
+    if (!this.config.autoUpdate) {
+      this.config.autoUpdate = this.defaultConfig.autoUpdate
+      this.saveConfig()
+    }
+    return this.config.autoUpdate.enabled !== false
+  }
+
+  setAutoUpdateEnabled(enabled) {
+    if (!this.config.autoUpdate) {
+      this.config.autoUpdate = this.defaultConfig.autoUpdate
+    }
+    this.config.autoUpdate.enabled = !!enabled
     this.saveConfig()
   }
 }

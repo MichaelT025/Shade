@@ -104,6 +104,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoTitleSessions: (enabled) => ipcRenderer.invoke('set-auto-title-sessions', enabled),
   getStartCollapsed: () => ipcRenderer.invoke('get-start-collapsed'),
   setStartCollapsed: (startCollapsed) => ipcRenderer.invoke('set-start-collapsed', startCollapsed),
+  getAutoUpdateEnabled: () => ipcRenderer.invoke('get-auto-update-enabled'),
+  setAutoUpdateEnabled: (enabled) => ipcRenderer.invoke('set-auto-update-enabled', enabled),
   generateSessionTitle: (assistantReply) => ipcRenderer.invoke('generate-session-title', assistantReply),
 
   // Display detection
@@ -150,4 +152,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
  
   // Update checking
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  quitAndInstallUpdate: () => ipcRenderer.invoke('quit-and-install-update'),
+  getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+  onUpdateStatus: (callback) => {
+    ipcRenderer.on('update-status', (_event, status) => callback(status))
+  },
 })

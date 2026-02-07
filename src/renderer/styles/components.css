@@ -129,6 +129,26 @@ button:active,
   color: var(--text-primary);
 }
 
+.toast-action-btn,
+.toast-dismiss-btn {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.toast-action-btn:hover,
+.toast-dismiss-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.toast-action-btn {
+  border-color: rgba(123, 220, 181, 0.5);
+}
+
 .toast-success {
   border-color: var(--success);
 }

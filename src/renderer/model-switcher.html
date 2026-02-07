@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; base-uri 'self';">
   <title>Select model</title>
 
   <link rel="stylesheet" href="styles/tokens.css" />
@@ -140,6 +140,14 @@
       font-size: var(--font-size-xs);
       color: var(--text-tertiary);
       line-height: 1.4;
+    }
+
+    .note.is-hidden {
+      display: none;
+    }
+
+    .note.empty-state {
+      padding: var(--space-12) var(--space-4);
     }
 
     .note.warn {
@@ -320,8 +328,8 @@
           <option value="" disabled>Select a provider</option>
         </select>
       </div>
-      <div id="mode-note" class="note" style="display:none;"></div>
-      <div id="key-note" class="note warn" style="display:none;"></div>
+      <div id="mode-note" class="note is-hidden"></div>
+      <div id="key-note" class="note warn is-hidden"></div>
     </div>
 
     <div class="search-container">

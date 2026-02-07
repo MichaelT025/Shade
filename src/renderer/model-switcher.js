@@ -93,7 +93,7 @@ function setNote(el, text) {
   if (!el) return
   const has = !!(text || '').trim()
   el.textContent = text || ''
-  el.style.display = has ? 'block' : 'none'
+  el.classList.toggle('is-hidden', !has)
 }
 
 function clampIndex(idx, len) {
@@ -111,7 +111,7 @@ function renderList() {
   if (!els.list) return
 
   if (!state.filteredModels.length) {
-    els.list.innerHTML = '<div class="note" style="padding: var(--space-12) var(--space-4);">No models found matching your search.</div>'
+    els.list.innerHTML = '<div class="note empty-state">No models found matching your search.</div>'
     return
   }
 
