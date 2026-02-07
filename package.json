@@ -1,6 +1,6 @@
 {
   "name": "shade",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "description": "Shade - Your screen, smarter. A Windows desktop overlay for AI-powered screen assistance.",
   "main": "src/main/main.js",
   "scripts": {
