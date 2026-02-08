@@ -25,6 +25,27 @@ function writeFileAtomicSync(targetPath, data, encoding = 'utf8') {
   }
 }
 
+async function writeFileAtomic(targetPath, data, encoding = 'utf8') {
+  const tempPath = buildTempPath(targetPath)
+
+  try {
+    if (Buffer.isBuffer(data)) {
+      await fs.promises.writeFile(tempPath, data)
+    } else {
+      await fs.promises.writeFile(tempPath, data, encoding)
+    }
+    await fs.promises.rename(tempPath, targetPath)
+  } catch (error) {
+    try {
+      await fs.promises.unlink(tempPath)
+    } catch {
+      // ignore cleanup errors
+    }
+    throw error
+  }
+}
+
 module.exports = {
-  writeFileAtomicSync
+  writeFileAtomicSync,
+  writeFileAtomic
 }
