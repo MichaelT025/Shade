@@ -192,7 +192,7 @@
       width: 7px;
       height: 7px;
       border-radius: 999px;
-      background: #70eab5;
+      background: #ff6b6b;
       box-shadow: 0 0 0 2px rgba(18, 18, 18, 0.95);
     }
 
@@ -1057,10 +1057,6 @@
       <span class="title-text">Shade</span>
 
         <div class="title-bar-right">
-          <button id="update-ready-btn" class="icon-btn update-ready-btn" title="Update ready - restart to apply" aria-label="Update ready" style="display: none;">
-            <!-- Icon loaded from custom-icons/download.svg -->
-          </button>
-
           <!-- Collapse Toggle Button -->
           <button id="collapse-btn" class="icon-btn" title="Toggle Collapse (Ctrl+')" aria-label="Toggle collapse">
             <!-- Icon loaded from custom-icons/collapse.svg -->
@@ -1072,10 +1068,14 @@
          </button>
 
         <!-- Quit Button -->
-        <button id="close-btn" class="icon-btn close-btn" title="Quit Shade" aria-label="Quit Shade">
-          <!-- Icon loaded from custom-icons/power.svg -->
-        </button>
-      </div>
+         <button id="close-btn" class="icon-btn close-btn" title="Quit Shade" aria-label="Quit Shade">
+           <!-- Icon loaded from custom-icons/power.svg -->
+         </button>
+
+          <button id="update-ready-btn" class="icon-btn update-ready-btn" title="Update ready - restart to apply" aria-label="Update ready" style="display: none;">
+            <!-- Icon loaded from custom-icons/download.svg -->
+          </button>
+       </div>
     </div>
 
     <!-- Messages Container -->

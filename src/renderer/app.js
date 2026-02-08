@@ -1307,6 +1307,11 @@ function finalizeStreamingMessage(messageId, text) {
 
     // Persist session after assistant message completes
     scheduleSessionSave()
+
+    // Auto-title new sessions from the first assistant reply.
+    maybeAutoTitleSessionFromFirstReply(text).catch(error => {
+      console.error('Failed to auto-title session:', error)
+    })
   }
 }
 
