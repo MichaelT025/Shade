@@ -344,6 +344,24 @@
       user-select: none;
     }
 
+    .message-notice {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      margin: var(--space-2) 0 var(--space-8) 0;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-6);
+      font-style: italic;
+      opacity: 0.95;
+      user-select: none;
+    }
+
+    .message-notice-icon {
+      display: inline-flex;
+      color: var(--text-tertiary);
+      opacity: 0.85;
+    }
+
     /* Message timestamp (always visible) */
     .message-timestamp {
       font-size: var(--font-size-xs);
@@ -1051,6 +1069,10 @@
         <button id="home-btn" class="icon-btn" title="Dashboard" aria-label="Open Dashboard">
           <img class="app-icon" src="../../build/appicon.png" alt="Shade" />
         </button>
+
+        <button id="update-ready-btn" class="icon-btn update-ready-btn" title="Update ready - restart to apply" aria-label="Update ready" style="display: none;">
+          <!-- Icon loaded from custom-icons/download.svg -->
+        </button>
       </div>
 
       <!-- Centered App Title -->
@@ -1072,10 +1094,7 @@
            <!-- Icon loaded from custom-icons/power.svg -->
          </button>
 
-          <button id="update-ready-btn" class="icon-btn update-ready-btn" title="Update ready - restart to apply" aria-label="Update ready" style="display: none;">
-            <!-- Icon loaded from custom-icons/download.svg -->
-          </button>
-       </div>
+        </div>
     </div>
 
     <!-- Messages Container -->

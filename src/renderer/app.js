@@ -857,6 +857,8 @@ function removeScreenshot() {
 
 function resetSendButton() {
   isGenerating = false
+  inputContainer.classList.remove('generating')
+  inputContainer.classList.remove('thinking')
   sendBtn.disabled = false
   sendBtn.title = 'Send'
   sendBtn.setAttribute('aria-label', 'Send message')
@@ -871,8 +873,14 @@ function resetSendButton() {
 async function handleSendMessage() {
   // If already generating, stop it
   if (isGenerating) {
-    await window.electronAPI.stopMessage()
-    resetSendButton()
+    try {
+      await window.electronAPI.stopMessage()
+      showInterruptedMessage()
+    } catch (error) {
+      showError('Failed to stop response: ' + error.message)
+    } finally {
+      resetSendButton()
+    }
     return
   }
 
@@ -1567,6 +1575,23 @@ function showError(errorText) {
 
   // Also show toast notification
   showToast(getErrorMessage(errorType), 'error')
+}
+
+function showInterruptedMessage() {
+  const interruptedEl = document.createElement('div')
+  interruptedEl.className = 'message-notice'
+
+  const icon = document.createElement('span')
+  icon.className = 'message-notice-icon'
+  icon.innerHTML = getIcon('stop', 'icon-svg-sm')
+  interruptedEl.appendChild(icon)
+
+  const text = document.createElement('span')
+  text.textContent = 'Response interrupted.'
+  interruptedEl.appendChild(text)
+
+  chatWrapper.appendChild(interruptedEl)
+  scrollToBottom()
 }
 
 /**

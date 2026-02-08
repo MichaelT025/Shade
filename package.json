@@ -50,7 +50,8 @@
       {
         "provider": "github",
         "owner": "MichaelT025",
-        "repo": "Shade"
+        "repo": "Shade",
+        "releaseType": "release"
       }
     ]
   },
