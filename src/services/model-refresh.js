@@ -1,6 +1,7 @@
 const https = require('https')
 const http = require('http')
 const ProviderRegistry = require('./provider-registry')
+const { safeParseJson } = require('./utils/json-safe')
 
 /**
  * Service for refreshing model lists from provider APIs
@@ -83,7 +84,7 @@ class ModelRefreshService {
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
     const response = await this.httpsRequest(url)
-    const data = JSON.parse(response)
+    const data = safeParseJson(response, {})
 
     const models = {}
     if (data.models && Array.isArray(data.models)) {
@@ -115,7 +116,7 @@ class ModelRefreshService {
     const response = await this.httpsRequest('https://api.openai.com/v1/models', {
       'Authorization': `Bearer ${apiKey}`
     })
-    const data = JSON.parse(response)
+    const data = safeParseJson(response, {})
 
     const models = {}
     if (data.data && Array.isArray(data.data)) {
@@ -220,7 +221,7 @@ class ModelRefreshService {
 
       const protocol = baseUrl.startsWith('https') ? https : http
       const response = await this.request(modelsUrl, headers, protocol)
-      const data = JSON.parse(response)
+      const data = safeParseJson(response, {})
 
       const models = {}
       if (data.data && Array.isArray(data.data)) {
@@ -248,7 +249,7 @@ class ModelRefreshService {
       // Ollama uses /api/tags endpoint
       const tagsUrl = baseUrl.replace('/v1', '').replace(/\/$/, '') + '/api/tags'
       const response = await this.request(tagsUrl, {}, http)
-      const data = JSON.parse(response)
+      const data = safeParseJson(response, {})
 
       const models = {}
       if (data.models && Array.isArray(data.models)) {
@@ -279,7 +280,7 @@ class ModelRefreshService {
 
     const headers = { 'Authorization': `Bearer ${apiKey}` }
     const response = await this.httpsRequest('https://openrouter.ai/api/v1/models', headers)
-    const data = JSON.parse(response)
+    const data = safeParseJson(response, {})
 
     const allModels = []
     if (data.data && Array.isArray(data.data)) {
