@@ -25,6 +25,7 @@
   "build": {
     "appId": "com.shade.app",
     "productName": "Shade",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "directories": {
       "output": "dist"
     },

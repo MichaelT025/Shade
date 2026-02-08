@@ -29,17 +29,7 @@ jobs:
       - name: Run tests
         run: npm run test:run
 
-      - name: Build Windows installer
-        run: npm run build:win -- --publish never
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.exe
-            dist/*.exe.blockmap
-            dist/latest.yml
-          draft: false
-          prerelease: false
+      - name: Build and publish Windows installer
+        run: npm run build:win -- --publish always
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
