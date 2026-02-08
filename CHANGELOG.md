@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.12.0] - 2026-02-08
+
+### Added
+- Atomic write utility for sync/async persistence operations (`src/services/utils/atomic-write.js`) plus dedicated utility tests.
+- Safe JSON parse utility with explicit fallback behavior (`src/services/utils/json-safe.js`) plus unit tests.
+- Model refresh resilience tests for malformed provider payloads (`src/services/__tests__/model-refresh.test.js`).
+
+### Changed
+- Migrated provider/config/session persistence paths to atomic write flows to reduce corruption risk on interrupted writes.
+- Migrated service JSON parsing in provider registry, config loading, session loading, and model refresh responses to guarded parsing.
+- Expanded service-level durability coverage in config/session tests for malformed JSON handling.
+
+### Fixed
+- Prevented malformed config/session JSON from crashing normal startup/load flows by using safe fallback parsing.
+- Reduced risk of partially-written provider/config/session files by writing through temp-then-rename atomic operations.
+
 ## [0.11.4] - 2026-02-08
 
 ### Added
