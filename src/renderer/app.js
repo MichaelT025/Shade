@@ -1316,8 +1316,13 @@ function finalizeStreamingMessage(messageId, text) {
  */
 function addCopyButtons(messageElement) {
   const codeBlocks = messageElement.querySelectorAll('pre code')
+  const hljsLib = typeof globalThis !== 'undefined' ? globalThis.hljs : null
 
   codeBlocks.forEach(codeBlock => {
+    if (hljsLib && !codeBlock.classList.contains('hljs')) {
+      hljsLib.highlightElement(codeBlock)
+    }
+
     const pre = codeBlock.parentElement
 
     // Detect language from class attribute (e.g., "language-javascript" or "hljs javascript")

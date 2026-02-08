@@ -51,7 +51,8 @@ export function setupScreenshotPreview(element, paramsOrGetter, getScreenshot) {
       alignItems: 'center',
       justifyContent: 'center',
       opacity: '0',
-      transform: 'translateY(10px)',
+      transform: 'translateY(10px) scale(0.98)',
+      transformOrigin: 'bottom center',
       transition: 'opacity 0.2s ease, transform 0.2s ease',
       backdropFilter: 'var(--blur-overlay)',
       webkitBackdropFilter: 'var(--blur-overlay)'
@@ -84,12 +85,8 @@ export function setupScreenshotPreview(element, paramsOrGetter, getScreenshot) {
     const rect = element.getBoundingClientRect()
     const popupRect = popup.getBoundingClientRect()
 
-    let top = rect.top - popupRect.height - 12
+    const top = Math.max(10, rect.top - popupRect.height - 12)
     let left = rect.left + (rect.width / 2) - (popupRect.width / 2)
-
-    if (top < 10) {
-      top = rect.bottom + 12
-    }
 
     if (left < 10) left = 10
     if (left + popupRect.width > window.innerWidth - 10) {
@@ -102,7 +99,7 @@ export function setupScreenshotPreview(element, paramsOrGetter, getScreenshot) {
     requestAnimationFrame(() => {
       if (popup) {
         popup.style.opacity = '1'
-        popup.style.transform = 'translateY(0)'
+        popup.style.transform = 'translateY(0) scale(1)'
       }
     })
   }

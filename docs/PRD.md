@@ -842,7 +842,8 @@ userData/
 | 1.0 | 2025-12-16 | Initial PRD creation |
 | 1.1 | 2025-12-19 | Updated storage architecture (Data consolidation, safeStorage), added "Open Data Folder" feature |
 | 1.2 | 2025-12-20 | Updated PRD to match shipped features (shortcuts, model switcher, stop response, local data controls) |
-| 1.3 | 2026-01-30 | Enhanced Model Switcher with provider selection and improved "Assist" mode behavior |
+| 1.3     | 2026-01-30 | Enhanced Model Switcher with provider selection and improved "Assist" mode behavior |
+| 1.4     | 2026-02-07 | Refined code syntax highlighting styles and improved screenshot preview UI positioning |
 
 ---
 

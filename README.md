@@ -24,8 +24,9 @@ A Windows desktop application providing real-time AI assistance through a transl
 - **Collapsible interface** - Minimal input bar by default, expands when you need it
 - **Screen capture** - Overlay automatically excluded from screenshots
 - **Automatic screenshot mode** - Predictive capture for zero-latency AI assistance
+- **Polished UI/UX** - Fluid animations and intelligent screenshot preview positioning
 - **Multi-provider support** - Gemini, OpenAI, Anthropic, plus OpenAI-compatible endpoints (Ollama / LM Studio)
-- **Rich responses** - Markdown, LaTeX math, and syntax highlighting for 50+ languages
+- **Rich responses** - Markdown, LaTeX math, and professional syntax highlighting with custom themes
 - **Session history dashboard** - Browse, search, rename, save, and resume conversations (stored locally)
 - **System prompt modes** - Built-in modes and editable prompts (per-mode)
 - **In-app configuration** - Provider, API key validation, model selection + refresh, and screenshot/memory toggles

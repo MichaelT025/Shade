@@ -746,6 +746,7 @@
       overflow: hidden;
       background: var(--panel-strong) !important;
       border: 1px solid var(--border);
+      position: relative;
     }
 
     pre code {
@@ -760,6 +761,12 @@
       color: var(--text-primary);
       position: relative;
       z-index: 1; /* Ensure code content layers above the label in the reserved space */
+    }
+
+    pre code.hljs {
+      padding: var(--space-16);
+      padding-top: calc(var(--space-16) + 32px);
+      background: transparent !important;
     }
 
     /* Inline code */
@@ -790,7 +797,42 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       font-weight: 600;
-      /* Remove z-index so code content can layer naturally in the reserved padding space */
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .message.ai pre code.hljs {
+      color: #d7deee;
+    }
+
+    .message.ai .hljs-keyword,
+    .message.ai .hljs-selector-tag,
+    .message.ai .hljs-literal,
+    .message.ai .hljs-built_in,
+    .message.ai .hljs-operator {
+      color: #81c8ff;
+    }
+
+    .message.ai .hljs-string,
+    .message.ai .hljs-title,
+    .message.ai .hljs-name,
+    .message.ai .hljs-type,
+    .message.ai .hljs-attribute,
+    .message.ai .hljs-symbol,
+    .message.ai .hljs-template-variable {
+      color: #f3bd83;
+    }
+
+    .message.ai .hljs-number,
+    .message.ai .hljs-meta,
+    .message.ai .hljs-variable,
+    .message.ai .hljs-params {
+      color: #b8a7ff;
+    }
+
+    .message.ai .hljs-comment,
+    .message.ai .hljs-quote {
+      color: #72809d;
     }
 
     /* Copy button (icon only) */
