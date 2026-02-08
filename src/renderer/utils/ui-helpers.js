@@ -3,7 +3,7 @@
  * Utility functions for common UI operations
  */
 
-import { getIcon } from '../assets/icons/icons.js';
+import { insertIcon } from '../assets/icons/icons.js';
 
 /**
  * Show a toast notification
@@ -26,11 +26,16 @@ export function showToast(message, type = 'info', duration = 3000) {
   toast.setAttribute('aria-live', 'polite');
   
   const iconName = type === 'success' ? 'check' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info';
-  
-  toast.innerHTML = `
-    ${getIcon(iconName, 'toast-icon')}
-    <span class="toast-message">${message}</span>
-  `;
+
+  const iconWrap = document.createElement('span');
+  insertIcon(iconWrap, iconName, 'toast-icon');
+
+  const msgEl = document.createElement('span');
+  msgEl.className = 'toast-message';
+  msgEl.textContent = String(message ?? '');
+
+  toast.appendChild(iconWrap);
+  toast.appendChild(msgEl);
   
   toastStack.appendChild(toast);
   

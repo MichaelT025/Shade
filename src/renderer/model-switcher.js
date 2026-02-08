@@ -1,4 +1,5 @@
 import { initIcons, insertIcon } from './assets/icons/icons.js'
+import { escapeHtml } from './utils/html-escape.js'
 
 function normalizeProvidersMeta(providers) {
   if (!providers) return []
@@ -120,8 +121,8 @@ function renderList() {
       const isCurrent = m.id === state.currentModelId
       const isHighlighted = idx === state.highlightedIndex
       return `
-        <div class="model-item ${isCurrent ? 'active' : ''} ${isHighlighted ? 'highlighted' : ''}" role="option" aria-selected="${isCurrent}" data-model-id="${m.id}" data-index="${idx}">
-          <div class="item-id" title="${m.id}">${m.id}</div>
+        <div class="model-item ${isCurrent ? 'active' : ''} ${isHighlighted ? 'highlighted' : ''}" role="option" aria-selected="${isCurrent}" data-model-id="${escapeHtml(m.id)}" data-index="${idx}">
+          <div class="item-id" title="${escapeHtml(m.id)}">${escapeHtml(m.id)}</div>
           ${isCurrent ? '<span class="badge-active">Active</span>' : ''}
         </div>
       `
@@ -211,7 +212,7 @@ async function loadProviderState() {
     els.providerSelect.innerHTML = providers.map(p => {
       const label = getProviderLabel(p)
       const isSelected = p.id === providerId
-      return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${label}</option>`
+      return `<option value="${escapeHtml(p.id)}" ${isSelected ? 'selected' : ''}>${escapeHtml(label)}</option>`
     }).join('')
   }
 

@@ -7,9 +7,11 @@ import {
   normalizeProvidersMeta,
   getProviderLabel,
   extractModelsFromProviderMeta,
+  normalizeSearchText,
   scoreModelMatch
 } from './homepage/services/homepage-helpers.js'
 import { createHomepageApiClient } from './homepage/services/homepage-api.js'
+import { escapeHtml } from './utils/html-escape.js'
 import {
   wireNavigation as wireNavigationController,
   wireSocialLinks as wireSocialLinksController
@@ -50,14 +52,26 @@ function showUpdateReadyToast(version = '') {
 
   const toast = document.createElement('div')
   toast.className = 'toast toast-info'
-  toast.innerHTML = `
-    <span class="toast-message">Update ${label} downloaded. Restart Shade to apply it.</span>
-    <button type="button" class="toast-action-btn" id="update-restart-btn">Restart now</button>
-    <button type="button" class="toast-dismiss-btn" id="update-restart-dismiss" aria-label="Dismiss">Dismiss</button>
-  `
+  const messageEl = document.createElement('span')
+  messageEl.className = 'toast-message'
+  messageEl.textContent = `Update ${label} downloaded. Restart Shade to apply it.`
 
-  const restartBtn = toast.querySelector('#update-restart-btn')
-  const dismissBtn = toast.querySelector('#update-restart-dismiss')
+  const restartBtn = document.createElement('button')
+  restartBtn.type = 'button'
+  restartBtn.className = 'toast-action-btn'
+  restartBtn.id = 'update-restart-btn'
+  restartBtn.textContent = 'Restart now'
+
+  const dismissBtn = document.createElement('button')
+  dismissBtn.type = 'button'
+  dismissBtn.className = 'toast-dismiss-btn'
+  dismissBtn.id = 'update-restart-dismiss'
+  dismissBtn.setAttribute('aria-label', 'Dismiss')
+  dismissBtn.textContent = 'Dismiss'
+
+  toast.appendChild(messageEl)
+  toast.appendChild(restartBtn)
+  toast.appendChild(dismissBtn)
 
   restartBtn?.addEventListener('click', async () => {
     const result = await api.quitAndInstallUpdate()
@@ -557,7 +571,9 @@ async function loadSessions(query = '') {
   }
 
   if (!result?.success && result?.error) {
-    container.innerHTML = `<div class="empty"><h2>Couldn’t load sessions</h2><p>${result.error}</p></div>`
+    container.innerHTML = '<div class="empty"><h2>Couldn\'t load sessions</h2><p></p></div>'
+    const p = container.querySelector('p')
+    if (p) p.textContent = String(result.error)
     return
   }
 
@@ -632,7 +648,7 @@ function renderConfig(container, state) {
   const providerOptions = providers
     .slice()
     .sort((a, b) => getProviderLabel(a).localeCompare(getProviderLabel(b)))
-    .map(p => `<option value="${p.id}">${getProviderLabel(p)}</option>`)
+    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(getProviderLabel(p))}</option>`)
     .join('')
 
   container.innerHTML = `
@@ -862,17 +878,17 @@ function renderModesList(container, state) {
 
 
       return `
-        <div class="mode-item ${isSelected ? 'active' : ''}" data-mode-id="${mode.id}">
+        <div class="mode-item ${isSelected ? 'active' : ''}" data-mode-id="${escapeHtml(mode.id)}">
           <div class="mode-meta">
             <div class="mode-name">
-              ${mode.name}
+              ${escapeHtml(mode.name)}
               ${isActive ? ' <span class="badge badge-info" style="margin-left: 8px; font-size: 10px; padding: 1px 6px;">Active</span>' : ''}
             </div>
-            <div class="mode-sub">${subtitle}</div>
+            <div class="mode-sub">${escapeHtml(subtitle)}</div>
           </div>
           <div class="mode-actions">
-            <button class="icon-mini" data-action="rename-mode" data-mode-id="${mode.id}" type="button" title="Rename mode"><span class="nav-icon" data-icon="pencil"></span></button>
-            ${!mode.isDefault ? `<button class="icon-mini danger" data-action="delete-mode" data-mode-id="${mode.id}" type="button" title="Delete mode"><span class="nav-icon" data-icon="trash"></span></button>` : ''}
+            <button class="icon-mini" data-action="rename-mode" data-mode-id="${escapeHtml(mode.id)}" type="button" title="Rename mode"><span class="nav-icon" data-icon="pencil"></span></button>
+            ${!mode.isDefault ? `<button class="icon-mini danger" data-action="delete-mode" data-mode-id="${escapeHtml(mode.id)}" type="button" title="Delete mode"><span class="nav-icon" data-icon="trash"></span></button>` : ''}
             ${isSelected ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 16px; height: 16px;"></span>' : ''}
           </div>
         </div>
@@ -922,7 +938,7 @@ async function renderModeEditor(container, state) {
   const providerOptions = (providers || [])
     .slice()
     .sort((a, b) => getProviderLabel(a).localeCompare(getProviderLabel(b)))
-    .map(p => `<option value="${p.id}">${getProviderLabel(p)}</option>`)
+    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(getProviderLabel(p))}</option>`)
     .join('')
 
   const providerId = sanitized.provider || activeProvider || (providers?.[0]?.id || '')
@@ -977,7 +993,7 @@ async function renderModeEditor(container, state) {
           ${mode.isDefault ? 'Reset to Default' : 'Clear Prompt'}
         </button>
       </div>
-      <textarea id="mode-prompt" class="textarea" style="min-height: 300px;" placeholder="Enter system prompt instructions...">${(sanitized.prompt || '').replace(/</g, '&lt;')}</textarea>
+      <textarea id="mode-prompt" class="textarea" style="min-height: 300px;" placeholder="Enter system prompt instructions...">${escapeHtml(sanitized.prompt || '')}</textarea>
       <div class="helper-text" style="margin-top: var(--space-8);">Changes are saved automatically.</div>
     </div>
   `
@@ -1075,8 +1091,8 @@ async function updateModeModelList(editorEl, providerId, selectedModelId) {
     .map(m => {
       const isActive = m.id === selectedModelId
       return `
-        <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${m.id}">
-          <span style="font-size: 13px; font-weight: 500;">${m.id}</span>
+        <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${escapeHtml(m.id)}">
+          <span style="font-size: 13px; font-weight: 500;">${escapeHtml(m.id)}</span>
           ${isActive ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 14px; height: 14px;"></span>' : ''}
         </div>
       `
@@ -1464,8 +1480,8 @@ async function updateProviderDependentUI(container, providerId, { preserveKeySta
       .map(m => {
         const isActive = m.id === selectedModelId
         return `
-          <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${m.id}">
-            <span style="font-size: 13px; font-weight: 500;">${m.id}</span>
+          <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${escapeHtml(m.id)}">
+            <span style="font-size: 13px; font-weight: 500;">${escapeHtml(m.id)}</span>
             ${isActive ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 14px; height: 14px;"></span>' : ''}
           </div>
         `

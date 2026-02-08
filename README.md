@@ -4,7 +4,7 @@
 
 A Windows desktop application providing real-time AI assistance through a translucent, always-on-top overlay. Capture your screen and ask questions - powered by your choice of LLM provider.
 
-![Version](https://img.shields.io/badge/version-0.11.5-blue)
+![Version](https://img.shields.io/badge/version-0.11.6-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -173,6 +173,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing/build commands, 
 - [x] Smart memory management with summarization
 - [x] Unit test suite (Vitest)
 - [x] Encrypted local storage for API keys
+- [x] Security hardening (XSS protection & atomic writes)
 
 ### V1.1
 - [ ] macOS support

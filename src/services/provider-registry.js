@@ -5,6 +5,8 @@
 
 const fs = require('fs')
 const path = require('path')
+const { safeParseJson } = require('./utils/json-safe')
+const { writeFileAtomicSync } = require('./utils/atomic-write')
 
 // Default providers JSON (embedded fallback)
 const defaultProviders = {
@@ -183,7 +185,10 @@ function loadProviders() {
   try {
     if (providersPath && fs.existsSync(providersPath)) {
       const data = fs.readFileSync(providersPath, 'utf8')
-      providers = JSON.parse(data)
+      providers = safeParseJson(data, null)
+      if (!providers || typeof providers !== 'object') {
+        throw new Error('Providers file contained invalid JSON')
+      }
 
       // Migrate: Add any missing providers from defaults and update models
       let needsSave = false
@@ -239,7 +244,7 @@ function saveProviders() {
   if (!providersPath) return
 
   try {
-    fs.writeFileSync(providersPath, JSON.stringify(providers, null, 2), 'utf8')
+    writeFileAtomicSync(providersPath, JSON.stringify(providers, null, 2), 'utf8')
   } catch (error) {
     console.error('Failed to save providers:', error)
   }
