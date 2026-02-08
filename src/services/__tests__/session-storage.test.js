@@ -117,6 +117,26 @@ describe('SessionStorage', () => {
       expect(result.title).toBe('My Custom Title')
     })
 
+    test('should preserve existing title on update when title is omitted', async () => {
+      const created = await sessionStorage.saveSession({
+        title: 'AI Generated Title',
+        messages: [
+          { type: 'user', text: 'First message' },
+          { type: 'ai', text: 'First reply' }
+        ]
+      })
+
+      const updated = await sessionStorage.saveSession({
+        id: created.id,
+        messages: [
+          { type: 'user', text: 'Completely different prompt text' },
+          { type: 'ai', text: 'Another reply' }
+        ]
+      })
+
+      expect(updated.title).toBe('AI Generated Title')
+    })
+
     test('should truncate long titles', async () => {
       const longMessage = 'A'.repeat(100)
       const session = {

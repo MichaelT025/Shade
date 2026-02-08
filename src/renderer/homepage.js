@@ -428,7 +428,8 @@ function renderSessionList(container, sessions) {
 
       const subtitle = document.createElement('div')
       subtitle.className = 'session-subtitle'
-      subtitle.textContent = session.provider ? `${session.provider}${session.model ? ` • ${session.model}` : ''}` : ''
+      const modeOrProvider = session.mode || session.provider || ''
+      subtitle.textContent = modeOrProvider ? `${modeOrProvider}${session.model ? ` • ${session.model}` : ''}` : ''
 
       left.appendChild(title)
       left.appendChild(subtitle)

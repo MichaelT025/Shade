@@ -273,7 +273,23 @@ class SessionStorage {
       messages.push(normalized)
     }
 
-    const title = safeText(session?.title).trim() || this.generateTitle(messages)
+    const requestedTitle = safeText(session?.title).trim()
+
+    // Preserve existing title when saving an existing session unless a new
+    // explicit title is provided. This prevents autosave calls from
+    // overwriting AI/manual titles with fallback generated titles.
+    let existingTitle = ''
+    if (!requestedTitle && safeText(session?.id)) {
+      try {
+        const existingRaw = await fs.readFile(filePath, 'utf8')
+        const existingSession = JSON.parse(existingRaw)
+        existingTitle = safeText(existingSession?.title).trim()
+      } catch {
+        // Ignore missing/corrupt existing files and fall back to generated title.
+      }
+    }
+
+    const title = requestedTitle || existingTitle || this.generateTitle(messages)
 
     const normalizedSession = {
       id,
@@ -281,6 +297,7 @@ class SessionStorage {
       createdAt,
       updatedAt,
       provider: safeText(session?.provider),
+      mode: safeText(session?.mode),
       model: safeText(session?.model),
       isSaved: !!session?.isSaved,
       messages
@@ -294,6 +311,7 @@ class SessionStorage {
       createdAt: normalizedSession.createdAt,
       updatedAt: normalizedSession.updatedAt,
       provider: normalizedSession.provider,
+      mode: normalizedSession.mode,
       model: normalizedSession.model,
       isSaved: normalizedSession.isSaved,
       messageCount: normalizedSession.messages.length
@@ -319,6 +337,7 @@ class SessionStorage {
       createdAt: normalizeIsoTimestamp(session.createdAt),
       updatedAt: normalizeIsoTimestamp(session.updatedAt),
       provider: safeText(session.provider),
+      mode: safeText(session.mode),
       model: safeText(session.model),
       isSaved: !!session.isSaved,
       messages: Array.isArray(session.messages) ? session.messages.map(normalizeSessionMessage) : []
@@ -347,12 +366,13 @@ class SessionStorage {
         const updatedAt = normalizeIsoTimestamp(session.updatedAt)
 
         const provider = safeText(session.provider)
+        const mode = safeText(session.mode)
         const model = safeText(session.model)
         const isSaved = !!session.isSaved
 
         const messageCount = Array.isArray(session.messages) ? session.messages.length : 0
 
-        sessions.push({ id, title, createdAt, updatedAt, provider, model, isSaved, messageCount })
+        sessions.push({ id, title, createdAt, updatedAt, provider, mode, model, isSaved, messageCount })
       } catch (error) {
         // Skip corrupt session file.
         console.error('Failed to read session file:', file, error)

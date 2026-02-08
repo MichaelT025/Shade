@@ -19,12 +19,13 @@ export function toIsoTimestamp(value) {
   return new Date().toISOString()
 }
 
-export function buildSessionPayload({ currentSessionId, provider, model, messages }) {
+export function buildSessionPayload({ currentSessionId, provider, mode, model, messages }) {
   return {
     id: currentSessionId,
     title: '',
     createdAt: null,
     provider,
+    mode,
     model,
     messages: messages.map(m => ({
       id: m.id,

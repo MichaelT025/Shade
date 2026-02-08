@@ -177,7 +177,13 @@ function createChatIpcRegistrar({
           return { success: false, error: 'Empty reply' }
         }
 
-        const providerName = configService.getActiveProvider()
+        let providerName = configService.getActiveProvider()
+        const activeModeId = configService.getActiveMode()
+        const activeMode = configService.getMode(activeModeId)
+        if (activeMode?.overrideProviderModel && activeMode?.provider) {
+          providerName = activeMode.provider
+        }
+
         const apiKey = configService.getApiKey(providerName)
         if (!isLocalProvider(providerName) && !apiKey) {
           return { success: false, error: `No API key configured for ${providerName}` }
@@ -187,6 +193,10 @@ function createChatIpcRegistrar({
         const titleConfig = {
           ...config,
           systemPrompt: ''
+        }
+
+        if (activeMode?.overrideProviderModel && activeMode?.provider === providerName && activeMode?.model) {
+          titleConfig.model = activeMode.model
         }
 
         const provider = LLMFactory.createProvider(providerName, apiKey, titleConfig)

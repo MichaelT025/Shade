@@ -364,7 +364,10 @@ function createWindowManager({ rendererPath, getIconPath }) {
 
       let targetBounds
       if (overlayCollapsedBounds) {
-        targetBounds = overlayCollapsedBounds
+        targetBounds = {
+          ...overlayCollapsedBounds,
+          height: collapsedHeight
+        }
       } else {
         targetBounds = {
           x: currentBounds.x,

@@ -121,6 +121,7 @@ async function saveCurrentSession() {
   const sessionPayload = buildSessionPayload({
     currentSessionId,
     provider,
+    mode: modeDropdownInput?.value || '',
     model,
     messages
   })
@@ -246,6 +247,10 @@ function autosizeMessageInput() {
   // Reset to measure scrollHeight correctly
   messageInput.style.height = 'auto'
   messageInput.style.height = `${Math.min(messageInput.scrollHeight, maxHeight)}px`
+
+  // In collapsed mode the BrowserWindow must follow input growth,
+  // otherwise the lower controls get clipped.
+  scheduleCollapsedHeightSync()
 }
 
 function measureCollapsedHeight() {
@@ -637,6 +642,32 @@ function collapse() {
  * Update the visual collapse state
  */
 let collapseResizeTimer = null
+let collapsedHeightSyncRaf = null
+let lastCollapsedHeight = 0
+
+function scheduleCollapsedHeightSync() {
+  if (!isCollapsed) return
+
+  if (collapsedHeightSyncRaf) {
+    cancelAnimationFrame(collapsedHeightSyncRaf)
+  }
+
+  collapsedHeightSyncRaf = requestAnimationFrame(() => {
+    collapsedHeightSyncRaf = null
+    if (!isCollapsed) return
+
+    const overlay = document.querySelector('#root')
+    if (!overlay) return
+
+    const collapsedHeight = measureCollapsedHeight()
+    overlay.style.height = `${collapsedHeight}px`
+
+    if (collapsedHeight !== lastCollapsedHeight) {
+      lastCollapsedHeight = collapsedHeight
+      window.electronAPI.setCollapsed(true, collapsedHeight)
+    }
+  })
+}
 
 function updateCollapseState() {
   const overlay = document.querySelector('#root')
@@ -667,6 +698,7 @@ function updateCollapseState() {
 
       // Animate content collapse first, then shrink the window so it doesn't block the screen
       collapseResizeTimer = setTimeout(() => {
+        lastCollapsedHeight = collapsedHeight
         window.electronAPI.setCollapsed(true, collapsedHeight)
         collapseResizeTimer = null
       }, transitionMs)
@@ -682,6 +714,7 @@ function updateCollapseState() {
 
       overlay.style.height = '100vh'
       overlay.classList.remove('overlay-collapsed')
+      lastCollapsedHeight = 0
       autosizeMessageInput()
     })
   }
