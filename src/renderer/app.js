@@ -503,7 +503,7 @@ async function init() {
 
     // Insert icons into UI elements
     insertIcon(closeBtn, 'power', 'icon-svg')
-    insertIcon(hideBtn, 'minus', 'icon-svg')
+    insertIcon(hideBtn, 'eye-off', 'icon-svg')
     insertIcon(newChatBtn, 'newchat', 'icon-svg')
     if (updateReadyBtn) insertIcon(updateReadyBtn, 'download', 'icon-svg')
 

@@ -15,7 +15,7 @@ Upload SVG icons to this directory. All icon files should be named exactly as sh
 ### Navigation & Window Controls
 - [x] `settings.svg` - Settings gear icon (top left button)
 - [x] `close.svg` - Close/X icon (top right button)
-- [x] `minus.svg` - Minimize/Hide icon (top right button)
+- [x] `eye-off.svg` - Minimize/Hide icon (top right button)
 
 ### Action Icons (Input Area & Main UI)
 - [x] `camera.svg` - Screenshot/capture icon (input area)

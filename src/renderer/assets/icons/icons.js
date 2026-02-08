@@ -24,7 +24,7 @@ export const REQUIRED_ICONS = {
   'camera': 'Camera Icon',
   'send': 'Send Icon',
   'remove': 'Remove Icon',
-  'minus': 'Hide Icon',
+  'eye-off': 'Hide Icon',
 
   // Utility
   'copy': 'Copy Icon',
