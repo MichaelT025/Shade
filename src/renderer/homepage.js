@@ -21,6 +21,17 @@ const selectedSessionIds = new Set()
 let latestUpdateStatus = null
 let updateReadyToastEl = null
 
+function ensureToastStack() {
+  let toastStack = document.getElementById('toast-stack')
+  if (!toastStack) {
+    toastStack = document.createElement('div')
+    toastStack.id = 'toast-stack'
+    toastStack.className = 'toast-stack'
+    document.body.appendChild(toastStack)
+  }
+  return toastStack
+}
+
 function clearUpdateReadyToast() {
   if (!updateReadyToastEl) return
   updateReadyToastEl.classList.remove('show')
@@ -59,7 +70,8 @@ function showUpdateReadyToast(version = '') {
     clearUpdateReadyToast()
   })
 
-  document.body.appendChild(toast)
+  const toastStack = ensureToastStack()
+  toastStack.appendChild(toast)
   setTimeout(() => toast.classList.add('show'), 10)
   updateReadyToastEl = toast
 }
@@ -1304,7 +1316,7 @@ async function initModesView() {
 const modelRefreshInFlight = new Map()
 const lastModelRefreshAt = new Map()
 
-async function refreshProviderModels(container, providerId, { force = false, reason = '' } = {}) {
+async function refreshProviderModels(container, providerId, { force = false, reason = '', preserveKeyStatus = false } = {}) {
   if (!providerId) return { skipped: true }
 
   const now = Date.now()
@@ -1325,7 +1337,7 @@ async function refreshProviderModels(container, providerId, { force = false, rea
 
       cachedProvidersMeta = null
       await fetchConfigurationState(true)
-      await updateProviderDependentUI(container, providerId)
+      await updateProviderDependentUI(container, providerId, { preserveKeyStatus })
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -1338,7 +1350,7 @@ async function refreshProviderModels(container, providerId, { force = false, rea
   return run
 }
 
-async function updateProviderDependentUI(container, providerId) {
+async function updateProviderDependentUI(container, providerId, { preserveKeyStatus = false } = {}) {
   const keyInput = container.querySelector('#config-api-key')
   const keyStatus = container.querySelector('#config-key-status')
   const modelList = container.querySelector('#config-model-list')
@@ -1351,18 +1363,21 @@ async function updateProviderDependentUI(container, providerId) {
     apiKeyCard.style.display = isLocalProvider ? 'none' : 'block'
   }
 
-  setStatus(keyStatus, '', null)
+  if (!preserveKeyStatus) {
+    setStatus(keyStatus, '', null)
+  }
   setStatus(modelStatus, '', null)
 
   const [keyResult, providerConfigResult, state] = await Promise.all([
-    window.electronAPI.getApiKey(providerId),
+    api.hasApiKey(providerId),
     window.electronAPI.getProviderConfig(providerId),
     fetchConfigurationState()
   ])
 
-  const apiKey = keyResult?.success ? (keyResult.apiKey || '') : ''
+  const hasApiKey = !!(keyResult?.success && keyResult.hasApiKey)
   if (keyInput) {
-    keyInput.value = apiKey
+    keyInput.value = ''
+    keyInput.placeholder = hasApiKey ? '•••••••• (stored)' : 'Enter API key'
   }
 
   const providerConfig = providerConfigResult?.success ? (providerConfigResult.config || {}) : {}
@@ -1373,7 +1388,7 @@ async function updateProviderDependentUI(container, providerId) {
   // Avoid showing the embedded/default model list until we've refreshed at least once.
   // We still *attempt* a refresh automatically when possible.
   const hasFetchedModels = !!providerMeta?.lastFetched
-  const canAutoRefresh = isLocalProvider || providerMeta?.type === 'anthropic' || !!apiKey
+  const canAutoRefresh = isLocalProvider || providerMeta?.type === 'anthropic' || hasApiKey
 
   if (!hasFetchedModels) {
     if (modelList) {
@@ -1658,13 +1673,18 @@ async function initConfigurationView() {
     const providerId = getSelectedProvider()
     const apiKey = (keyInput?.value || '').trim()
 
-    if (!apiKey) {
-      setStatus(keyStatus, '', null)
-      setStatus(modelStatus, '', null)
+    if (apiKey) {
+      setStatus(keyStatus, 'Unsaved key entered. Press Save, then Test key.', null)
       return
     }
 
-    await window.electronAPI.saveApiKey(providerId, apiKey)
+    const hasKeyResult = await api.hasApiKey(providerId)
+    const hasStoredKey = !!(hasKeyResult?.success && hasKeyResult.hasApiKey)
+    if (!hasStoredKey) {
+      setStatus(keyStatus, 'No key configured.', null)
+      setStatus(modelStatus, '', null)
+      return
+    }
 
     setStatus(keyStatus, 'Testing…', null)
     const result = await window.electronAPI.validateApiKey(providerId)
@@ -1672,7 +1692,7 @@ async function initConfigurationView() {
       setStatus(keyStatus, result.isValid ? 'Key is valid.' : 'Key is invalid.', result.isValid ? 'good' : 'bad')
       if (result.isValid) {
         setStatus(modelStatus, 'Refreshing models…', null)
-        const refreshed = await refreshProviderModels(container, providerId, { force: true, reason: 'key' })
+        const refreshed = await refreshProviderModels(container, providerId, { force: true, reason: 'key', preserveKeyStatus: true })
         if (refreshed?.success === false) {
           setStatus(modelStatus, refreshed.error || 'Failed to refresh models.', 'bad')
         }
@@ -1682,58 +1702,28 @@ async function initConfigurationView() {
     }
   }
 
-  let keyAutoTestTimer = null
-  let lastAutoTest = { providerId: null, apiKey: null }
-
-  const scheduleAutoTest = () => {
-    if (!keyInput) return
-    const providerId = getSelectedProvider()
-    if (providerId === 'ollama' || providerId === 'lm-studio') return
-    const apiKey = (keyInput.value || '').trim()
-    if (lastAutoTest.providerId === providerId && lastAutoTest.apiKey === apiKey) return
-    if (keyAutoTestTimer) {
-      clearTimeout(keyAutoTestTimer)
-      keyAutoTestTimer = null
-    }
-    keyAutoTestTimer = setTimeout(() => {
-      lastAutoTest = { providerId, apiKey }
-      autoTestKey().catch(console.error)
-      keyAutoTestTimer = null
-    }, 500)
-  }
-
-  keyInput?.addEventListener('paste', () => {
-    setTimeout(() => { scheduleAutoTest() }, 0)
-  })
-
-  keyInput?.addEventListener('input', () => {
-    scheduleAutoTest()
-  })
-
-  keyInput?.addEventListener('blur', () => {
-    if (!keyInput) return
-    if (keyAutoTestTimer) {
-      clearTimeout(keyAutoTestTimer)
-      keyAutoTestTimer = null
-    }
-    const providerId = getSelectedProvider()
-    if (providerId === 'ollama' || providerId === 'lm-studio') return
-    const apiKey = (keyInput.value || '').trim()
-    lastAutoTest = { providerId, apiKey }
-    autoTestKey().catch(console.error)
-  })
-
   saveBtn?.addEventListener('click', async () => {
     const providerId = getSelectedProvider()
     const apiKey = (keyInput?.value || '').trim()
+    if (!apiKey) {
+      setStatus(keyStatus, 'Enter a key to save, or use Clear.', null)
+      return
+    }
     await window.electronAPI.saveApiKey(providerId, apiKey)
-    setStatus(keyStatus, apiKey ? 'Saved.' : 'Cleared.', apiKey ? 'good' : null)
+    if (keyInput) {
+      keyInput.value = ''
+      keyInput.placeholder = '•••••••• (stored)'
+    }
+    setStatus(keyStatus, 'Saved.', 'good')
   })
 
   clearBtn?.addEventListener('click', async () => {
     const providerId = getSelectedProvider()
     if (keyInput) keyInput.value = ''
     await window.electronAPI.saveApiKey(providerId, '')
+    if (keyInput) {
+      keyInput.placeholder = 'Enter API key'
+    }
     setStatus(keyStatus, 'Cleared.', null)
   })
 
@@ -1825,8 +1815,8 @@ async function checkFirstRunState() {
         continue
       }
       
-      const keyResult = await api.getApiKey(provider.id)
-      if (keyResult?.success && keyResult.apiKey && keyResult.apiKey.length > 0) {
+      const keyResult = await api.hasApiKey(provider.id)
+      if (keyResult?.success && keyResult.hasApiKey) {
         return false // Found a configured cloud provider
       }
     }

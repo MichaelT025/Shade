@@ -73,7 +73,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Config management
   saveApiKey: (provider, apiKey) => ipcRenderer.invoke('save-api-key', { provider, apiKey }),
-  getApiKey: (provider) => ipcRenderer.invoke('get-api-key', provider),
+  hasApiKey: (provider) => ipcRenderer.invoke('has-api-key', provider),
   setActiveProvider: (provider) => ipcRenderer.invoke('set-active-provider', provider),
   getActiveProvider: () => ipcRenderer.invoke('get-active-provider'),
   getProviderConfig: (provider) => ipcRenderer.invoke('get-provider-config', provider),

@@ -344,6 +344,64 @@
       user-select: none;
     }
 
+    .message-error-card {
+      position: relative;
+      border: 1px solid rgba(255, 107, 107, 0.45);
+      background: linear-gradient(145deg, rgba(44, 20, 24, 0.88) 0%, rgba(32, 22, 28, 0.78) 100%);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .message-error-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-8);
+    }
+
+    .message-error-header {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-8);
+    }
+
+    .message-error-icon {
+      color: #ff6b6b;
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+
+    .message-error-text {
+      color: #f2f4f8;
+      font-weight: 500;
+      line-height: 1.45;
+    }
+
+    .message-error-toggle {
+      color: rgba(199, 206, 221, 0.82);
+      font-size: var(--font-size-xs);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-4);
+      cursor: pointer;
+      width: fit-content;
+      transition: color var(--duration-quick) var(--easing);
+    }
+
+    .message-error-toggle:hover {
+      color: rgba(230, 235, 244, 0.95);
+    }
+
+    .message-error-details {
+      color: rgba(184, 192, 209, 0.84);
+      font-size: var(--font-size-xs);
+      line-height: 1.55;
+      font-family: var(--font-family-mono);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: var(--space-8);
+      word-break: break-word;
+    }
+
     .message-notice {
       font-size: var(--font-size-xs);
       color: var(--text-tertiary);

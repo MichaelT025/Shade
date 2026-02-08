@@ -57,7 +57,9 @@ function extractLatexBlocks(text) {
     { regex: /\$\$([\s\S]*?)\$\$/g, displayMode: true },
     { regex: /(?:\\\\|\\)\[([\s\S]*?)(?:\\\\|\\)\]/g, displayMode: true },
     { regex: /(?:\\\\|\\)\(([\s\S]*?)(?:\\\\|\\)\)/g, displayMode: false },
-    { regex: /(?<!\$)\$(?!\$)([^\$\n]+?)\$/g, displayMode: false }
+    // Gemini/other providers sometimes escape dollar delimiters as \$...\$
+    { regex: /\\\$([^\$\n]+?)\\\$/g, displayMode: false },
+    { regex: /(?<![\\\$])\$(?!\$)([^\$\n]+?)(?<!\\)\$/g, displayMode: false }
   ]
 
   let output = text
@@ -75,6 +77,38 @@ function extractLatexBlocks(text) {
   }
 
   return { text: output, blocks }
+}
+
+function autoWrapBareLatex(text) {
+  if (!text.includes('\\')) {
+    return text
+  }
+
+  const guardedSegments = text.split(/(```[\s\S]*?```|`[^`\n]*`)/g)
+
+  const wrapIfSafe = (segment, match, offset) => {
+    const prevChar = offset > 0 ? segment[offset - 1] : ''
+    const nextChar = offset + match.length < segment.length ? segment[offset + match.length] : ''
+    if (prevChar === '$' || nextChar === '$') {
+      return match
+    }
+    return `$${match}$`
+  }
+
+  const complexityPattern = /\b([A-Za-z]\([^()\n]*\\[a-zA-Z]+[^()\n]*\))/g
+
+  return guardedSegments
+    .map(segment => {
+      if (!segment || segment.startsWith('```') || segment.startsWith('`')) {
+        return segment
+      }
+
+      let out = segment
+      out = out.replace(/\\\$([^\$\n]+?)\\\$/g, '$$$1$')
+      out = out.replace(complexityPattern, (match, _group, offset) => wrapIfSafe(out, match, offset))
+      return out
+    })
+    .join('')
 }
 
 export function renderLatexSafe(rawLatex, displayMode = false) {
@@ -138,7 +172,8 @@ export function renderMarkdownSafe(text) {
   }
 
   try {
-    const { text: textWithPlaceholders, blocks } = extractLatexBlocks(input)
+    const preprocessed = autoWrapBareLatex(input)
+    const { text: textWithPlaceholders, blocks } = extractLatexBlocks(preprocessed)
     let html = markedLib.parse(textWithPlaceholders)
     html = restoreAndRenderLatex(html, blocks)
 

@@ -28,6 +28,8 @@ let currentStreamingMessageId = null // ID of currently streaming message
 let currentLoadingId = null // ID of current loading indicator
 let accumulatedText = '' // Accumulated text during streaming
 let isCollapsed = true // Overlay collapse state (starts collapsed)
+let lastShownErrorSignature = ''
+let lastShownErrorAt = 0
 
 // Behavior settings (from Configuration)
 let screenshotMode = 'manual' // 'manual' | 'auto'
@@ -1027,8 +1029,9 @@ async function handleSendMessage() {
     }
 
     if (!result.success) {
-      // Show error message if initial request failed
-      showError(result.error || 'Failed to get response')
+      // Some failures are returned without a message-error event (e.g., preflight checks).
+      // Use deduped display to avoid duplicates when both return + event paths fire.
+      showErrorDedup(result.error || 'Failed to get response')
       resetSendButton()
     } else {
       console.log('Streaming started from', result.provider)
@@ -1038,7 +1041,7 @@ async function handleSendMessage() {
     }
   } catch (error) {
     console.error('Send message error:', error)
-    showError('Error: ' + error.message)
+    showErrorDedup('Error: ' + error.message)
     resetSendButton()
   } finally {
     // In manual mode, keep screenshots sticky across messages.
@@ -1128,7 +1131,7 @@ function handleMessageError(error) {
   accumulatedText = ''
 
   // Show error
-  showError(error)
+  showErrorDedup(error)
   resetSendButton()
 }
 
@@ -1485,6 +1488,20 @@ function getErrorMessage(errorType) {
   return messages[errorType] || messages['UNKNOWN']
 }
 
+function showErrorDedup(errorText) {
+  const normalized = String(errorText || '').trim().toLowerCase()
+  const signature = normalized || 'unknown-error'
+  const now = Date.now()
+
+  if (signature === lastShownErrorSignature && now - lastShownErrorAt < 1500) {
+    return
+  }
+
+  lastShownErrorSignature = signature
+  lastShownErrorAt = now
+  showError(errorText)
+}
+
 /**
  * Show an error message in the chat with categorization and actions
  * @param {string} errorText - Error message to display
@@ -1492,34 +1509,31 @@ function getErrorMessage(errorType) {
 function showError(errorText) {
   const errorType = categorizeError(errorText)
   const errorEl = document.createElement('div')
-  errorEl.className = 'message ai'
-  errorEl.style.borderColor = 'var(--danger)'
-  errorEl.style.background = 'rgba(255, 107, 107, 0.1)'
-  errorEl.style.position = 'relative'
+  errorEl.className = 'message ai message-error-card'
 
   // Create error content
   const errorContent = document.createElement('div')
-  errorContent.style.paddingRight = '80px' // Make room for action button
+  errorContent.className = 'message-error-content'
+
+  const errorHeader = document.createElement('div')
+  errorHeader.className = 'message-error-header'
 
   const errorIconContainer = document.createElement('span')
+  errorIconContainer.className = 'message-error-icon'
   errorIconContainer.innerHTML = getIcon('error', 'icon-svg-sm')
-  errorIconContainer.style.marginRight = '8px'
-  errorIconContainer.style.color = 'var(--danger)'
-  errorContent.appendChild(errorIconContainer)
+  errorHeader.appendChild(errorIconContainer)
 
   const errorMessage = document.createElement('span')
+  errorMessage.className = 'message-error-text'
   errorMessage.textContent = getErrorMessage(errorType)
-  errorContent.appendChild(errorMessage)
+  errorHeader.appendChild(errorMessage)
+
+  errorContent.appendChild(errorHeader)
 
   // Add technical details (collapsible)
   if (errorText !== getErrorMessage(errorType)) {
     const detailsToggle = document.createElement('div')
-    detailsToggle.className = 'text-xs text-tertiary'
-    detailsToggle.style.marginTop = 'var(--space-8)'
-    detailsToggle.style.cursor = 'pointer'
-    detailsToggle.style.display = 'flex'
-    detailsToggle.style.alignItems = 'center'
-    detailsToggle.style.gap = 'var(--space-4)'
+    detailsToggle.className = 'message-error-toggle'
     
     const chevronIcon = document.createElement('span')
     chevronIcon.innerHTML = getIcon('chevron-down', 'icon-svg-sm')
@@ -1530,10 +1544,8 @@ function showError(errorText) {
     detailsToggle.appendChild(toggleText)
 
     const detailsContent = document.createElement('div')
-    detailsContent.className = 'text-xs text-tertiary'
-    detailsContent.style.marginTop = 'var(--space-8)'
+    detailsContent.className = 'message-error-details'
     detailsContent.style.display = 'none'
-    detailsContent.style.fontFamily = 'var(--font-family-mono)'
     detailsContent.textContent = errorText
 
     detailsToggle.addEventListener('click', () => {
@@ -1554,34 +1566,9 @@ function showError(errorText) {
 
   errorEl.appendChild(errorContent)
 
-  // Add action button based on error type
-  if (errorType === 'API_KEY') {
-    const settingsBtn = document.createElement('button')
-    settingsBtn.innerHTML = getIcon('settings', 'icon-svg-sm')
-    settingsBtn.style.position = 'absolute'
-    settingsBtn.style.top = 'var(--space-12)'
-    settingsBtn.style.right = 'var(--space-12)'
-    settingsBtn.style.padding = 'var(--space-4) var(--space-12)'
-    settingsBtn.style.background = 'var(--accent-muted)'
-    settingsBtn.style.border = '1px solid var(--accent)'
-    settingsBtn.style.borderRadius = 'var(--radius-sm)'
-    settingsBtn.style.color = 'var(--accent-strong)'
-    settingsBtn.style.fontSize = 'var(--font-size-xs)'
-    settingsBtn.style.cursor = 'pointer'
-    settingsBtn.style.display = 'flex'
-    settingsBtn.style.alignItems = 'center'
-    settingsBtn.style.gap = 'var(--space-4)'
-    settingsBtn.addEventListener('click', () => {
-      window.electronAPI.openSettings()
-    })
-    errorEl.appendChild(settingsBtn)
-  }
-
   chatWrapper.appendChild(errorEl)
   scrollToBottom()
 
-  // Also show toast notification
-  showToast(getErrorMessage(errorType), 'error')
 }
 
 function showInterruptedMessage() {
@@ -1616,11 +1603,8 @@ function addMessageCopyButton(messageElement, originalText) {
     const success = await copyToClipboard(originalText)
     if (success) {
       copyBtn.innerHTML = getIcon('check', 'icon-svg-sm')
-      copyBtn.classList.add('copied')
-      showToast('Message copied', 'success', 1500)
       setTimeout(() => {
         copyBtn.innerHTML = getIcon('copy', 'icon-svg-sm')
-        copyBtn.classList.remove('copied')
       }, 2000)
     } else {
       showToast('Failed to copy message', 'error')

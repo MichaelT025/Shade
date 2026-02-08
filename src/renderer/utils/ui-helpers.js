@@ -12,8 +12,18 @@ import { getIcon } from '../assets/icons/icons.js';
  * @param {number} duration - Duration in ms (default 3000)
  */
 export function showToast(message, type = 'info', duration = 3000) {
+  let toastStack = document.getElementById('toast-stack');
+  if (!toastStack) {
+    toastStack = document.createElement('div');
+    toastStack.id = 'toast-stack';
+    toastStack.className = 'toast-stack';
+    document.body.appendChild(toastStack);
+  }
+
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
   
   const iconName = type === 'success' ? 'check' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info';
   
@@ -22,7 +32,7 @@ export function showToast(message, type = 'info', duration = 3000) {
     <span class="toast-message">${message}</span>
   `;
   
-  document.body.appendChild(toast);
+  toastStack.appendChild(toast);
   
   // Trigger animation
   setTimeout(() => toast.classList.add('show'), 10);
@@ -30,7 +40,12 @@ export function showToast(message, type = 'info', duration = 3000) {
   // Remove after duration
   setTimeout(() => {
     toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
+    setTimeout(() => {
+      toast.remove();
+      if (toastStack && !toastStack.hasChildNodes()) {
+        toastStack.remove();
+      }
+    }, 300);
   }, duration);
 }
 

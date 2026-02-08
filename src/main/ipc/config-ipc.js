@@ -13,12 +13,13 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
     }
   })
 
-  ipcMain.handle('get-api-key', async (_event, provider) => {
+  ipcMain.handle('has-api-key', async (_event, provider) => {
     try {
       const apiKey = configService.getApiKey(provider)
-      return { success: true, apiKey }
+      const hasApiKey = !!(apiKey && apiKey.trim().length > 0)
+      return { success: true, hasApiKey }
     } catch (error) {
-      console.error('Failed to get API key:', error)
+      console.error('Failed to check API key state:', error)
       return { success: false, error: error.message }
     }
   })

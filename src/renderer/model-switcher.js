@@ -251,8 +251,8 @@ async function loadProviderState() {
   try {
     const isLocalProvider = providerId === 'ollama' || providerId === 'lm-studio'
     if (!isLocalProvider) {
-      const keyResult = await window.electronAPI.getApiKey(providerId)
-      const hasKey = !!(keyResult?.success && (keyResult.apiKey || '').trim())
+      const keyResult = await window.electronAPI.hasApiKey(providerId)
+      const hasKey = !!(keyResult?.success && keyResult.hasApiKey)
       setNote(els.keyNote, hasKey ? '' : 'No API key configured for this provider. Model refresh may fail.')
     } else {
       setNote(els.keyNote, '')

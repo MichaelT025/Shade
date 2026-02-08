@@ -56,6 +56,31 @@ describe('rendering-adapter LaTeX compatibility', () => {
     expect(html).toContain('<math data-display="1">\\frac{1}{2}</math>')
   })
 
+  test('renders escaped-dollar inline math from Gemini-style output', async () => {
+    const { renderMarkdownSafe } = await loadAdapter()
+
+    const html = renderMarkdownSafe('Complexity: \\$O(N \\log N)\\$.')
+
+    expect(html).toContain('<math data-display="0">O(N \\log N)</math>')
+  })
+
+  test('renders bare LaTeX command expressions conservatively', async () => {
+    const { renderMarkdownSafe } = await loadAdapter()
+
+    const html = renderMarkdownSafe('Complexity is O(N \\log N) for average-case sorting.')
+
+    expect(html).toContain('<math data-display="0">O(N \\log N)</math>')
+  })
+
+  test('does not auto-wrap LaTeX-like text inside inline code', async () => {
+    const { renderMarkdownSafe } = await loadAdapter()
+
+    const html = renderMarkdownSafe('Use `O(N \\log N)` notation in docs.')
+
+    expect(html).not.toContain('<math data-display="0">O(N \\log N)</math>')
+    expect(renderToString).not.toHaveBeenCalled()
+  })
+
   test('preserves matrix line break markers', async () => {
     const { renderMarkdownSafe } = await loadAdapter()
 
