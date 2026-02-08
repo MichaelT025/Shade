@@ -269,6 +269,14 @@ describe('ConfigService', () => {
       expect(loadedService.getActiveProvider()).toBe('openai')
       expect(loadedService.getApiKey('openai')).toBe('existing-key')
     })
+
+    test('should fall back to defaults when config file is malformed', () => {
+      fs.writeFileSync(configPath, '{invalid-json', 'utf8')
+
+      const loadedService = new ConfigService(testDir)
+      expect(loadedService.getActiveProvider()).toBe('gemini')
+      expect(loadedService.getApiKey('openai')).toBe('')
+    })
   })
 
   describe('Config Management', () => {

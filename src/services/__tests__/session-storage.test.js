@@ -233,6 +233,14 @@ describe('SessionStorage', () => {
       expect(loaded.updatedAt).toBeDefined()
       expect(Array.isArray(loaded.messages)).toBe(true)
     })
+
+    test('should throw invalid session error for malformed json session file', async () => {
+      const filePath = path.join(sessionStorage.sessionsDir, 'broken.json')
+      await fs.mkdir(sessionStorage.sessionsDir, { recursive: true })
+      await fs.writeFile(filePath, '{bad-json', 'utf8')
+
+      await expect(sessionStorage.loadSession('broken')).rejects.toThrow('Invalid session file')
+    })
   })
 
   describe('Listing Sessions', () => {

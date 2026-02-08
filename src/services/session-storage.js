@@ -1,6 +1,8 @@
 const fs = require('fs').promises
 const path = require('path')
 const crypto = require('crypto')
+const { safeParseJson } = require('./utils/json-safe')
+const { writeFileAtomic } = require('./utils/atomic-write')
 
 function generateId() {
   if (typeof crypto.randomUUID === 'function') {
@@ -186,7 +188,7 @@ class SessionStorage {
     const filePath = path.join(dir, filename)
     const buffer = Buffer.from(base64, 'base64')
 
-    await fs.writeFile(filePath, buffer)
+    await writeFileAtomic(filePath, buffer)
 
     // Store simple filename or relative path. 
     // We'll store just the filename or "screenshots/filename" for compat?
@@ -282,7 +284,7 @@ class SessionStorage {
     if (!requestedTitle && safeText(session?.id)) {
       try {
         const existingRaw = await fs.readFile(filePath, 'utf8')
-        const existingSession = JSON.parse(existingRaw)
+        const existingSession = safeParseJson(existingRaw, null)
         existingTitle = safeText(existingSession?.title).trim()
       } catch {
         // Ignore missing/corrupt existing files and fall back to generated title.
@@ -303,7 +305,7 @@ class SessionStorage {
       messages
     }
 
-    await fs.writeFile(filePath, JSON.stringify(normalizedSession, null, 2), 'utf8')
+    await writeFileAtomic(filePath, JSON.stringify(normalizedSession, null, 2), 'utf8')
 
     return {
       id: normalizedSession.id,
@@ -323,7 +325,7 @@ class SessionStorage {
 
     const filePath = this.sessionPathForId(id)
     const data = await fs.readFile(filePath, 'utf8')
-    const session = JSON.parse(data)
+    const session = safeParseJson(data, null)
 
     // Minimal normalization on read.
     if (!session || typeof session !== 'object') {
@@ -356,7 +358,7 @@ class SessionStorage {
       try {
         const filePath = path.join(this.sessionsDir, file)
         const data = await fs.readFile(filePath, 'utf8')
-        const session = JSON.parse(data)
+        const session = safeParseJson(data, null)
 
         if (!session || typeof session !== 'object') continue
 

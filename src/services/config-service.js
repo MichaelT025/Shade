@@ -2,6 +2,8 @@ const fs = require('fs')
 const path = require('path')
 const { safeStorage } = require('electron')
 const ProviderRegistry = require('./provider-registry')
+const { safeParseJson } = require('./utils/json-safe')
+const { writeFileAtomicSync } = require('./utils/atomic-write')
 
 // Default system prompt for screenshot analysis
 const DEFAULT_SYSTEM_PROMPT = String.raw`
@@ -364,7 +366,10 @@ Memory:
     try {
       if (fs.existsSync(this.configPath)) {
         const data = fs.readFileSync(this.configPath, 'utf8')
-        const parsedConfig = JSON.parse(data)
+        const parsedConfig = safeParseJson(data, null)
+        if (!parsedConfig || typeof parsedConfig !== 'object') {
+          throw new Error('Invalid configuration JSON')
+        }
 
         // Merge with defaults (including nested objects)
         let loadedConfig = {
@@ -452,7 +457,7 @@ Memory:
    */
   saveConfig() {
     try {
-      fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf8')
+      writeFileAtomicSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf8')
     } catch (error) {
       console.error('Failed to save config:', error)
     }
