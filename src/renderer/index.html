@@ -760,30 +760,27 @@
     /* Code blocks */
     pre {
       margin: var(--space-12) 0;
-      border-radius: var(--radius-md);
       overflow: hidden;
-      background: var(--panel-strong) !important;
-      border: 1px solid var(--border);
-      position: relative;
+      background: transparent !important;
+      border: none;
+      position: static;
     }
 
     pre code {
       display: block;
       padding: var(--space-16);
-      padding-top: calc(var(--space-16) + 28px); /* Extra space for language label */
       overflow-x: auto;
       font-family: var(--font-family-mono);
       font-size: var(--font-size-code);
       line-height: var(--line-height);
       background: transparent !important;
       color: var(--text-primary);
-      position: relative;
-      z-index: 1; /* Ensure code content layers above the label in the reserved space */
+      position: static;
+      z-index: auto;
     }
 
     pre code.hljs {
       padding: var(--space-16);
-      padding-top: calc(var(--space-16) + 32px);
       background: transparent !important;
     }
 
@@ -802,21 +799,39 @@
     .code-block-wrapper {
       position: relative;
       margin: var(--space-12) 0;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--panel-strong);
+      border: 1px solid var(--border);
+    }
+
+    .code-block-wrapper pre {
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .code-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-8);
+      padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--panel-strong) 88%, #0a0f1f 12%);
     }
 
     /* Language label */
     .code-lang-label {
-      position: absolute;
-      top: var(--space-8);
-      left: var(--space-12);
+      position: static;
       font-size: var(--font-size-xs);
       font-family: var(--font-family-mono);
       color: var(--text-tertiary);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       font-weight: 600;
-      z-index: 2;
       pointer-events: none;
+      white-space: nowrap;
     }
 
     .message.ai pre code.hljs {
@@ -855,9 +870,7 @@
 
     /* Copy button (icon only) */
     .copy-code-btn {
-      position: absolute;
-      top: var(--space-8);
-      right: var(--space-8);
+      position: static;
       width: 28px;
       height: 28px;
       padding: 0;
@@ -868,10 +881,10 @@
       cursor: pointer;
       opacity: 1; /* Always visible */
       transition: all var(--duration-quick) var(--easing);
-      z-index: 1;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex: 0 0 auto;
     }
 
     .copy-code-btn svg {

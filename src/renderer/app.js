@@ -958,6 +958,7 @@ async function handleSendMessage() {
 
     // Clear input immediately for better UX
     messageInput.value = ''
+    autosizeMessageInput()
 
     // Add loading indicator
     currentLoadingId = addLoadingMessage()
@@ -1370,6 +1371,9 @@ function addCopyButtons(messageElement) {
     }
 
     const pre = codeBlock.parentElement
+    if (pre.parentElement?.classList?.contains('code-block-wrapper')) {
+      return
+    }
 
     // Detect language from class attribute (e.g., "language-javascript" or "hljs javascript")
     let language = 'code'
@@ -1399,13 +1403,16 @@ function addCopyButtons(messageElement) {
     const wrapper = document.createElement('div')
     wrapper.className = 'code-block-wrapper'
     pre.parentNode.insertBefore(wrapper, pre)
+    const header = document.createElement('div')
+    header.className = 'code-block-header'
+    wrapper.appendChild(header)
     wrapper.appendChild(pre)
 
     // Add language label
     const langLabel = document.createElement('span')
     langLabel.className = 'code-lang-label'
     langLabel.textContent = language
-    wrapper.appendChild(langLabel)
+    header.appendChild(langLabel)
 
     // Create copy button with icon
     const copyBtn = document.createElement('button')
@@ -1433,7 +1440,7 @@ function addCopyButtons(messageElement) {
       })
     })
 
-    wrapper.appendChild(copyBtn)
+    header.appendChild(copyBtn)
   })
 }
 
@@ -1668,6 +1675,7 @@ function handleNewChat() {
 
   // Clear input
   messageInput.value = ''
+  autosizeMessageInput()
   messageInput.focus()
 }
 

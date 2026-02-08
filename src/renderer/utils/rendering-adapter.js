@@ -39,13 +39,13 @@ function normalizeLatexBackslashes(latex) {
     return latex
   }
 
-  let normalized = latex.replace(/\\\\/g, '\\\\')
-  normalized = normalized.replace(/\\\\([a-zA-Z]+)/g, '\\$1')
-  normalized = normalized.replace(/\\\\\[/g, '\\[')
-  normalized = normalized.replace(/\\\\\]/g, '\\]')
-  normalized = normalized.replace(/\\\\\(/g, '\\(')
-  normalized = normalized.replace(/\\\\\)/g, '\\)')
-  return normalized
+  // Only normalize escaped delimiters. Do not rewrite generic commands,
+  // since patterns like matrix line breaks (\\) are valid LaTeX.
+  return latex
+    .replace(/\\\\\[/g, '\\[')
+    .replace(/\\\\\]/g, '\\]')
+    .replace(/\\\\\(/g, '\\(')
+    .replace(/\\\\\)/g, '\\)')
 }
 
 function extractLatexBlocks(text) {
@@ -53,17 +53,22 @@ function extractLatexBlocks(text) {
   let placeholderIndex = 0
 
   const patterns = [
-    /\$\$([\s\S]*?)\$\$/g,
-    /\\\[([\s\S]*?)\\\]/g,
-    /\\\((.*?)\\\)/g,
-    /(?<!\$)\$(?!\$)([^\$\n]+?)\$/g
+    { regex: /```(?:latex|tex|math)\s*\r?\n([\s\S]*?)```/gi, displayMode: true },
+    { regex: /\$\$([\s\S]*?)\$\$/g, displayMode: true },
+    { regex: /(?:\\\\|\\)\[([\s\S]*?)(?:\\\\|\\)\]/g, displayMode: true },
+    { regex: /(?:\\\\|\\)\(([\s\S]*?)(?:\\\\|\\)\)/g, displayMode: false },
+    { regex: /(?<!\$)\$(?!\$)([^\$\n]+?)\$/g, displayMode: false }
   ]
 
   let output = text
   for (const pattern of patterns) {
-    output = output.replace(pattern, (match) => {
+    output = output.replace(pattern.regex, (_match, rawLatex) => {
       const placeholder = `%%LATEX_BLOCK_${placeholderIndex}%%`
-      blocks.push({ placeholder, content: match })
+      blocks.push({
+        placeholder,
+        latex: typeof rawLatex === 'string' ? rawLatex : '',
+        displayMode: pattern.displayMode
+      })
       placeholderIndex += 1
       return placeholder
     })
@@ -96,22 +101,7 @@ function restoreAndRenderLatex(html, blocks) {
   let output = html
 
   for (const block of blocks) {
-    let latex = block.content
-    let displayMode = false
-
-    if (latex.startsWith('$$') && latex.endsWith('$$')) {
-      latex = latex.slice(2, -2)
-      displayMode = true
-    } else if (latex.startsWith('\\[') && latex.endsWith('\\]')) {
-      latex = latex.slice(2, -2)
-      displayMode = true
-    } else if (latex.startsWith('\\(') && latex.endsWith('\\)')) {
-      latex = latex.slice(2, -2)
-    } else if (latex.startsWith('$') && latex.endsWith('$')) {
-      latex = latex.slice(1, -1)
-    }
-
-    output = output.replace(block.placeholder, renderLatexSafe(latex, displayMode))
+    output = output.replace(block.placeholder, renderLatexSafe(block.latex, !!block.displayMode))
   }
 
   return output

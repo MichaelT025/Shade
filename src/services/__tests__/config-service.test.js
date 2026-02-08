@@ -93,6 +93,14 @@ describe('ConfigService', () => {
     test('should initialize with manual screenshot mode', () => {
       expect(configService.getScreenshotMode()).toBe('manual')
     })
+
+    test('should preserve escaped LaTeX delimiters in fallback system prompt', () => {
+      configService.config.activeMode = 'missing-mode'
+      const prompt = configService.getActiveSystemPrompt()
+
+      expect(prompt).toContain('\\(x^2\\)')
+      expect(prompt).toContain('\\[\\int_0^1 x^2\\,dx\\]')
+    })
   })
 
   describe('API Key Management', () => {
