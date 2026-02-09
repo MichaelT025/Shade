@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } = require('electron')
+const { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, dialog } = require('electron')
 const path = require('path')
 const LLMFactory = require('../services/llm-factory')
 const ConfigService = require('../services/config-service')
@@ -89,6 +89,15 @@ function createTray() {
 
 // Register global hotkeys
 function registerHotkeys() {
+  const registrationFailures = []
+
+  const tryRegister = (accelerator, actionName, handler) => {
+    const success = globalShortcut.register(accelerator, handler)
+    if (!success) {
+      registrationFailures.push(`${actionName} (${accelerator})`)
+    }
+  }
+
   const isOverlayVisible = () => {
     const mainWindow = windowManager?.getMainWindow()
     if (!mainWindow) return false
@@ -99,7 +108,7 @@ function registerHotkeys() {
   }
 
   // Ctrl+/ to toggle window visibility (hide to tray / show)
-  globalShortcut.register('CommandOrControl+/', () => {
+  tryRegister('CommandOrControl+/', 'Toggle overlay visibility', () => {
     const mainWindow = windowManager?.getMainWindow()
     if (mainWindow) {
       if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
@@ -111,21 +120,21 @@ function registerHotkeys() {
   })
 
   // Ctrl+R to start new chat
-  globalShortcut.register('CommandOrControl+R', () => {
+  tryRegister('CommandOrControl+R', 'Start new chat', () => {
     const mainWindow = windowManager?.getMainWindow()
     if (!isOverlayVisible()) return
     mainWindow.webContents.send('new-chat')
   })
 
   // Ctrl+' to toggle overlay collapse
-  globalShortcut.register('CommandOrControl+\'', () => {
+  tryRegister('CommandOrControl+\'', 'Toggle overlay collapse', () => {
     const mainWindow = windowManager?.getMainWindow()
     if (!isOverlayVisible()) return
     mainWindow.webContents.send('toggle-collapse')
   })
 
   // Ctrl+Shift+S to capture screenshot
-  globalShortcut.register('CommandOrControl+Shift+S', () => {
+  tryRegister('CommandOrControl+Shift+S', 'Capture screenshot', () => {
     const mainWindow = windowManager?.getMainWindow()
     if (!isOverlayVisible()) return
     mainWindow.webContents.send('capture-screenshot')
@@ -137,10 +146,23 @@ function registerHotkeys() {
     ? 'CommandOrControl+Shift+M'
     : 'CommandOrControl+M'
 
-  globalShortcut.register(modelSwitcherShortcut, () => {
+  tryRegister(modelSwitcherShortcut, 'Toggle model switcher', () => {
     if (!isOverlayVisible()) return
     windowManager?.toggleModelSwitcherWindow()
   })
+
+  if (registrationFailures.length > 0) {
+    console.warn('Global shortcut registration failed for:', registrationFailures)
+    const message = `Some keyboard shortcuts could not be registered:\n\n${registrationFailures.join('\n')}\n\nThese may be reserved by the OS or another app.`
+    dialog.showMessageBox({
+      type: 'warning',
+      title: 'Shortcut Registration Warning',
+      message,
+      buttons: ['OK']
+    }).catch(() => {
+      // best-effort user warning
+    })
+  }
 }
 
 // App lifecycle events

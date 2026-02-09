@@ -4,11 +4,12 @@ const fs = require('fs')
 const path = require('path')
 
 /**
- * Captures a screenshot of the primary display using Electron's desktopCapturer
+ * Captures a screenshot of a target display using Electron's desktopCapturer
  * Windows with setContentProtection(true) are automatically excluded from capture
+ * @param {string|number|null} preferredDisplayId - Optional display id to target
  * @returns {Promise<Buffer>} Screenshot as a buffer
  */
-async function captureScreen() {
+async function captureScreen(preferredDisplayId = null) {
   try {
     // Get available sources (screens)
     const sources = await desktopCapturer.getSources({
@@ -23,8 +24,13 @@ async function captureScreen() {
       throw new Error('No screen sources available')
     }
 
-    // Use the first screen (primary display)
-    const primaryScreen = sources[0]
+    const preferredId = preferredDisplayId == null ? '' : String(preferredDisplayId)
+    const matchedScreen = preferredId
+      ? sources.find(source => String(source.display_id || '') === preferredId)
+      : null
+
+    // Fallback to first source when preferred display is unavailable
+    const primaryScreen = matchedScreen || sources[0]
 
     // Get the thumbnail as a NativeImage
     const thumbnail = primaryScreen.thumbnail
@@ -106,8 +112,8 @@ async function compressImage(imageBuffer) {
  * Captures a screenshot and compresses it to JPEG format
  * @returns {Promise<{buffer: Buffer, base64: string, size: number}>}
  */
-async function captureAndCompress() {
-  const screenshot = await captureScreen()
+async function captureAndCompress(preferredDisplayId = null) {
+  const screenshot = await captureScreen(preferredDisplayId)
 
   // Save PNG to disk in development mode for debugging
   const isDevelopment = process.env.NODE_ENV !== 'production'

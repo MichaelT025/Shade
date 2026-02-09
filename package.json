@@ -35,7 +35,8 @@
       "src/renderer/assets/icons/custom-icons/**/*",
       "dist/renderer/**/*",
       "package.json",
-      "build/icon.ico"
+      "build/icon.ico",
+      "build/appicon.png"
     ],
     "npmRebuild": false,
     "asar": true,

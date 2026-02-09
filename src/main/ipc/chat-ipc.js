@@ -1,4 +1,4 @@
-const { ipcMain } = require('electron')
+const { ipcMain, screen } = require('electron')
 const { captureAndCompress } = require('../../services/screen-capture')
 const LLMFactory = require('../../services/llm-factory')
 
@@ -29,8 +29,15 @@ function createChatIpcRegistrar({
           mainWindow.setContentProtection(true)
         }
 
+        let preferredDisplayId = null
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          const bounds = mainWindow.getBounds()
+          const display = screen.getDisplayMatching(bounds)
+          preferredDisplayId = display?.id ?? null
+        }
+
         await new Promise(resolve => setTimeout(resolve, 100))
-        const { base64, size } = await captureAndCompress()
+        const { base64, size } = await captureAndCompress(preferredDisplayId)
 
         console.log(`Screenshot captured successfully (${(size / 1024 / 1024).toFixed(2)}MB)`)
 
@@ -47,7 +54,13 @@ function createChatIpcRegistrar({
 
     ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary }) => {
       try {
-        console.log('Message send requested:', text, { hasSummary: !!summary })
+        console.log('Message send requested', {
+          hasText: typeof text === 'string' && text.length > 0,
+          textLength: typeof text === 'string' ? text.length : 0,
+          hasImage: !!imageBase64,
+          hasSummary: !!summary,
+          historyLength: Array.isArray(conversationHistory) ? conversationHistory.length : 0
+        })
 
         if (currentAbortController) {
           currentAbortController.abort()

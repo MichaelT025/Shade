@@ -6,7 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.12.1] - 2026-02-09
+
+### Added
+- Integrated display-aware screen capture: screenshots now target the display where the app window is currently located.
+- Robust keyboard shortcut registration: added a fallback warning dialog to inform users if global shortcuts (like `Ctrl+/` or `Ctrl+M`) fail to register due to system conflicts.
+- Enhanced telemetry for message sending: improved logging in the main process to track message size, history length, and image presence for better debugging.
+- Included `appicon.png` in the production build assets.
+
+### Changed
+- Refactored screen capture service to support preferred display targeting.
+- Updated hotkey registration logic to be more resilient and informative.
+
 ## [0.12.0] - 2026-02-08
+
 
 ### Added
 - Atomic write utility for sync/async persistence operations (`src/services/utils/atomic-write.js`) plus dedicated utility tests.
