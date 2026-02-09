@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,10 +34,82 @@ jobs:
       - name: Build and publish Windows installer
         run: npm run build:win -- --publish never
 
-      - name: Create GitHub Release (auto notes)
+      - name: Generate release notes (from commits)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          git fetch --force --tags
+
+          $tag = '${{ github.ref_name }}'
+          $repo = '${{ github.repository }}'
+
+          $tags = @(git tag --list 'v*' --sort=-version:refname)
+          $idx = [Array]::IndexOf($tags, $tag)
+          $prev = if ($idx -ge 0 -and ($idx + 1) -lt $tags.Length) { $tags[$idx + 1] } else { '' }
+
+          $range = if ($prev) { "$prev..$tag" } else { '' }
+
+          $lines = if ($range) {
+            @(git log $range --pretty=format:'%s')
+          } else {
+            @(git log -n 50 --pretty=format:'%s')
+          }
+
+          $sections = [ordered]@{
+            'Features'  = @()
+            'Fixes'     = @()
+            'Refactors' = @()
+            'Docs'      = @()
+            'Chores'    = @()
+            'Other'     = @()
+          }
+
+          foreach ($raw in $lines) {
+            $msg = ($raw | Out-String).Trim()
+            if (-not $msg) { continue }
+
+            if ($msg -match '^(feat|feature)(\(.+\))?:\s+') { $sections['Features'] += $msg; continue }
+            if ($msg -match '^fix(\(.+\))?:\s+') { $sections['Fixes'] += $msg; continue }
+            if ($msg -match '^refactor(\(.+\))?:\s+') { $sections['Refactors'] += $msg; continue }
+            if ($msg -match '^docs(\(.+\))?:\s+') { $sections['Docs'] += $msg; continue }
+            if ($msg -match '^chore(\(.+\))?:\s+') { $sections['Chores'] += $msg; continue }
+
+            $sections['Other'] += $msg
+          }
+
+          $md = New-Object System.Collections.Generic.List[string]
+          $md.Add("# $tag")
+          $md.Add('')
+
+          if ($prev) {
+            $md.Add("Changes since $prev:")
+            $md.Add('')
+          }
+
+          foreach ($key in $sections.Keys) {
+            $items = $sections[$key]
+            if ($items.Count -le 0) { continue }
+            $md.Add("## $key")
+            foreach ($item in $items) {
+              $md.Add("- $item")
+            }
+            $md.Add('')
+          }
+
+          if ($prev) {
+            $compareUrl = "https://github.com/$repo/compare/$prev...$tag"
+            $md.Add("**Full Changelog:** $compareUrl")
+          }
+
+          $md | Out-File -FilePath RELEASE_NOTES.md -Encoding utf8
+
+      - name: Create GitHub Release (notes from commits)
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
+          draft: true
+          prerelease: false
           files: |
             dist/*.exe
             dist/*.exe.blockmap
