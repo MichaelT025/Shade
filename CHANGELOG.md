@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-02-10
+
+### Added
+- Predictive screenshot caching system for instant screen capture with zero-latency AI assistance
+- Overlay visibility control - configure whether Shade appears in screenshots via Dashboard settings
+- Enhanced window show/hide coordination between main and renderer processes
+
+### Fixed
+- Eliminated window reveal flicker by managing CSS transitions and compositor state during show/hide
+- Fixed visual artifacts and timing issues when rapidly toggling overlay visibility
+- Removed title-bar backdrop-filter to prevent compositor thrash on window show
+
+### Changed
+- Improved predictive capture scheduling with document.hidden checks to avoid stale screenshots
+- Enhanced visibility logging for debugging reveal timing issues
 
 ## [0.12.0] - 2026-02-08
 
@@ -22,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevented malformed config/session JSON from crashing normal startup/load flows by using safe fallback parsing.
 - Reduced risk of partially-written provider/config/session files by writing through temp-then-rename atomic operations.
 
-## [0.11.4] - 2026-02-08
+## [0.11.4] - 2026-02-07
 
 ### Added
 - Comprehensive LaTeX support including display math in fenced blocks (`latex`/`tex`/`math`) and improved regex for inline/display delimiters.
