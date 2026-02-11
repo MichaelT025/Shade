@@ -69,6 +69,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('window-shown', () => callback())
   },
 
+  // Listen for window hidden event (to clean up visual state)
+  onWindowHidden: (callback) => {
+    ipcRenderer.on('window-hidden', () => callback())
+  },
+
   // Context menu commands
   onContextMenuCommand: (callback) => {
     ipcRenderer.on('context-menu-command', (_event, data) => callback(data))

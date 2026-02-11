@@ -44,6 +44,93 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
   let overlayCollapsedBounds = null
   let overlayIsCollapsed = false
 
+  let focusTimer = null
+
+  function logMainWindowVisibility(action, source, details = {}) {
+    const payload = {
+      action,
+      source,
+      at: Date.now(),
+      ...details
+    }
+
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      console.log('[Shade visibility]', {
+        ...payload,
+        visible: false,
+        minimized: false,
+        overlayIsCollapsed,
+        bounds: null,
+        windowState: 'missing'
+      })
+      return
+    }
+
+    console.log('[Shade visibility]', {
+      ...payload,
+      visible: mainWindow.isVisible(),
+      minimized: mainWindow.isMinimized(),
+      overlayIsCollapsed,
+      bounds: mainWindow.getBounds()
+    })
+  }
+
+  function boundsDiffer(a, b) {
+    if (!a || !b) return false
+    return (
+      a.x !== b.x ||
+      a.y !== b.y ||
+      a.width !== b.width ||
+      a.height !== b.height
+    )
+  }
+
+  function applyPreferredBoundsBeforeShow(source) {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+
+    const preferredBounds = overlayIsCollapsed ? overlayCollapsedBounds : overlayExpandedBounds
+    if (!preferredBounds) return
+
+    const currentBounds = mainWindow.getBounds()
+    if (!boundsDiffer(currentBounds, preferredBounds)) return
+
+    mainWindow.setBounds(preferredBounds)
+    logMainWindowVisibility('pre-show-bounds-applied', source, { preferredBounds })
+  }
+
+  function showAndFocusMainWindow(source = 'unknown') {
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
+
+    // Clear any stale focus timer before scheduling a new one
+    if (focusTimer) {
+      clearTimeout(focusTimer)
+      focusTimer = null
+    }
+
+    applyPreferredBoundsBeforeShow(source)
+    
+    // Workaround for transparent window flicker on Windows:
+    // Briefly set opacity to 0 before showing, then fade in
+    mainWindow.setOpacity(0)
+    mainWindow.showInactive()
+    mainWindow.focus()
+    
+    // Small delay to let the compositor settle, then fade in
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setOpacity(1)
+      }
+    }, 16)
+
+    mainWindow.webContents.send('window-shown')
+    logMainWindowVisibility('show-request', source)
+    return true
+  }
+
   function getMainWindow() {
     return mainWindow
   }
@@ -127,9 +214,7 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
         mainWindow.setBounds({ ...bounds, height: payload.height })
       }
 
-      mainWindow.show()
-      mainWindow.focus()
-      mainWindow.webContents.send('window-shown')
+      showAndFocusMainWindow('initial-renderer-ready')
     }
 
     ipcMain.once('renderer-ready', onRendererReady)
@@ -139,8 +224,7 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
     const readyTimeout = setTimeout(() => {
       ipcMain.removeListener('renderer-ready', onRendererReady)
       if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-        mainWindow.show()
-        mainWindow.focus()
+        showAndFocusMainWindow('initial-ready-timeout')
       }
     }, 4000)
 
@@ -176,10 +260,27 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
 
     mainWindow.on('minimize', (event) => {
       event.preventDefault()
+      logMainWindowVisibility('minimize-intercept-hide', 'minimize-event')
       mainWindow.hide()
     })
 
+    mainWindow.on('show', () => {
+      logMainWindowVisibility('event-show', 'electron-event')
+    })
+
+    mainWindow.on('hide', () => {
+      if (focusTimer) {
+        clearTimeout(focusTimer)
+        focusTimer = null
+      }
+      logMainWindowVisibility('event-hide', 'electron-event')
+    })
+
     mainWindow.on('closed', () => {
+      if (focusTimer) {
+        clearTimeout(focusTimer)
+        focusTimer = null
+      }
       clearTimeout(readyTimeout)
       mainWindow = null
     })
@@ -335,19 +436,24 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
     }
   }
 
-  function showMainWindow() {
+  function showMainWindow(source = 'unknown') {
     if (!mainWindow || mainWindow.isDestroyed()) return
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore()
-    }
-
-    mainWindow.show()
-    mainWindow.focus()
-    mainWindow.webContents.send('window-shown')
+    showAndFocusMainWindow(source)
   }
 
-  function hideMainWindow() {
-    if (!mainWindow) return
+  function hideMainWindow(source = 'unknown') {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+
+    // Cancel any pending deferred focus to avoid race on quick hide/show
+    if (focusTimer) {
+      clearTimeout(focusTimer)
+      focusTimer = null
+    }
+
+    // Notify renderer that window is about to hide so it can clean up visual state
+    mainWindow.webContents.send('window-hidden')
+
+    logMainWindowVisibility('hide-request', source)
     mainWindow.hide()
   }
 
@@ -361,11 +467,7 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
     }
 
     mainWindow.webContents.send('resume-session', sessionId)
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore()
-    }
-    mainWindow.show()
-    mainWindow.focus()
+    showAndFocusMainWindow('resume-session')
     return { success: true }
   }
 
@@ -379,11 +481,7 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
     }
 
     mainWindow.webContents.send('new-chat')
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore()
-    }
-    mainWindow.show()
-    mainWindow.focus()
+    showAndFocusMainWindow('new-chat-overlay')
     return { success: true }
   }
 

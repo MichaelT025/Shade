@@ -10,7 +10,9 @@ function registerSystemIpcHandlers({ rendererPath, updateService }) {
   ipcMain.handle('open-data-folder', async () => {
     try {
       const userDataPath = app.getPath('userData')
-      await shell.openPath(userDataPath)
+      const dataPath = path.join(userDataPath, 'data')
+      await fs.mkdir(dataPath, { recursive: true })
+      await shell.openPath(dataPath)
       return { success: true }
     } catch (error) {
       console.error('Failed to open data folder:', error)

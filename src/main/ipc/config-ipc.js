@@ -1,7 +1,7 @@
 const { ipcMain, screen } = require('electron')
 const LLMFactory = require('../../services/llm-factory')
 
-function registerConfigIpcHandlers({ configService, updateService, sendToWindows, broadcastConfigChanged }) {
+function registerConfigIpcHandlers({ configService, updateService, sendToWindows, broadcastConfigChanged, getMainWindow }) {
   ipcMain.handle('save-api-key', async (_event, { provider, apiKey }) => {
     try {
       configService.setApiKey(provider, apiKey)
@@ -393,6 +393,13 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
   ipcMain.handle('set-exclude-overlay-from-screenshots', async (_event, exclude) => {
     try {
       configService.setExcludeOverlayFromScreenshots(exclude)
+
+      // Apply immediately so users don't need an app restart.
+      const mainWindow = typeof getMainWindow === 'function' ? getMainWindow() : null
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setContentProtection(!!exclude)
+      }
+
       sendToWindows('config-changed')
       return { success: true }
     } catch (error) {

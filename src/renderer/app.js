@@ -350,7 +350,7 @@ async function maybeAutoTitleSessionFromFirstReply(replyText) {
  * Initialize the application
  */
 async function init() {
-  setVisualEffectsEnabled(false)
+  setVisualEffectsEnabled(false, 0, 'init-start')
 
   // Capture the working logo path from the existing DOM element
   // This ensures the path works in both dev and packaged builds
@@ -576,8 +576,40 @@ async function init() {
     })
   })
 
+  window.electronAPI.onWindowHidden?.(() => {
+    console.log('[Shade visibility][renderer] window-hidden', {
+      at: Date.now()
+    })
+
+    // Disable effects before hide to ensure clean state on next show
+    setVisualEffectsEnabled(false, 0, 'window-hidden')
+    document.body.classList.add('reveal-settling')
+  })
+
   window.electronAPI.onWindowShown?.(() => {
-    setVisualEffectsEnabled(true, 180)
+    console.log('[Shade visibility][renderer] window-shown', {
+      at: Date.now(),
+      hidden: document.hidden
+    })
+
+    // Force CSS recalc to clear any stale compositor state from hide
+    const root = document.getElementById('root')
+    if (root) {
+      root.style.display = 'none'
+      root.offsetHeight // Force reflow
+      root.style.display = ''
+    }
+
+    // Apply reveal-settling class to suppress first-frame transitions
+    document.body.classList.add('reveal-settling')
+
+    // Enable effects immediately to prevent backdrop-filter flash
+    setVisualEffectsEnabled(true, 0, 'window-shown')
+
+    // Clear the settling class after short delay (after window is stable)
+    setTimeout(() => {
+      document.body.classList.remove('reveal-settling')
+    }, 120)
   })
 
   // Input typing handler:
@@ -599,18 +631,33 @@ async function init() {
 
   // Visibility change handler (clear stale screenshots when window is hidden)
   document.addEventListener('visibilitychange', () => {
+    console.log('[Shade visibility][renderer] visibilitychange', {
+      at: Date.now(),
+      hidden: document.hidden
+    })
+
     if (document.hidden) {
-      // Window is being hidden - clear predictive screenshot as it will be stale
+      // Window is being hidden - clear predictive screenshot and cancel pending capture
       clearPredictiveScreenshot()
-      setVisualEffectsEnabled(false)
+      if (predictiveCaptureTimer) {
+        clearTimeout(predictiveCaptureTimer)
+        predictiveCaptureTimer = null
+      }
+      // Disable effects on hide to ensure clean state on next show
+      setVisualEffectsEnabled(false, 0, 'visibility-hidden')
+      document.body.classList.add('reveal-settling')
     } else {
-      setVisualEffectsEnabled(true, 180)
+      // Avoid duplicate reveal races: unhide visual effects are handled by
+      // the explicit `window-shown` IPC emitted by the main process.
+      console.log('[Shade visibility][renderer] visible; waiting for window-shown to re-enable effects')
     }
   })
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      setVisualEffectsEnabled(true, 120)
+      setVisualEffectsEnabled(true, 120, 'init-raf')
+      // Remove reveal-settling after init so normal animations work
+      document.body.classList.remove('reveal-settling')
     })
   })
 
@@ -816,6 +863,11 @@ function schedulePredictiveCapture({ forceFresh = false, delay = 0 } = {}) {
     predictiveCaptureTimer = null
   }
 
+  // Do not schedule predictive capture when hidden
+  if (document.hidden) {
+    return
+  }
+
   predictiveCaptureTimer = setTimeout(() => {
     predictiveCaptureTimer = null
     predictiveCapturePromise = performPredictiveCapture(forceFresh)
@@ -823,7 +875,7 @@ function schedulePredictiveCapture({ forceFresh = false, delay = 0 } = {}) {
   }, Math.max(0, delay))
 }
 
-function setVisualEffectsEnabled(enabled, delay = 0) {
+function setVisualEffectsEnabled(enabled, delay = 0, reason = 'unspecified') {
   if (revealEffectsTimer) {
     clearTimeout(revealEffectsTimer)
     revealEffectsTimer = null
@@ -837,13 +889,33 @@ function setVisualEffectsEnabled(enabled, delay = 0) {
       if (!document.hidden) {
         body.classList.add('effects-enabled')
       }
+      console.log('[Shade visibility][renderer] effects-enabled', {
+        at: Date.now(),
+        enabled: true,
+        reason,
+        hidden: document.hidden
+      })
       return
     }
 
     body.classList.remove('effects-enabled')
+    console.log('[Shade visibility][renderer] effects-enabled', {
+      at: Date.now(),
+      enabled: false,
+      reason,
+      hidden: document.hidden
+    })
   }
 
   if (delay > 0) {
+    console.log('[Shade visibility][renderer] schedule-effects-toggle', {
+      at: Date.now(),
+      enabled,
+      delay,
+      reason,
+      hidden: document.hidden
+    })
+
     revealEffectsTimer = setTimeout(() => {
       revealEffectsTimer = null
       apply()
@@ -870,11 +942,22 @@ async function performPredictiveCapture(forceFresh = false) {
     return
   }
 
+  // Don't capture when document is hidden
+  if (document.hidden) {
+    return
+  }
+
   predictiveCaptureInProgress = true
   console.log('Starting predictive screenshot capture...')
 
   try {
     const result = await window.electronAPI.captureScreen({ captureMode: 'predictive' })
+
+    // Prevent caching when document becomes hidden during capture
+    if (document.hidden) {
+      console.log('Predictive capture completed while hidden; discarding result')
+      return
+    }
 
     if (result.success) {
       predictiveScreenshot = true

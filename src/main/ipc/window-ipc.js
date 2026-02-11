@@ -40,7 +40,7 @@ function registerWindowIpcHandlers(windowManager) {
   })
 
   ipcMain.handle('hide-window', async () => {
-    windowManager.hideMainWindow()
+    windowManager.hideMainWindow('renderer-hide-button')
   })
 
   ipcMain.handle('dashboard-minimize', async () => {

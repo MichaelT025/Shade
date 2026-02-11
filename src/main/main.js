@@ -1,5 +1,9 @@
 const { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, dialog } = require('electron')
 const path = require('path')
+
+// Improve transparent window rendering stability on Windows
+// Prevents GPU surface recreation flicker when showing/hiding overlay
+app.commandLine.appendSwitch('enable-features', 'CalculateNativeWinOcclusion')
 const LLMFactory = require('../services/llm-factory')
 const ConfigService = require('../services/config-service')
 const SessionStorage = require('../services/session-storage')
@@ -40,13 +44,13 @@ const getIconPath = () => {
 }
 
 // Show main window (from tray or shortcut)
-function showMainWindow() {
-  windowManager?.showMainWindow()
+function showMainWindow(source = 'unknown') {
+  windowManager?.showMainWindow(source)
 }
 
 // Hide main window to tray
-function hideMainWindow() {
-  windowManager?.hideMainWindow()
+function hideMainWindow(source = 'unknown') {
+  windowManager?.hideMainWindow(source)
 }
 
 // Create system tray with context menu
@@ -61,7 +65,7 @@ function createTray() {
     {
       label: 'Show',
       click: () => {
-        showMainWindow()
+        showMainWindow('tray-menu-show')
       }
     },
     {
@@ -83,7 +87,7 @@ function createTray() {
   
   // Left-click on tray shows the main window
   tray.on('click', () => {
-    showMainWindow()
+    showMainWindow('tray-click')
   })
 }
 
@@ -112,9 +116,9 @@ function registerHotkeys() {
     const mainWindow = windowManager?.getMainWindow()
     if (mainWindow) {
       if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
-        showMainWindow()
+        showMainWindow('hotkey-ctrl-slash')
       } else {
-        hideMainWindow()
+        hideMainWindow('hotkey-ctrl-slash')
       }
     }
   })
@@ -224,7 +228,8 @@ app.whenReady().then(() => {
     configService,
     updateService,
     sendToWindows,
-    broadcastConfigChanged
+    broadcastConfigChanged,
+    getMainWindow: () => windowManager?.getMainWindow()
   })
 
   registerSessionIpcHandlers({

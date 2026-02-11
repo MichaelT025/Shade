@@ -64,7 +64,7 @@
       background: rgba(0, 0, 0, 0.3);
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       -webkit-app-region: drag;
-      backdrop-filter: blur(8px);
+      /* Removed backdrop-filter to prevent compositor thrash on show */
       position: relative;
     }
 
@@ -1143,6 +1143,10 @@
       transition: none;
     }
 
+    body:not(.effects-enabled) .messages-container {
+      transition: none;
+    }
+
     body:not(.effects-enabled) .title-bar {
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
@@ -1157,9 +1161,30 @@
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
     }
+
+    /* ========================================
+       REVEAL-SETTLING: Briefly disable transitions/animations during unhide
+       to suppress first-frame flicker. Applied by window-shown handler.
+       ======================================== */
+    body.reveal-settling #root {
+      transition: none !important;
+    }
+
+    body.reveal-settling .messages-container {
+      transition: none !important;
+    }
+
+    body.reveal-settling .message {
+      animation: none !important;
+    }
+
+    body.reveal-settling .title-bar,
+    body.reveal-settling .input-container {
+      transition: none !important;
+    }
   </style>
 </head>
-<body>
+<body class="reveal-settling">
   <div id="root">
     <!-- Title Bar -->
     <div class="title-bar">
