@@ -83,7 +83,7 @@ jobs:
           $md.Add('')
 
           if ($prev) {
-            $md.Add("Changes since $prev:")
+            $md.Add("Changes since ${prev}:")
             $md.Add('')
           }
 

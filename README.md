@@ -76,6 +76,8 @@ npm run dev
 
 ### Keyboard Shortcuts
 
+> **Note:** Most shortcuts (except `Ctrl+/`) are only active when the Shade overlay is visible to prevent conflicts with other applications.
+
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl+/` | Toggle overlay visibility (minimize/restore) |

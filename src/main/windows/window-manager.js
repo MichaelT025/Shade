@@ -35,7 +35,7 @@ function attachNavigationGuards(win) {
   })
 }
 
-function createWindowManager({ rendererPath, getIconPath, configService }) {
+function createWindowManager({ rendererPath, getIconPath, configService, onOverlayShow, onOverlayHide }) {
   let mainWindow = null
   let settingsWindow = null
   let modelSwitcherWindow = null
@@ -439,6 +439,8 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
   function showMainWindow(source = 'unknown') {
     if (!mainWindow || mainWindow.isDestroyed()) return
     showAndFocusMainWindow(source)
+    // Notify main process to register overlay-specific shortcuts
+    if (onOverlayShow) onOverlayShow()
   }
 
   function hideMainWindow(source = 'unknown') {
@@ -455,6 +457,8 @@ function createWindowManager({ rendererPath, getIconPath, configService }) {
 
     logMainWindowVisibility('hide-request', source)
     mainWindow.hide()
+    // Notify main process to unregister overlay-specific shortcuts
+    if (onOverlayHide) onOverlayHide()
   }
 
   function resumeSessionInOverlay(sessionId) {

@@ -21,6 +21,9 @@ let sessionStorage = null
 let windowManager = null
 let updateService = null
 
+// Track overlay-specific shortcuts that should only work when overlay is visible
+const overlayShortcuts = new Map()
+
 function sendToWindows(channel, ...args) {
   windowManager?.sendToWindows(channel, ...args)
 }
@@ -91,28 +94,67 @@ function createTray() {
   })
 }
 
-// Register global hotkeys
+// Register overlay-specific shortcuts (only active when overlay is visible)
+function registerOverlayShortcuts() {
+  // Ctrl+R to start new chat
+  if (!overlayShortcuts.has('CommandOrControl+R')) {
+    const success = globalShortcut.register('CommandOrControl+R', () => {
+      const mainWindow = windowManager?.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send('new-chat')
+      }
+    })
+    if (success) overlayShortcuts.set('CommandOrControl+R', true)
+  }
+
+  // Ctrl+' to toggle overlay collapse
+  if (!overlayShortcuts.has('CommandOrControl+\'')) {
+    const success = globalShortcut.register('CommandOrControl+\'', () => {
+      const mainWindow = windowManager?.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send('toggle-collapse')
+      }
+    })
+    if (success) overlayShortcuts.set('CommandOrControl+\'', true)
+  }
+
+  // Ctrl+Shift+S to capture screenshot
+  if (!overlayShortcuts.has('CommandOrControl+Shift+S')) {
+    const success = globalShortcut.register('CommandOrControl+Shift+S', () => {
+      const mainWindow = windowManager?.getMainWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send('capture-screenshot')
+      }
+    })
+    if (success) overlayShortcuts.set('CommandOrControl+Shift+S', true)
+  }
+
+  // Ctrl+M to open model switcher
+  const modelSwitcherShortcut = process.platform === 'darwin'
+    ? 'CommandOrControl+Shift+M'
+    : 'CommandOrControl+M'
+  if (!overlayShortcuts.has(modelSwitcherShortcut)) {
+    const success = globalShortcut.register(modelSwitcherShortcut, () => {
+      windowManager?.toggleModelSwitcherWindow()
+    })
+    if (success) overlayShortcuts.set(modelSwitcherShortcut, true)
+  }
+}
+
+// Unregister overlay-specific shortcuts (call when overlay is hidden)
+function unregisterOverlayShortcuts() {
+  for (const shortcut of overlayShortcuts.keys()) {
+    globalShortcut.unregister(shortcut)
+  }
+  overlayShortcuts.clear()
+}
+
+// Register global hotkeys (always active)
 function registerHotkeys() {
   const registrationFailures = []
 
-  const tryRegister = (accelerator, actionName, handler) => {
-    const success = globalShortcut.register(accelerator, handler)
-    if (!success) {
-      registrationFailures.push(`${actionName} (${accelerator})`)
-    }
-  }
-
-  const isOverlayVisible = () => {
-    const mainWindow = windowManager?.getMainWindow()
-    if (!mainWindow) return false
-    // Treat minimized/hidden as "overlay hidden" for shortcut gating.
-    if (mainWindow.isMinimized()) return false
-    if (!mainWindow.isVisible()) return false
-    return true
-  }
-
-  // Ctrl+/ to toggle window visibility (hide to tray / show)
-  tryRegister('CommandOrControl+/', 'Toggle overlay visibility', () => {
+  // Ctrl+/ to toggle window visibility (hide to tray / show) - always registered
+  const toggleSuccess = globalShortcut.register('CommandOrControl+/', () => {
     const mainWindow = windowManager?.getMainWindow()
     if (mainWindow) {
       if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
@@ -122,38 +164,12 @@ function registerHotkeys() {
       }
     }
   })
+  if (!toggleSuccess) {
+    registrationFailures.push(`Toggle overlay visibility (CommandOrControl+/)`)
+  }
 
-  // Ctrl+R to start new chat
-  tryRegister('CommandOrControl+R', 'Start new chat', () => {
-    const mainWindow = windowManager?.getMainWindow()
-    if (!isOverlayVisible()) return
-    mainWindow.webContents.send('new-chat')
-  })
-
-  // Ctrl+' to toggle overlay collapse
-  tryRegister('CommandOrControl+\'', 'Toggle overlay collapse', () => {
-    const mainWindow = windowManager?.getMainWindow()
-    if (!isOverlayVisible()) return
-    mainWindow.webContents.send('toggle-collapse')
-  })
-
-  // Ctrl+Shift+S to capture screenshot
-  tryRegister('CommandOrControl+Shift+S', 'Capture screenshot', () => {
-    const mainWindow = windowManager?.getMainWindow()
-    if (!isOverlayVisible()) return
-    mainWindow.webContents.send('capture-screenshot')
-  })
-
-  // Ctrl+M to open model switcher
-  // On macOS, Cmd+M is the standard "minimize window" shortcut, so avoid overriding it.
-  const modelSwitcherShortcut = process.platform === 'darwin'
-    ? 'CommandOrControl+Shift+M'
-    : 'CommandOrControl+M'
-
-  tryRegister(modelSwitcherShortcut, 'Toggle model switcher', () => {
-    if (!isOverlayVisible()) return
-    windowManager?.toggleModelSwitcherWindow()
-  })
+  // Overlay-specific shortcuts will be registered when overlay becomes visible
+  // via showMainWindow -> registerOverlayShortcuts
 
   if (registrationFailures.length > 0) {
     console.warn('Global shortcut registration failed for:', registrationFailures)
@@ -211,7 +227,9 @@ app.whenReady().then(() => {
   windowManager = createWindowManager({
     rendererPath,
     getIconPath,
-    configService
+    configService,
+    onOverlayShow: registerOverlayShortcuts,
+    onOverlayHide: unregisterOverlayShortcuts
   })
 
   windowManager.createMainWindow()
