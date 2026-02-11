@@ -3,15 +3,7 @@ import sharp from 'sharp'
 import fs from 'fs'
 import path from 'path'
 
-// Mock Electron's desktopCapturer
-const mockGetSources = vi.fn()
-vi.mock('electron', () => ({
-  desktopCapturer: {
-    getSources: mockGetSources
-  }
-}))
-
-// Import after mocking
+// Import module under test
 const { compressImage, captureScreen } = await import('../screen-capture.js')
 
 describe('Screen Capture Service', () => {
@@ -163,7 +155,7 @@ describe('Screen Capture Service', () => {
       // Skipped: Requires full Electron environment
     })
 
-    test.skip('should handle desktopCapturer errors', async () => {
+    test.skip('should handle screenshot provider errors', async () => {
       // Skipped: Requires full Electron environment
     })
 

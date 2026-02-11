@@ -206,7 +206,8 @@ app.whenReady().then(() => {
 
   windowManager = createWindowManager({
     rendererPath,
-    getIconPath
+    getIconPath,
+    configService
   })
 
   windowManager.createMainWindow()

@@ -1,4 +1,4 @@
-const { ipcMain, screen } = require('electron')
+const { ipcMain } = require('electron')
 const { captureAndCompress } = require('../../services/screen-capture')
 const LLMFactory = require('../../services/llm-factory')
 
@@ -7,6 +7,23 @@ function createChatIpcRegistrar({
   getMainWindow
 }) {
   let currentAbortController = null
+  let predictiveScreenshotCache = null
+  let predictiveScreenshotTimestamp = null
+  let captureInProgress = false
+  const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000
+
+  function hasFreshPredictiveScreenshot() {
+    if (!predictiveScreenshotCache || !predictiveScreenshotTimestamp) {
+      return false
+    }
+
+    return (Date.now() - predictiveScreenshotTimestamp) < PREDICTIVE_SCREENSHOT_MAX_AGE
+  }
+
+  function clearPredictiveScreenshotCache() {
+    predictiveScreenshotCache = null
+    predictiveScreenshotTimestamp = null
+  }
 
   function isLocalProvider(providerName) {
     try {
@@ -20,24 +37,52 @@ function createChatIpcRegistrar({
   }
 
   function registerChatIpcHandlers() {
-    ipcMain.handle('capture-screen', async () => {
+    ipcMain.handle('capture-screen', async (_event, payload) => {
       const mainWindow = getMainWindow()
       try {
-        console.log('Screen capture requested')
+        let captureMode = 'unknown'
 
-        if (mainWindow) {
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+          captureMode = typeof payload.captureMode === 'string' ? payload.captureMode : 'unknown'
+        } else {
+          captureMode = 'legacy'
+        }
+
+        // Reject overlapping predictive captures — screen capture is expensive
+        if (captureMode === 'predictive' && captureInProgress) {
+          return { success: false, error: 'Capture already in progress' }
+        }
+
+        captureInProgress = true
+        console.log('Screen capture requested:', captureMode)
+
+        // When the "exclude overlay from screenshots" config is ON, protection
+        // is always active — skip the per-capture toggle + 60ms DWM delay.
+        const alwaysProtected = configService
+          ? configService.getExcludeOverlayFromScreenshots()
+          : false
+        const needsPerCaptureProtection = !alwaysProtected
+        if (needsPerCaptureProtection && mainWindow) {
           mainWindow.setContentProtection(true)
         }
 
-        let preferredDisplayId = null
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          const bounds = mainWindow.getBounds()
-          const display = screen.getDisplayMatching(bounds)
-          preferredDisplayId = display?.id ?? null
+        // Only wait for DWM compositing when we just toggled protection on
+        if (needsPerCaptureProtection) {
+          await new Promise(resolve => setTimeout(resolve, 60))
         }
 
-        await new Promise(resolve => setTimeout(resolve, 100))
-        const { base64, size } = await captureAndCompress(preferredDisplayId)
+        const { base64, size } = await captureAndCompress({ captureMode })
+
+        if (captureMode === 'predictive') {
+          predictiveScreenshotCache = base64
+          predictiveScreenshotTimestamp = Date.now()
+
+          return {
+            success: true,
+            cachedAt: predictiveScreenshotTimestamp,
+            size
+          }
+        }
 
         console.log(`Screenshot captured successfully (${(size / 1024 / 1024).toFixed(2)}MB)`)
 
@@ -46,18 +91,60 @@ function createChatIpcRegistrar({
         console.error('Failed to capture screen:', error)
         return { success: false, error: error.message }
       } finally {
-        if (mainWindow) {
+        captureInProgress = false
+        // Only toggle protection off if we toggled it on per-capture
+        const alwaysProtectedFinal = configService
+          ? configService.getExcludeOverlayFromScreenshots()
+          : false
+        if (!alwaysProtectedFinal && mainWindow) {
           mainWindow.setContentProtection(false)
         }
       }
     })
 
-    ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary }) => {
+    ipcMain.handle('clear-predictive-screenshot', async () => {
+      clearPredictiveScreenshotCache()
+      return { success: true }
+    })
+
+    ipcMain.handle('consume-predictive-screenshot', async () => {
+      if (!hasFreshPredictiveScreenshot()) {
+        clearPredictiveScreenshotCache()
+        return { success: false, error: 'Predictive screenshot is missing or stale' }
+      }
+
+      const base64 = predictiveScreenshotCache
+      clearPredictiveScreenshotCache()
+      return { success: true, base64 }
+    })
+
+    // Legacy handler kept for backward compatibility — now reads from config.
+    ipcMain.handle('set-persistent-content-protection', async () => {
+      const mainWindow = getMainWindow()
+      const enabled = configService
+        ? configService.getExcludeOverlayFromScreenshots()
+        : false
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.setContentProtection(!!enabled)
+      }
+      return { success: true }
+    })
+
+    ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot }) => {
       try {
+        let resolvedImageBase64 = imageBase64
+        if (!resolvedImageBase64 && usePredictiveScreenshot && hasFreshPredictiveScreenshot()) {
+          resolvedImageBase64 = predictiveScreenshotCache
+        }
+
+        if (usePredictiveScreenshot) {
+          clearPredictiveScreenshotCache()
+        }
+
         console.log('Message send requested', {
           hasText: typeof text === 'string' && text.length > 0,
           textLength: typeof text === 'string' ? text.length : 0,
-          hasImage: !!imageBase64,
+          hasImage: !!resolvedImageBase64,
           hasSummary: !!summary,
           historyLength: Array.isArray(conversationHistory) ? conversationHistory.length : 0
         })
@@ -115,7 +202,7 @@ function createChatIpcRegistrar({
           }
         }
 
-        await provider.streamResponse(promptWithSummary, imageBase64, historyWithSummary, (chunk) => {
+        await provider.streamResponse(promptWithSummary, resolvedImageBase64, historyWithSummary, (chunk) => {
           event.sender.send('message-chunk', chunk)
         }, currentAbortController.signal)
 

@@ -380,6 +380,27 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
     }
   })
 
+  ipcMain.handle('get-exclude-overlay-from-screenshots', async () => {
+    try {
+      const exclude = configService.getExcludeOverlayFromScreenshots()
+      return { success: true, exclude }
+    } catch (error) {
+      console.error('Failed to get overlay screenshot exclusion setting:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.handle('set-exclude-overlay-from-screenshots', async (_event, exclude) => {
+    try {
+      configService.setExcludeOverlayFromScreenshots(exclude)
+      sendToWindows('config-changed')
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to set overlay screenshot exclusion setting:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
   ipcMain.handle('refresh-models', async (_event, providerId) => {
     try {
       const ModelRefreshService = require('../../services/model-refresh')

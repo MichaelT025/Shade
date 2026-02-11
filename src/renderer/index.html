@@ -1129,6 +1129,34 @@
       transform: translateY(6px);
       pointer-events: none;
     }
+
+    /* ========================================
+       ANTI-FLICKER: Disable expensive compositor effects until the
+       renderer has fully initialized. The `effects-enabled` class is
+       added by app.js after init() completes and a short settling
+       delay. This prevents backdrop-filter re-composites from causing
+       visible flicker during show/unhide transitions.
+       ======================================== */
+    body:not(.effects-enabled) #root {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      transition: none;
+    }
+
+    body:not(.effects-enabled) .title-bar {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    body:not(.effects-enabled) .input-container {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    body:not(.effects-enabled) .scroll-bottom-btn {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
   </style>
 </head>
 <body>

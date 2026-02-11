@@ -1,4 +1,4 @@
-const { BrowserWindow, screen, shell } = require('electron')
+const { BrowserWindow, screen, shell, ipcMain } = require('electron')
 const path = require('path')
 
 function isAllowedInternalUrl(url) {
@@ -35,7 +35,7 @@ function attachNavigationGuards(win) {
   })
 }
 
-function createWindowManager({ rendererPath, getIconPath }) {
+function createWindowManager({ rendererPath, getIconPath, configService }) {
   let mainWindow = null
   let settingsWindow = null
   let modelSwitcherWindow = null
@@ -81,6 +81,7 @@ function createWindowManager({ rendererPath, getIconPath }) {
       height,
       x,
       y,
+      show: false,
       transparent: true,
       frame: false,
       alwaysOnTop: true,
@@ -90,6 +91,7 @@ function createWindowManager({ rendererPath, getIconPath }) {
       minHeight: 400,
       maxWidth: 1000,
       maxHeight: 1000,
+      backgroundColor: '#00000000',
       icon: getIconPath(),
       webPreferences: {
         nodeIntegration: false,
@@ -101,8 +103,46 @@ function createWindowManager({ rendererPath, getIconPath }) {
     attachNavigationGuards(mainWindow)
 
     overlayExpandedBounds = mainWindow.getBounds()
-    mainWindow.setContentProtection(false)
+
+    // Apply content protection from config (when enabled, overlay is always
+    // excluded from screenshots — no per-show/hide toggling needed).
+    const excludeFromScreenshots = configService
+      ? configService.getExcludeOverlayFromScreenshots()
+      : false
+    mainWindow.setContentProtection(!!excludeFromScreenshots)
+
     mainWindow.loadFile(path.join(rendererPath, 'index.html'))
+
+    // Wait for the renderer to finish init() and report its desired size
+    // before showing, so the user never sees a partially-initialized or
+    // mis-sized window.
+    const onRendererReady = (_event, payload) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return
+
+      // If the renderer wants to start collapsed, apply the size before showing.
+      if (payload && payload.collapsed && typeof payload.height === 'number') {
+        overlayIsCollapsed = true
+        const bounds = mainWindow.getBounds()
+        mainWindow.setMinimumSize(450, 100)
+        mainWindow.setBounds({ ...bounds, height: payload.height })
+      }
+
+      mainWindow.show()
+      mainWindow.focus()
+      mainWindow.webContents.send('window-shown')
+    }
+
+    ipcMain.once('renderer-ready', onRendererReady)
+
+    // Safety timeout — if the renderer never reports ready (e.g. crash),
+    // show the window after 4 seconds so it doesn't stay invisible forever.
+    const readyTimeout = setTimeout(() => {
+      ipcMain.removeListener('renderer-ready', onRendererReady)
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    }, 4000)
 
     const syncBounds = () => {
       if (!mainWindow) return
@@ -140,6 +180,7 @@ function createWindowManager({ rendererPath, getIconPath }) {
     })
 
     mainWindow.on('closed', () => {
+      clearTimeout(readyTimeout)
       mainWindow = null
     })
   }
@@ -295,7 +336,11 @@ function createWindowManager({ rendererPath, getIconPath }) {
   }
 
   function showMainWindow() {
-    if (!mainWindow) return
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
+
     mainWindow.show()
     mainWindow.focus()
     mainWindow.webContents.send('window-shown')

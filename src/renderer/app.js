@@ -39,11 +39,16 @@ let autoTitleSessions = true
 
 let startCollapsedSetting = true
 
-// Predictive screenshot cache (for auto mode - capture before send to reduce perceived delay)
-let predictiveScreenshot = null // Cached screenshot base64
+// Predictive screenshot cache metadata (actual image data is cached in main process)
+let predictiveScreenshot = null // Whether a predictive screenshot is cached in main process
 let predictiveScreenshotTimestamp = null // When the screenshot was captured
 let predictiveCaptureInProgress = false // Whether a predictive capture is currently running
+let predictiveCapturePromise = null // Awaitable promise for in-flight capture
+let predictiveCaptureTimer = null
+let inputWasEmpty = true
+let revealEffectsTimer = null
 const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000 // 15 seconds - max age for cached screenshot
+const PREDICTIVE_CAPTURE_IDLE_DELAY = 1500 // 1.5s — must exceed natural typing pauses (300-800ms)
 
 // Cached asset paths (resolved at startup to work in packaged app)
 let appLogoSrc = '../../build/appicon.png' // Will be resolved from DOM
@@ -291,8 +296,9 @@ async function loadBehaviorSettings() {
     startCollapsedSetting = startCollapsedResult?.success ? startCollapsedResult.startCollapsed !== false : true
 
     // In auto mode, keep the image icon "toggled on" and make it informational.
+    const isAuto = screenshotMode === 'auto'
+
     if (screenshotBtn) {
-      const isAuto = screenshotMode === 'auto'
       screenshotBtn.disabled = isAuto
       screenshotBtn.title = isAuto ? 'Auto screenshot mode is enabled' : 'Capture Screenshot'
 
@@ -344,6 +350,8 @@ async function maybeAutoTitleSessionFromFirstReply(replyText) {
  * Initialize the application
  */
 async function init() {
+  setVisualEffectsEnabled(false)
+
   // Capture the working logo path from the existing DOM element
   // This ensures the path works in both dev and packaged builds
   const existingLogo = document.querySelector('#home-btn .app-icon')
@@ -534,9 +542,33 @@ async function init() {
   // Auto-focus the input field so keyboard shortcuts work immediately
   messageInput.focus()
 
-  // Initialize collapsed state from settings
+  // Initialize collapsed state from settings.
+  // Compute the desired height BEFORE signaling ready so the main process
+  // can size the window correctly before showing it.
   isCollapsed = !!startCollapsedSetting
-  updateCollapseState()
+
+  // Tell the main process we're ready, with our desired initial size.
+  // The main process will apply the collapsed bounds (if needed) and then
+  // call show() — this prevents the user from seeing a mis-sized window.
+  if (isCollapsed) {
+    // Apply collapsed CSS class so measureCollapsedHeight() reads the right layout.
+    const overlay = document.querySelector('#root')
+    overlay.classList.add('overlay-collapsed')
+    insertIcon(collapseBtn, 'expand', 'icon-svg')
+    collapseBtn.title = 'Expand (Ctrl+\')'
+    autosizeMessageInput()
+
+    const collapsedHeight = measureCollapsedHeight()
+    overlay.style.height = `${collapsedHeight}px`
+    lastCollapsedHeight = collapsedHeight
+
+    window.electronAPI.rendererReady({ collapsed: true, height: collapsedHeight })
+  } else {
+    insertIcon(collapseBtn, 'collapse', 'icon-svg')
+    collapseBtn.title = 'Collapse (Ctrl+\')'
+
+    window.electronAPI.rendererReady({ collapsed: false })
+  }
 
   window.electronAPI.onResumeSession((sessionId) => {
     loadSessionIntoChat(sessionId).catch(error => {
@@ -544,19 +576,25 @@ async function init() {
     })
   })
 
-  // Window shown handler (for predictive screenshot capture in auto mode)
   window.electronAPI.onWindowShown?.(() => {
-    if (screenshotMode === 'auto') {
-      console.log('Window shown - triggering predictive screenshot capture')
-      performPredictiveCapture()
-    }
+    setVisualEffectsEnabled(true, 180)
   })
 
-  // Input focus handler (trigger predictive capture when user focuses input in auto mode)
-  messageInput.addEventListener('focus', () => {
-    if (screenshotMode === 'auto' && !capturedScreenshot) {
-      performPredictiveCapture()
+  // Input typing handler:
+  // - capture on typing idle (not every keystroke)
+  // - refresh only when cache has expired
+  messageInput.addEventListener('input', () => {
+    const isEmpty = messageInput.value.trim().length === 0
+
+    if (screenshotMode === 'auto' && !isEmpty && !predictiveCaptureInProgress) {
+      if (inputWasEmpty) {
+        schedulePredictiveCapture({ forceFresh: false, delay: PREDICTIVE_CAPTURE_IDLE_DELAY })
+      } else if (!isPredictiveScreenshotFresh()) {
+        schedulePredictiveCapture({ forceFresh: false, delay: PREDICTIVE_CAPTURE_IDLE_DELAY })
+      }
     }
+
+    inputWasEmpty = isEmpty
   })
 
   // Visibility change handler (clear stale screenshots when window is hidden)
@@ -564,7 +602,16 @@ async function init() {
     if (document.hidden) {
       // Window is being hidden - clear predictive screenshot as it will be stale
       clearPredictiveScreenshot()
+      setVisualEffectsEnabled(false)
+    } else {
+      setVisualEffectsEnabled(true, 180)
     }
+  })
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setVisualEffectsEnabled(true, 120)
+    })
   })
 
   console.log('Shade initialized')
@@ -728,7 +775,7 @@ function updateCollapseState() {
 async function handleScreenshotCapture() {
   try {
     console.log('Capturing screenshot...')
-    const result = await window.electronAPI.captureScreen()
+    const result = await window.electronAPI.captureScreen({ captureMode: 'manual' })
 
     if (result.success) {
       capturedScreenshot = result.base64
@@ -763,14 +810,58 @@ async function handleScreenshotCapture() {
  * Perform predictive screenshot capture in the background
  * This captures a screenshot before the user hits send to reduce perceived delay
  */
-async function performPredictiveCapture() {
+function schedulePredictiveCapture({ forceFresh = false, delay = 0 } = {}) {
+  if (predictiveCaptureTimer) {
+    clearTimeout(predictiveCaptureTimer)
+    predictiveCaptureTimer = null
+  }
+
+  predictiveCaptureTimer = setTimeout(() => {
+    predictiveCaptureTimer = null
+    predictiveCapturePromise = performPredictiveCapture(forceFresh)
+    predictiveCapturePromise.finally(() => { predictiveCapturePromise = null })
+  }, Math.max(0, delay))
+}
+
+function setVisualEffectsEnabled(enabled, delay = 0) {
+  if (revealEffectsTimer) {
+    clearTimeout(revealEffectsTimer)
+    revealEffectsTimer = null
+  }
+
+  const apply = () => {
+    const body = document.body
+    if (!body) return
+
+    if (enabled) {
+      if (!document.hidden) {
+        body.classList.add('effects-enabled')
+      }
+      return
+    }
+
+    body.classList.remove('effects-enabled')
+  }
+
+  if (delay > 0) {
+    revealEffectsTimer = setTimeout(() => {
+      revealEffectsTimer = null
+      apply()
+    }, delay)
+    return
+  }
+
+  apply()
+}
+
+async function performPredictiveCapture(forceFresh = false) {
   // Only capture in auto mode and if not already in progress
   if (screenshotMode !== 'auto' || predictiveCaptureInProgress) {
     return
   }
 
   // Don't capture if we already have a fresh cached screenshot
-  if (isPredictiveScreenshotFresh()) {
+  if (!forceFresh && isPredictiveScreenshotFresh()) {
     return
   }
 
@@ -783,11 +874,11 @@ async function performPredictiveCapture() {
   console.log('Starting predictive screenshot capture...')
 
   try {
-    const result = await window.electronAPI.captureScreen()
+    const result = await window.electronAPI.captureScreen({ captureMode: 'predictive' })
 
     if (result.success) {
-      predictiveScreenshot = result.base64
-      predictiveScreenshotTimestamp = Date.now()
+      predictiveScreenshot = true
+      predictiveScreenshotTimestamp = typeof result.cachedAt === 'number' ? result.cachedAt : Date.now()
       console.log('Predictive screenshot captured successfully')
     } else {
       console.error('Predictive screenshot capture failed:', result.error)
@@ -817,6 +908,7 @@ function isPredictiveScreenshotFresh() {
 function clearPredictiveScreenshot() {
   predictiveScreenshot = null
   predictiveScreenshotTimestamp = null
+  window.electronAPI.clearPredictiveScreenshot?.().catch(() => {})
   console.log('Predictive screenshot cache cleared')
 }
 
@@ -905,14 +997,13 @@ async function handleSendMessage() {
     sendScreenshot = null
     sendHasScreenshot = false
 
-    // Check if predictive capture is in progress - wait for it briefly
-    if (predictiveCaptureInProgress) {
+    // Wait for in-flight predictive capture to finish (with timeout)
+    if (predictiveCaptureInProgress && predictiveCapturePromise) {
       console.log('Predictive capture in progress, waiting...')
-      let waitCount = 0
-      while (predictiveCaptureInProgress && waitCount < 50) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-        waitCount++
-      }
+      await Promise.race([
+        predictiveCapturePromise,
+        new Promise(resolve => setTimeout(resolve, 3000))
+      ])
       if (predictiveCaptureInProgress) {
         console.log('Predictive capture timed out, proceeding without it')
       }
@@ -920,14 +1011,22 @@ async function handleSendMessage() {
 
     // Check if we have a fresh predictive screenshot cached
     if (isPredictiveScreenshotFresh()) {
-      // Use cached predictive screenshot for instant sending
-      sendScreenshot = predictiveScreenshot
-      sendHasScreenshot = true
-      console.log('Using cached predictive screenshot (age:', Date.now() - predictiveScreenshotTimestamp, 'ms)')
-    } else if (text) {
+      try {
+        const predictiveResult = await window.electronAPI.consumePredictiveScreenshot()
+        if (predictiveResult?.success && predictiveResult.base64) {
+          sendScreenshot = predictiveResult.base64
+          sendHasScreenshot = true
+          console.log('Using cached predictive screenshot (age:', Date.now() - predictiveScreenshotTimestamp, 'ms)')
+        }
+      } catch (error) {
+        console.error('Failed to consume predictive screenshot:', error)
+      }
+    }
+
+    if (!sendScreenshot && text) {
       // No fresh cached screenshot - capture now (this will block sending)
       try {
-        const captureResult = await window.electronAPI.captureScreen()
+        const captureResult = await window.electronAPI.captureScreen({ captureMode: 'send' })
         if (captureResult?.success) {
           sendScreenshot = captureResult.base64
           sendHasScreenshot = true

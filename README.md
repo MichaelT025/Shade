@@ -107,7 +107,7 @@ npm run dev
 - **Bundler:** Vite
 - **UI:** JavaScript/HTML/CSS (renderer)
 - **LLM Providers:** Gemini, OpenAI, Anthropic, OpenAI-compatible endpoints
-- **Screen Capture:** Electron's `desktopCapturer` with `setContentProtection`
+- **Screen Capture:** `screenshot-desktop` with `setContentProtection` (optional overlay exclusion)
 - **Rendering:** marked.js (Markdown), KaTeX (LaTeX), highlight.js (code)
 
 ## Privacy & Security
@@ -189,7 +189,9 @@ See [PRD.md](docs/PRD.md) for the complete product roadmap.
 ## Troubleshooting
 
 ### Overlay appears in screenshots
-You need Windows 10 version 2004 (May 2020) or later. Update Windows if on an older version.
+1. You need Windows 10 version 2004 (May 2020) or later.
+2. Check the **Overlay Visibility** setting in the Dashboard (Configuration). When "Exclude overlay from screenshots" is enabled, the window is hidden from all captures (including those by other apps). When disabled, it's only hidden during Shade's own capture process.
+
 
 
 ### API key not saving

@@ -1,44 +1,24 @@
 const sharp = require('sharp')
-const { desktopCapturer } = require('electron')
+const screenshot = require('screenshot-desktop')
 const fs = require('fs')
 const path = require('path')
 
 /**
- * Captures a screenshot of a target display using Electron's desktopCapturer
+ * Captures a screenshot of the primary display.
  * Windows with setContentProtection(true) are automatically excluded from capture
- * @param {string|number|null} preferredDisplayId - Optional display id to target
+ * Multi-display selection is intentionally disabled for v1.
  * @returns {Promise<Buffer>} Screenshot as a buffer
  */
-async function captureScreen(preferredDisplayId = null) {
+async function captureScreen(options = {}) {
   try {
-    // Get available sources (screens)
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: {
-        width: 1920 * 2, // Support high-DPI displays
-        height: 1080 * 2
-      }
-    })
+    const captureMode = typeof options.captureMode === 'string' ? options.captureMode : 'unknown'
+    const pngBuffer = await screenshot({ format: 'png' })
 
-    if (sources.length === 0) {
-      throw new Error('No screen sources available')
+    if (!Buffer.isBuffer(pngBuffer) || pngBuffer.length === 0) {
+      throw new Error('Screenshot capture returned an invalid image buffer')
     }
 
-    const preferredId = preferredDisplayId == null ? '' : String(preferredDisplayId)
-    const matchedScreen = preferredId
-      ? sources.find(source => String(source.display_id || '') === preferredId)
-      : null
-
-    // Fallback to first source when preferred display is unavailable
-    const primaryScreen = matchedScreen || sources[0]
-
-    // Get the thumbnail as a NativeImage
-    const thumbnail = primaryScreen.thumbnail
-
-    // Convert NativeImage to PNG buffer
-    const pngBuffer = thumbnail.toPNG()
-
-    console.log('Screenshot captured successfully using desktopCapturer')
+    console.log('Screenshot captured successfully using screenshot-desktop', { captureMode })
     return pngBuffer
   } catch (error) {
     console.error('Error capturing screenshot:', error)
@@ -52,8 +32,10 @@ async function captureScreen(preferredDisplayId = null) {
  * @param {Buffer} imageBuffer - Original image buffer
  * @returns {Promise<{buffer: Buffer, base64: string, size: number}>} Compressed image data
  */
-async function compressImage(imageBuffer) {
+async function compressImage(imageBuffer, options = {}) {
   try {
+    const captureMode = typeof options.captureMode === 'string' ? options.captureMode : 'unknown'
+    const isPredictiveCapture = captureMode === 'predictive'
     const metadata = await sharp(imageBuffer).metadata()
 
     // Target max size: 5MB
@@ -62,7 +44,7 @@ async function compressImage(imageBuffer) {
     // If image is already small enough, just convert to JPEG with quality 85
     if (imageBuffer.length < MAX_SIZE) {
       const compressed = await sharp(imageBuffer)
-        .jpeg({ quality: 85 })
+        .jpeg({ quality: isPredictiveCapture ? 72 : 85 })
         .toBuffer()
 
       const base64 = compressed.toString('base64')
@@ -75,12 +57,13 @@ async function compressImage(imageBuffer) {
     }
 
     // For larger images, resize and compress more aggressively
-    let quality = 80
+    let quality = isPredictiveCapture ? 70 : 80
     let width = metadata.width
 
     // Scale down if very large
-    if (width > 1920) {
-      width = 1920
+    const maxWidth = isPredictiveCapture ? 960 : 1920
+    if (width > maxWidth) {
+      width = maxWidth
     }
 
     const compressed = await sharp(imageBuffer)
@@ -110,14 +93,16 @@ async function compressImage(imageBuffer) {
 
 /**
  * Captures a screenshot and compresses it to JPEG format
+ * @param {{captureMode?: string}} options - Capture metadata (manual|predictive|send)
  * @returns {Promise<{buffer: Buffer, base64: string, size: number}>}
  */
-async function captureAndCompress(preferredDisplayId = null) {
-  const screenshot = await captureScreen(preferredDisplayId)
+async function captureAndCompress(options = {}) {
+  const screenshotBuffer = await captureScreen(options)
+  const captureMode = typeof options.captureMode === 'string' ? options.captureMode : 'unknown'
 
-  // Save PNG to disk in development mode for debugging
+  // Save PNG to disk in development mode for debugging (manual captures only)
   const isDevelopment = process.env.NODE_ENV !== 'production'
-  if (isDevelopment) {
+  if (isDevelopment && captureMode === 'manual') {
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
       const filename = `screenshot-${timestamp}.png`
@@ -130,7 +115,7 @@ async function captureAndCompress(preferredDisplayId = null) {
       }
 
       // Save the uncompressed PNG buffer to disk
-      fs.writeFileSync(filepath, screenshot)
+      fs.writeFileSync(filepath, screenshotBuffer)
       console.log(`[DEV] Screenshot saved to: ${filepath}`)
     } catch (error) {
       console.error('[DEV] Failed to save screenshot to disk:', error.message)
@@ -139,7 +124,7 @@ async function captureAndCompress(preferredDisplayId = null) {
   }
 
   // Compress PNG to JPEG for API transmission
-  const compressed = await compressImage(screenshot)
+  const compressed = await compressImage(screenshotBuffer, options)
 
   return compressed
 }

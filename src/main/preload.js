@@ -4,10 +4,13 @@ const { contextBridge, ipcRenderer } = require('electron')
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   // Screen capture
-  captureScreen: (displayId) => ipcRenderer.invoke('capture-screen', displayId),
+  captureScreen: (payload) => ipcRenderer.invoke('capture-screen', payload),
+  consumePredictiveScreenshot: () => ipcRenderer.invoke('consume-predictive-screenshot'),
+  clearPredictiveScreenshot: () => ipcRenderer.invoke('clear-predictive-screenshot'),
+  setPersistentContentProtection: (enabled) => ipcRenderer.invoke('set-persistent-content-protection', enabled),
 
   // LLM messaging
-  sendMessage: (text, imageBase64, conversationHistory, summary) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory, summary }),
+  sendMessage: (text, imageBase64, conversationHistory, summary, usePredictiveScreenshot = false) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot }),
   stopMessage: () => ipcRenderer.invoke('stop-message'),
   generateSummary: (messages) => ipcRenderer.invoke('generate-summary', messages),
 
@@ -99,6 +102,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getScreenshotMode: () => ipcRenderer.invoke('get-screenshot-mode'),
   setScreenshotMode: (mode) => ipcRenderer.invoke('set-screenshot-mode', mode),
 
+  // Overlay visibility in screenshots
+  getExcludeOverlayFromScreenshots: () => ipcRenderer.invoke('get-exclude-overlay-from-screenshots'),
+  setExcludeOverlayFromScreenshots: (exclude) => ipcRenderer.invoke('set-exclude-overlay-from-screenshots', exclude),
+
   // Session settings
   getSessionSettings: () => ipcRenderer.invoke('get-session-settings'),
   setAutoTitleSessions: (enabled) => ipcRenderer.invoke('set-auto-title-sessions', enabled),
@@ -110,6 +117,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Display detection
   getDisplays: () => ipcRenderer.invoke('get-displays'),
+
+  // Renderer lifecycle
+  rendererReady: (payload) => ipcRenderer.send('renderer-ready', payload),
 
   // Window management
   openSettings: () => ipcRenderer.invoke('open-settings'),

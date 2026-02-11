@@ -311,6 +311,9 @@ Memory:
       },
       autoUpdate: {
         enabled: true
+      },
+      overlaySettings: {
+        excludeFromScreenshots: true
       }
     }
 
@@ -382,6 +385,10 @@ Memory:
           sessionSettings: {
             ...this.defaultConfig.sessionSettings,
             ...(parsedConfig?.sessionSettings || {})
+          },
+          overlaySettings: {
+            ...this.defaultConfig.overlaySettings,
+            ...(parsedConfig?.overlaySettings || {})
           }
         }
         
@@ -801,6 +808,21 @@ Memory:
       this.config.autoUpdate = this.defaultConfig.autoUpdate
     }
     this.config.autoUpdate.enabled = !!enabled
+    this.saveConfig()
+  }
+
+  getExcludeOverlayFromScreenshots() {
+    if (!this.config.overlaySettings) {
+      this.config.overlaySettings = this.defaultConfig.overlaySettings
+    }
+    return this.config.overlaySettings.excludeFromScreenshots !== false
+  }
+
+  setExcludeOverlayFromScreenshots(exclude) {
+    if (!this.config.overlaySettings) {
+      this.config.overlaySettings = this.defaultConfig.overlaySettings
+    }
+    this.config.overlaySettings.excludeFromScreenshots = !!exclude
     this.saveConfig()
   }
 }

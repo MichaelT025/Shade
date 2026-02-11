@@ -790,6 +790,23 @@ function renderConfig(container, state) {
     </div>
 
     <div class="config-card">
+      <h2>Overlay Visibility</h2>
+      <p>Control whether the overlay appears in screenshots taken by other apps.</p>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Exclude overlay from screenshots</label>
+          <div class="inline-actions">
+            <label class="toggle-switch" aria-label="Exclude overlay from screenshots">
+              <input id="config-exclude-overlay-screenshots" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div id="config-exclude-overlay-screenshots-msg" class="helper-text" style="margin-top: 0;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="config-card">
       <h2>Data Management</h2>
       <p>Access your local data files.</p>
       <div class="form-row">
@@ -1528,6 +1545,8 @@ async function initConfigurationView() {
   const autoUpdateMsg = container.querySelector('#config-auto-update-msg')
   const excludeScreenshotsToggle = container.querySelector('#config-exclude-screenshots')
   const excludeScreenshotsMsg = container.querySelector('#config-exclude-screenshots-msg')
+  const excludeOverlayToggle = container.querySelector('#config-exclude-overlay-screenshots')
+  const excludeOverlayMsg = container.querySelector('#config-exclude-overlay-screenshots-msg')
   const openDataBtn = container.querySelector('#config-open-data')
 
   const setAutoTitleMsg = (enabled) => {
@@ -1565,15 +1584,23 @@ async function initConfigurationView() {
       : 'Off: only manual update checks are performed.'
   }
 
+  const setExcludeOverlayMsg = (exclude) => {
+    if (!excludeOverlayMsg) return
+    excludeOverlayMsg.textContent = exclude
+      ? 'On: overlay is hidden from all screen captures.'
+      : 'Off: overlay is visible in screen captures (hidden only during its own capture).'
+  }
+
   const getSelectedProvider = () => providerSelect?.value || state.activeProvider || state.providers?.[0]?.id || ''
 
   try {
-    const [sessionSettingsResult, startCollapsedResult, screenshotModeResult, autoUpdateResult, excludeResult] = await Promise.all([
+    const [sessionSettingsResult, startCollapsedResult, screenshotModeResult, autoUpdateResult, excludeResult, excludeOverlayResult] = await Promise.all([
       window.electronAPI.getSessionSettings(),
       window.electronAPI.getStartCollapsed(),
       window.electronAPI.getScreenshotMode(),
       window.electronAPI.getAutoUpdateEnabled(),
-      window.electronAPI.getExcludeScreenshotsFromMemory()
+      window.electronAPI.getExcludeScreenshotsFromMemory(),
+      window.electronAPI.getExcludeOverlayFromScreenshots?.() || Promise.resolve({ success: true, exclude: true })
     ])
 
     const autoTitleEnabled = sessionSettingsResult?.success
@@ -1608,6 +1635,12 @@ async function initConfigurationView() {
       const exclude = excludeResult?.success ? excludeResult.exclude !== false : true
       excludeScreenshotsToggle.checked = exclude
       setExcludeScreenshotsMsg(exclude)
+    }
+
+    if (excludeOverlayToggle) {
+      const excludeOverlay = excludeOverlayResult?.success ? excludeOverlayResult.exclude !== false : true
+      excludeOverlayToggle.checked = excludeOverlay
+      setExcludeOverlayMsg(excludeOverlay)
     }
   } catch (error) {
     console.error('Failed to load config toggles:', error)
@@ -1678,6 +1711,16 @@ async function initConfigurationView() {
       await window.electronAPI.setExcludeScreenshotsFromMemory(exclude)
     } catch (error) {
       console.error('Failed to update exclude screenshots setting:', error)
+    }
+  })
+
+  excludeOverlayToggle?.addEventListener('change', async () => {
+    try {
+      const exclude = !!excludeOverlayToggle.checked
+      setExcludeOverlayMsg(exclude)
+      await window.electronAPI.setExcludeOverlayFromScreenshots(exclude)
+    } catch (error) {
+      console.error('Failed to update overlay screenshot exclusion setting:', error)
     }
   })
 
