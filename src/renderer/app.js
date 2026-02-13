@@ -1121,8 +1121,6 @@ async function handleSendMessage() {
       }
     }
 
-    // Clear the predictive cache after using it
-    clearPredictiveScreenshot()
   }
 
   // Don't send if both text and screenshot are empty
@@ -1226,6 +1224,8 @@ async function handleSendMessage() {
     showErrorDedup('Error: ' + error.message)
     resetSendButton()
   } finally {
+    clearPredictiveScreenshot()
+
     // In manual mode, keep screenshots sticky across messages.
     // Users can toggle it off via the screenshot button.
     if (screenshotMode === 'manual') {
