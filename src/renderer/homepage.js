@@ -870,6 +870,30 @@ function sanitizeMode(mode) {
   }
 }
 
+const BUILT_IN_MODE_SUBTITLES = {
+  bolt: 'Fast, low-latency everyday assistance',
+  tutor: 'Guided learning without giving away answers',
+  coder: 'Focused coding help and implementation',
+  thinker: 'Deliberate reasoning for complex decisions'
+}
+
+function getModeSubtitle(mode) {
+  if (mode.overrideProviderModel) {
+    const subtitleParts = []
+    if (mode.provider) subtitleParts.push(mode.provider)
+    if (mode.model) subtitleParts.push(mode.model)
+    return subtitleParts.length ? subtitleParts.join(' • ') : 'Select a provider/model'
+  }
+
+  const builtInDescription = BUILT_IN_MODE_SUBTITLES[(mode.id || '').toLowerCase()]
+  if (builtInDescription) return builtInDescription
+
+  const customDescription = (mode.description || '').trim()
+  if (customDescription) return customDescription
+
+  return 'Custom system prompt mode'
+}
+
 function renderModesList(container, state) {
   const modes = (state.modes || []).slice()
   const activeModeId = state.activeModeId || 'default'
@@ -884,14 +908,7 @@ function renderModesList(container, state) {
       const mode = sanitizeMode(m)
       const isActive = mode.id === activeModeId
       const isSelected = mode.id === selectedModeId
-       const subtitleParts = []
-       if (mode.overrideProviderModel) {
-         if (mode.provider) subtitleParts.push(mode.provider)
-         if (mode.model) subtitleParts.push(mode.model)
-       }
-       const subtitle = subtitleParts.length
-         ? subtitleParts.join(' • ')
-         : (mode.overrideProviderModel ? 'Select a provider/model' : 'Uses Configuration provider/model')
+      const subtitle = getModeSubtitle(mode)
 
 
       return `
