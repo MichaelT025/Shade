@@ -5,8 +5,8 @@
   "main": "src/main/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"electron .\"",
-    "build": "vite build && electron-builder",
-    "build:win": "vite build && electron-builder --win",
+    "build": "node scripts/prepare-win-build.js && vite build && electron-builder",
+    "build:win": "node scripts/prepare-win-build.js && vite build && electron-builder --win",
     "start": "electron .",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -37,6 +37,9 @@
       "package.json",
       "build/icon.ico",
       "build/appicon.png"
+    ],
+    "asarUnpack": [
+      "**/node_modules/screenshot-desktop/lib/win32/**"
     ],
     "npmRebuild": false,
     "asar": true,
