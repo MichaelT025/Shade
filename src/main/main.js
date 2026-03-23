@@ -20,6 +20,7 @@ let configService = null
 let sessionStorage = null
 let windowManager = null
 let updateService = null
+let shouldShowMainWindowAfterReady = false
 
 // Track overlay-specific shortcuts that should only work when overlay is visible
 const overlayShortcuts = new Map()
@@ -54,6 +55,15 @@ function showMainWindow(source = 'unknown') {
 // Hide main window to tray
 function hideMainWindow(source = 'unknown') {
   windowManager?.hideMainWindow(source)
+}
+
+function handleSecondInstanceLaunch() {
+  if (!app.isReady() || !windowManager) {
+    shouldShowMainWindowAfterReady = true
+    return
+  }
+
+  showMainWindow('second-instance')
 }
 
 // Create system tray with context menu
@@ -185,6 +195,16 @@ function registerHotkeys() {
   }
 }
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    handleSecondInstanceLaunch()
+  })
+}
+
 // App lifecycle events
 app.whenReady().then(() => {
   // Initialize config service with user data path
@@ -233,6 +253,10 @@ app.whenReady().then(() => {
   })
 
   windowManager.createMainWindow()
+  if (shouldShowMainWindowAfterReady) {
+    shouldShowMainWindowAfterReady = false
+    showMainWindow('deferred-second-instance')
+  }
   createTray()
   registerHotkeys()
 
