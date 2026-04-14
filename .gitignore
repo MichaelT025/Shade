@@ -10,13 +10,16 @@ config.json
 .claude/
 CLAUDE.md
 GEMINI.md
-plan.md
+.sisyphus/
 resources/image.png
 testing/
 resources/
 local/
 
+
 # Test coverage
 coverage/
 .nyc_output/
 *.lcov
+
+
