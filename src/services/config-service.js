@@ -375,19 +375,20 @@ Memory:
         }
 
         // Merge with defaults (including nested objects)
+        const base = JSON.parse(JSON.stringify(this.defaultConfig))
         let loadedConfig = {
-          ...this.defaultConfig,
+          ...base,
           ...parsedConfig,
           memorySettings: {
-            ...this.defaultConfig.memorySettings,
+            ...base.memorySettings,
             ...(parsedConfig?.memorySettings || {})
           },
           sessionSettings: {
-            ...this.defaultConfig.sessionSettings,
+            ...base.sessionSettings,
             ...(parsedConfig?.sessionSettings || {})
           },
           overlaySettings: {
-            ...this.defaultConfig.overlaySettings,
+            ...base.overlaySettings,
             ...(parsedConfig?.overlaySettings || {})
           }
         }
@@ -456,7 +457,7 @@ Memory:
     } catch (error) {
       console.error('Failed to load config:', error)
     }
-    return { ...this.defaultConfig }
+    return JSON.parse(JSON.stringify(this.defaultConfig))
   }
 
   /**
@@ -558,7 +559,7 @@ Memory:
    * Clear all configuration (reset to defaults)
    */
   clearAll() {
-    this.config = { ...this.defaultConfig }
+    this.config = JSON.parse(JSON.stringify(this.defaultConfig))
     this.saveConfig()
   }
 
@@ -569,7 +570,7 @@ Memory:
   getModes() {
     // Ensure modes array exists and has default modes
      if (!this.config.modes || this.config.modes.length === 0) {
-       this.config.modes = this.defaultConfig.modes
+       this.config.modes = JSON.parse(JSON.stringify(this.defaultConfig.modes))
        this.config.activeMode = this.defaultConfig.activeMode
        this.saveConfig()
      }
@@ -581,7 +582,7 @@ Memory:
      
      if ((hasOldDefaultMode && !hasNewDefaultModes) || (hasNewDefaultModes && !hasThinkerMode)) {
        // Migrate: replace old modes with new default modes (preserving custom modes if possible, but for now we just reset to defaults)
-       this.config.modes = this.defaultConfig.modes
+       this.config.modes = JSON.parse(JSON.stringify(this.defaultConfig.modes))
        this.config.activeMode = this.defaultConfig.activeMode
        this.saveConfig()
      }
@@ -675,7 +676,7 @@ Memory:
    * Get default modes
    */
   getDefaultModes() {
-    return this.defaultConfig.modes
+    return JSON.parse(JSON.stringify(this.defaultConfig.modes))
   }
 
   /**
@@ -716,7 +717,7 @@ Memory:
    */
   getMemorySettings() {
     if (!this.config.memorySettings) {
-      this.config.memorySettings = this.defaultConfig.memorySettings
+      this.config.memorySettings = JSON.parse(JSON.stringify(this.defaultConfig.memorySettings))
       this.saveConfig()
     }
     return this.config.memorySettings
@@ -737,7 +738,7 @@ Memory:
    */
   setHistoryLimit(limit) {
     if (!this.config.memorySettings) {
-      this.config.memorySettings = this.defaultConfig.memorySettings
+      this.config.memorySettings = JSON.parse(JSON.stringify(this.defaultConfig.memorySettings))
     }
     this.config.memorySettings.historyLimit = limit
     this.saveConfig()
@@ -750,7 +751,7 @@ Memory:
 
   setExcludeScreenshotsFromMemory(exclude) {
     if (!this.config.memorySettings) {
-      this.config.memorySettings = this.defaultConfig.memorySettings
+      this.config.memorySettings = JSON.parse(JSON.stringify(this.defaultConfig.memorySettings))
     }
     this.config.memorySettings.excludeScreenshotsFromMemory = !!exclude
     this.saveConfig()
@@ -768,7 +769,7 @@ Memory:
 
   getSessionSettings() {
     if (!this.config.sessionSettings) {
-      this.config.sessionSettings = this.defaultConfig.sessionSettings
+      this.config.sessionSettings = JSON.parse(JSON.stringify(this.defaultConfig.sessionSettings))
       this.saveConfig()
     }
     return this.config.sessionSettings
@@ -776,7 +777,7 @@ Memory:
 
   setAutoTitleSessions(enabled) {
     if (!this.config.sessionSettings) {
-      this.config.sessionSettings = this.defaultConfig.sessionSettings
+      this.config.sessionSettings = JSON.parse(JSON.stringify(this.defaultConfig.sessionSettings))
     }
     this.config.sessionSettings.autoTitleSessions = !!enabled
     this.saveConfig()
@@ -789,7 +790,7 @@ Memory:
 
   setStartCollapsed(startCollapsed) {
     if (!this.config.sessionSettings) {
-      this.config.sessionSettings = this.defaultConfig.sessionSettings
+      this.config.sessionSettings = JSON.parse(JSON.stringify(this.defaultConfig.sessionSettings))
     }
     this.config.sessionSettings.startCollapsed = !!startCollapsed
     this.saveConfig()
@@ -797,7 +798,7 @@ Memory:
 
   getAutoUpdateEnabled() {
     if (!this.config.autoUpdate) {
-      this.config.autoUpdate = this.defaultConfig.autoUpdate
+      this.config.autoUpdate = JSON.parse(JSON.stringify(this.defaultConfig.autoUpdate))
       this.saveConfig()
     }
     return this.config.autoUpdate.enabled !== false
@@ -805,7 +806,7 @@ Memory:
 
   setAutoUpdateEnabled(enabled) {
     if (!this.config.autoUpdate) {
-      this.config.autoUpdate = this.defaultConfig.autoUpdate
+      this.config.autoUpdate = JSON.parse(JSON.stringify(this.defaultConfig.autoUpdate))
     }
     this.config.autoUpdate.enabled = !!enabled
     this.saveConfig()
@@ -813,14 +814,14 @@ Memory:
 
   getExcludeOverlayFromScreenshots() {
     if (!this.config.overlaySettings) {
-      this.config.overlaySettings = this.defaultConfig.overlaySettings
+      this.config.overlaySettings = JSON.parse(JSON.stringify(this.defaultConfig.overlaySettings))
     }
     return this.config.overlaySettings.excludeFromScreenshots !== false
   }
 
   setExcludeOverlayFromScreenshots(exclude) {
     if (!this.config.overlaySettings) {
-      this.config.overlaySettings = this.defaultConfig.overlaySettings
+      this.config.overlaySettings = JSON.parse(JSON.stringify(this.defaultConfig.overlaySettings))
     }
     this.config.overlaySettings.excludeFromScreenshots = !!exclude
     this.saveConfig()

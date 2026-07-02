@@ -103,6 +103,39 @@ describe('ConfigService', () => {
     })
   })
 
+  describe('Default config isolation', () => {
+    test('saveMode does not corrupt defaultConfig.modes (factory default isolation)', () => {
+      const service = new ConfigService(testDir)
+      service.getModes()
+      const factory = service.getDefaultModes().find(m => m.id === 'bolt').prompt
+
+      service.saveMode({ id: 'bolt', name: 'Bolt', prompt: 'HACKED-PROMPT' })
+
+      expect(service.getDefaultModes().find(m => m.id === 'bolt').prompt).toBe(factory)
+      expect(service.getDefaultModes().find(m => m.id === 'bolt').prompt).not.toBe('HACKED-PROMPT')
+    })
+
+    test('setHistoryLimit does not corrupt defaultConfig.memorySettings', () => {
+      const service = new ConfigService(testDir)
+      const f = service.defaultConfig.memorySettings.historyLimit
+
+      service.setHistoryLimit(f + 500)
+
+      expect(service.defaultConfig.memorySettings.historyLimit).toBe(f)
+    })
+
+    test('setAutoUpdateEnabled does not corrupt defaultConfig when config loaded from disk', () => {
+      const partialConfig = { activeProvider: 'gemini', providers: {} }
+      fs.writeFileSync(configPath, JSON.stringify(partialConfig))
+      const service = new ConfigService(testDir)
+      const before = service.defaultConfig.autoUpdate.enabled
+
+      service.setAutoUpdateEnabled(!before)
+
+      expect(service.defaultConfig.autoUpdate.enabled).toBe(before)
+    })
+  })
+
   describe('API Key Management', () => {
     test('should save and retrieve API key for Gemini', () => {
       configService.setApiKey('gemini', 'test-gemini-key-123')
