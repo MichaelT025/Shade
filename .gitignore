@@ -15,6 +15,7 @@ resources/image.png
 testing/
 resources/
 local/
+.omo/
 
 
 # Test coverage
