@@ -304,3 +304,34 @@ Highest ROI first, sized for review-friendly PRs:
 ---
 
 *Feature proposals are intentionally excluded from this document — see the roadmap in the Obsidian vault (`Shade.md`) and the 2026-07-02 feature discussion (screenshot follow-up context, rolling re-summarization, retry/fallback chain, command palette, ask-about-selection, session export, token/cost meter, prompt-injection hardening).*
+
+---
+
+## 10. Fix log
+
+Tracks completed items against the audit findings. Branch: `fixes`.
+
+### 2026-07-02
+
+#### ✅ §3.3 Config defaults are mutated through shared references — FIXED
+- **Commit:** `ab72247 fix(config): deep-clone default config to prevent factory-default mutation`
+- **Files:** `src/services/config-service.js`, `src/services/__tests__/config-service.test.js`
+- **What was done:** Applied `JSON.parse(JSON.stringify(...))` at all 16 mutable-default hand-off sites: the `loadConfig()` merge block (new `const base = ...` covering providers/modes/autoUpdate), the `loadConfig()` error fallback, `clearAll()`, `getModes()` (×2), `getDefaultModes()` return, and all setter seed sites for `memorySettings` (×3), `sessionSettings` (×3), `autoUpdate` (×2, confirmed object not primitive), and `overlaySettings` (×2). Primitive `activeMode` string assignments left untouched. The `loadConfig()` merge fix additionally closes a second shared-ref leak where providers and autoUpdate became shared with `defaultConfig` when an on-disk config omitted those keys.
+- **Tests added (3):** mode integrity (`saveMode` no longer corrupts `getDefaultModes()`), settings isolation (`setHistoryLimit` no longer mutates `defaultConfig.memorySettings`), merge-path isolation (`setAutoUpdateEnabled` on a partial on-disk config no longer mutates `defaultConfig.autoUpdate`). All three were confirmed RED on pre-fix code and GREEN after.
+- **Suite after:** 291 pass / 15 skip (was 288).
+- **Note:** The audit described ~8 sites; full enumeration found 16, including the `loadConfig()` merge path not mentioned in the original finding. The §7.4 refactor (splitting `config-service.js`) becomes simpler now that defaults are reliably cloned.
+
+#### ✅ §2.6 Markdown sanitizer fails open — FIXED
+- **Commit:** `8ef6d80 fix(renderer): fail closed to escaped text when DOMPurify or marked is unavailable`
+- **Files:** `src/renderer/utils/rendering-adapter.js`, `src/renderer/utils/__tests__/rendering-adapter.test.js`
+- **What was done:** Added `import { escapeHtml } from './html-escape.js'` at the top of `rendering-adapter.js`. Changed all three unsafe return paths in `renderMarkdownSafe()` to return `escapeHtml(input)` (the original raw text, not the partially-processed HTML): (1) `if (!markedLib)` branch, (2) `if (!purifier)` branch — this was the primary audit concern, (3) `catch` block. The happy path (both marked and DOMPurify present) is untouched. Intentional trade-off: when the sanitizer is absent, markdown/LaTeX formatting is sacrificed for safety.
+- **Tests added (3):** DOMPurify absent → escaped output, marked absent → escaped output, `marked.parse` throws → escaped output. All three use the existing `await loadAdapter()` harness pattern for proper module isolation and were confirmed RED on pre-fix code and GREEN after. Existing 8 LaTeX tests unchanged.
+- **Suite after:** 294 pass / 15 skip (was 291 after §3.3 fix; cumulative +6 new tests from both fixes).
+- **Note:** The §8.1 ESM vendoring work (replacing `globalThis.*` globals with direct imports) will make these fallback paths unreachable in practice, but the fail-closed behavior stays as defense-in-depth.
+
+---
+
+### Still open (pending live-key session or laptop)
+
+- **§3.2** Dead default model IDs + selection-heal — deferred. User principle: models must always come from the API, never a hardcoded static list. Full fix folds §3.2 + §7.6 into one "models-from-API" plan: retire `gemini-2.0-flash-exp` and `grok-vision-beta` defaults, add a heal step (reconcile stored selection against live-fetched list, toast on change), collapse static `models: {}` lists to a minimal bootstrap seed. Needs live API key for smoke-test.
+- **Everything else in §§2–9** — not yet started.
