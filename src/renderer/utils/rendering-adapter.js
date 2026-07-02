@@ -1,3 +1,5 @@
+import { escapeHtml } from './html-escape.js'
+
 let markedConfigured = false
 
 function getMarked() {
@@ -168,7 +170,7 @@ export function renderMarkdownSafe(text) {
   const markedLib = getMarked()
   const input = typeof text === 'string' ? text : ''
   if (!markedLib) {
-    return input
+    return escapeHtml(input)
   }
 
   try {
@@ -179,7 +181,7 @@ export function renderMarkdownSafe(text) {
 
     const purifier = getDOMPurify()
     if (!purifier) {
-      return html
+      return escapeHtml(input)
     }
 
     return purifier.sanitize(html, {
@@ -187,6 +189,6 @@ export function renderMarkdownSafe(text) {
       ADD_ATTR: ['mathvariant', 'encoding', 'xmlns', 'display', 'accent', 'accentunder', 'columnalign', 'rowalign', 'columnspacing', 'rowspacing', 'aria-hidden']
     })
   } catch {
-    return input
+    return escapeHtml(input)
   }
 }

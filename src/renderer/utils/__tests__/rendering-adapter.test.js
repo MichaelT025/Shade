@@ -102,4 +102,28 @@ describe('rendering-adapter LaTeX compatibility', () => {
       expect.objectContaining({ displayMode: false })
     )
   })
+
+  test('returns escaped text when DOMPurify is unavailable', async () => {
+    const { renderMarkdownSafe } = await loadAdapter()
+    delete globalThis.DOMPurify
+    const result = renderMarkdownSafe('<img src=x onerror=alert(1)>')
+    expect(result).not.toContain('<img')
+    expect(result).toContain('&lt;img')
+  })
+
+  test('returns escaped text when marked is unavailable', async () => {
+    const { renderMarkdownSafe } = await loadAdapter()
+    delete globalThis.marked
+    const result = renderMarkdownSafe('<script>alert(1)</script>')
+    expect(result).not.toContain('<script>')
+    expect(result).toContain('&lt;script&gt;')
+  })
+
+  test('returns escaped text when marked.parse throws', async () => {
+    const { renderMarkdownSafe } = await loadAdapter()
+    globalThis.marked = { setOptions: vi.fn(), parse: vi.fn(() => { throw new Error('boom') }) }
+    const result = renderMarkdownSafe('<script>alert(1)</script>')
+    expect(result).not.toContain('<script>')
+    expect(result).toContain('&lt;script&gt;')
+  })
 })
