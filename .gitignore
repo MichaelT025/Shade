@@ -16,7 +16,7 @@ testing/
 resources/
 local/
 .omo/
-
+.learn/
 
 # Test coverage
 coverage/
