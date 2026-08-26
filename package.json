@@ -38,6 +38,9 @@
       "build/icon.ico",
       "build/appicon.png"
     ],
+    "asarUnpack": [
+      "**/node_modules/screenshot-desktop/lib/win32/**"
+    ],
     "npmRebuild": false,
     "asar": true,
     "win": {
