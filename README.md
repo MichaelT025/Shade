@@ -10,6 +10,10 @@ A Windows desktop application providing real-time AI assistance through a transl
 
 > Note: Windows is the primary supported platform today. Shade has some macOS compatibility work (icons + shortcut conflicts), but packaged macOS releases are not yet an official target.
 
+Experimental Linux/Omarchy support is in development. See the [Linux build and
+validation guide](docs/LINUX.md). Native Hyprland testing is still required; Linux
+cannot exclude the overlay from screen capture or screen sharing.
+
 ## Why Shade?
 
 - **Privacy-First** - All data stays on your machine. No telemetry, no cloud sync, no tracking.
@@ -22,7 +26,7 @@ A Windows desktop application providing real-time AI assistance through a transl
 
 - **Always-on-top translucent overlay** - Floats above all windows, always accessible
 - **Collapsible interface** - Minimal input bar by default, expands when you need it
-- **Screen capture** - Overlay automatically excluded from screenshots
+- **Screen capture** - Overlay automatically excluded from screenshots on Windows
 - **Automatic screenshot mode** - Predictive capture for zero-latency AI assistance
 - **Polished UI/UX** - Fluid animations and intelligent screenshot preview positioning
 - **Multi-provider support** - Gemini, OpenAI, Anthropic, plus OpenAI-compatible endpoints (Ollama / LM Studio)

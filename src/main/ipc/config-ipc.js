@@ -359,7 +359,9 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
   ipcMain.handle('get-auto-update-enabled', async () => {
     try {
       const enabled = configService.getAutoUpdateEnabled()
-      return { success: true, enabled }
+      const capabilities = getPlatformCapabilities()
+      return { success: true, enabled: capabilities.automaticUpdates && enabled,
+        supported: capabilities.automaticUpdates, message: capabilities.updateMessage }
     } catch (error) {
       console.error('Failed to get auto update setting:', error)
       return { success: false, error: error.message }

@@ -1,11 +1,14 @@
 const { app } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const log = require('electron-log')
+const { getPlatformCapabilities } = require('../../services/platform/platform-service')
 
 const AUTO_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
 const AUTO_UPDATE_STARTUP_DELAY_MS = 15000
 
 function createUpdateService({ configService, sendToWindows }) {
+  const capabilities = getPlatformCapabilities()
+  const unsupportedMessage = capabilities.updateMessage || 'Auto-updates are only available in packaged builds.'
   let initialized = false
   let autoCheckTimer = null
 
@@ -34,7 +37,7 @@ function createUpdateService({ configService, sendToWindows }) {
   }
 
   function isUpdateSupported() {
-    return app.isPackaged
+    return app.isPackaged && capabilities.automaticUpdates
   }
 
   function scheduleAutomaticChecks() {
@@ -128,7 +131,8 @@ function createUpdateService({ configService, sendToWindows }) {
     if (!isUpdateSupported()) {
       state = {
         ...state,
-        status: 'unsupported'
+        status: 'unsupported',
+        error: unsupportedMessage
       }
       return
     }
@@ -143,7 +147,7 @@ function createUpdateService({ configService, sendToWindows }) {
         success: false,
         updateAvailable: false,
         status: 'unsupported',
-        error: 'Auto-updates are only available in packaged builds.'
+        error: unsupportedMessage
       }
     }
 
@@ -177,7 +181,7 @@ function createUpdateService({ configService, sendToWindows }) {
 
   async function downloadUpdate() {
     if (!isUpdateSupported()) {
-      return { success: false, error: 'Auto-updates are only available in packaged builds.' }
+      return { success: false, error: unsupportedMessage }
     }
 
     try {
@@ -191,7 +195,7 @@ function createUpdateService({ configService, sendToWindows }) {
 
   function quitAndInstall() {
     if (!isUpdateSupported()) {
-      return { success: false, error: 'Auto-updates are only available in packaged builds.' }
+      return { success: false, error: unsupportedMessage }
     }
 
     autoUpdater.quitAndInstall(false, true)
@@ -199,6 +203,7 @@ function createUpdateService({ configService, sendToWindows }) {
   }
 
   function setAutoUpdateEnabled(enabled) {
+    if (!capabilities.automaticUpdates) throw new Error(unsupportedMessage)
     configService.setAutoUpdateEnabled(enabled)
     autoUpdater.autoDownload = configService.getAutoUpdateEnabled()
     scheduleAutomaticChecks()
@@ -208,7 +213,7 @@ function createUpdateService({ configService, sendToWindows }) {
   function getStatus() {
     return {
       ...state,
-      autoUpdateEnabled: configService.getAutoUpdateEnabled()
+      autoUpdateEnabled: isUpdateSupported() && configService.getAutoUpdateEnabled()
     }
   }
 

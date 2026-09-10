@@ -41,7 +41,8 @@ StartupWMClass=com.shade.app
 
 Use `build/appicon.png` for the icon. Automatic desktop installation and opt-in
 XDG autostart UI are still pending. No autostart entry is created by Shade.
-The existing release workflow publishes Windows only; Linux update delivery and
+The existing release workflow publishes Windows only; automatic updates are
+disabled in experimental Linux builds with an explanation in Settings. Linux update delivery and
 AppImage replacement need validation before enabling a Linux release channel.
 
 ## Runtime expectations

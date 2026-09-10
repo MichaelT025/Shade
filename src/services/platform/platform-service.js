@@ -10,6 +10,10 @@ function getPlatformCapabilities(platform = process.platform, env = process.env)
     windowsShowWorkaround: platform === 'win32',
     compositorControlsPlacement: isWayland,
     shortcutBackend: isWayland ? 'desktop-portal' : 'native',
+    // Linux artifacts are experimental until the native exit gate and release
+    // feed/replacement checks pass. Do not poll the Windows-only release feed.
+    automaticUpdates: !isLinux,
+    updateMessage: isLinux ? 'Linux updates are not available yet. Install a newer experimental build manually.' : '',
     contentProtectionMessage: isLinux
       ? 'Unavailable on Linux: the Shade overlay may appear in screenshots and screen sharing.'
       : ''

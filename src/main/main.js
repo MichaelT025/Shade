@@ -185,10 +185,8 @@ function unregisterOverlayShortcuts() {
 
 // Register global hotkeys (always active)
 function registerHotkeys() {
-  const registrationFailures = []
-
   // Ctrl+/ to toggle window visibility (hide to tray / show) - always registered
-  const toggleSuccess = globalShortcut.register('CommandOrControl+/', () => {
+  registerShortcut('CommandOrControl+/', () => {
     const mainWindow = windowManager?.getMainWindow()
     if (mainWindow) {
       if (!mainWindow.isVisible() || mainWindow.isMinimized()) {
@@ -198,25 +196,10 @@ function registerHotkeys() {
       }
     }
   })
-  if (!toggleSuccess) {
-    registrationFailures.push(`Toggle overlay visibility (CommandOrControl+/)`)
-  }
 
   // Overlay-specific shortcuts will be registered when overlay becomes visible
   // via showMainWindow -> registerOverlayShortcuts
 
-  if (registrationFailures.length > 0) {
-    console.warn('Global shortcut registration failed for:', registrationFailures)
-    const message = `Some keyboard shortcuts could not be registered:\n\n${registrationFailures.join('\n')}\n\nThese may be reserved by the OS or another app.`
-    dialog.showMessageBox({
-      type: 'warning',
-      title: 'Shortcut Registration Warning',
-      message,
-      buttons: ['OK']
-    }).catch(() => {
-      // best-effort user warning
-    })
-  }
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
