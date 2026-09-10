@@ -275,7 +275,17 @@ Run on the actual Omarchy installation, not only WSL and not only CI:
 
 # Phase 3 — Normalize provider capabilities
 
-Do this after the Linux exit gate passes.
+Originally sequenced after the Linux exit gate. Michael explicitly authorized
+starting provider work after submitting the Linux draft PR, so this work proceeds
+on `codex/provider-capabilities`, based on the Linux branch, while native Linux
+validation remains open. Provider work is not included in Linux PR #2.
+
+Initial foundation implemented: provider `getModels()` methods share the registry,
+the factory uses registry defaults and preserves provider identity, capability
+metadata distinguishes confirmed support from unknown, and refreshes preserve
+metadata while rejecting empty catalogs. New provider adapters, validated model
+capabilities, request enforcement, and capability-aware UI remain to implement.
+Current API research is recorded in [docs/PROVIDER_RESEARCH.md](docs/PROVIDER_RESEARCH.md).
 
 ## Task 3.1: Extend provider metadata
 

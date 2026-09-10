@@ -65,7 +65,7 @@ class ModelRefreshService {
       // Update provider registry with new models
       ProviderRegistry.updateProviderModels(providerId, models)
 
-      return { success: true, models }
+      return { success: true, models: ProviderRegistry.getProvider(providerId).models }
     } catch (error) {
       console.error(`Error refreshing models for ${providerId}:`, error)
       return { success: false, error: error.message }
@@ -161,40 +161,12 @@ class ModelRefreshService {
   }
 
   /**
-   * Fetch Claude models (manually maintained - no public API)
-   * Returns current list from community knowledge
+   * Return the shared bundled Claude catalog as the offline fallback.
+   * An authenticated model-list adapter can replace this in a later phase.
    * @returns {Promise<Object>} Models object
    */
   async fetchAnthropicModels() {
-    // Anthropic doesn't provide a public model list API
-    // Return manually curated list of vision-capable models (all Claude models support vision)
-    return {
-      // Claude 4.5 (Latest - 2025)
-      'claude-haiku-4-5': { name: 'Claude Haiku 4.5' },
-      'claude-haiku-4-5-20251001': { name: 'Claude Haiku 4.5 (Oct 2025)' },
-      'claude-sonnet-4-5': { name: 'Claude Sonnet 4.5' },
-      'claude-sonnet-4-5-20250929': { name: 'Claude Sonnet 4.5 (Sep 2025)' },
-      'claude-opus-4-5': { name: 'Claude Opus 4.5' },
-      'claude-opus-4-5-20251101': { name: 'Claude Opus 4.5 (Nov 2025)' },
-
-      // Claude 4.x (2025)
-      'claude-sonnet-4': { name: 'Claude Sonnet 4' },
-      'claude-sonnet-4-20250514': { name: 'Claude Sonnet 4 (May 2025)' },
-      'claude-opus-4': { name: 'Claude Opus 4' },
-      'claude-opus-4-20250514': { name: 'Claude Opus 4 (May 2025)' },
-      'claude-opus-4-1-20250805': { name: 'Claude Opus 4.1 (Aug 2025)' },
-
-      // Claude 3.7 (2025)
-      'claude-3-7-sonnet-20250219': { name: 'Claude 3.7 Sonnet' },
-
-      // Claude 3.5 (2024)
-      'claude-3-5-sonnet-20241022': { name: 'Claude 3.5 Sonnet (Oct 2024)' },
-      'claude-3-5-haiku-20241022': { name: 'Claude 3.5 Haiku (Oct 2024)' },
-
-      // Claude 3 (2024)
-      'claude-3-opus-20240229': { name: 'Claude 3 Opus' },
-      'claude-3-haiku-20240307': { name: 'Claude 3 Haiku' }
-    }
+    return ProviderRegistry.getDefaultModels('anthropic')
   }
 
   /**

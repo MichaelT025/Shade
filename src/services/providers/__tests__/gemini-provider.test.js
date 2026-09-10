@@ -130,12 +130,10 @@ describe('GeminiProvider', () => {
       })
     })
 
-    test('should include Gemini 2.0 Flash and 2.5 Flash models', () => {
+    test('uses the registry model catalog rather than a separate SDK list', async () => {
+      const registry = await import('../../provider-registry.js')
       const models = provider.getModels()
-      const modelIds = models.map(m => m.id)
-
-      expect(modelIds).toContain('gemini-2.0-flash')
-      expect(modelIds).toContain('gemini-2.5-flash')
+      expect(models).toEqual(registry.getModels('gemini'))
     })
   })
 

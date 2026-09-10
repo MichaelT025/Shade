@@ -7,6 +7,7 @@ const fs = require('fs')
 const path = require('path')
 const { safeParseJson } = require('./utils/json-safe')
 const { writeFileAtomicSync } = require('./utils/atomic-write')
+const { getModelCapabilities: resolveCapabilities, mergeModelMetadata } = require('./model-capabilities')
 
 // Default providers JSON (embedded fallback)
 const defaultProviders = {
@@ -145,8 +146,9 @@ let providersPath = null
  */
 function initProvidersPath(userDataPath) {
   if (!userDataPath) {
+    providersPath = null
     // Fallback to default providers if no user data path
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
     return
   }
 
@@ -195,7 +197,7 @@ function loadProviders() {
       for (const [providerId, providerData] of Object.entries(defaultProviders)) {
         if (!providers[providerId]) {
           // Add completely new provider
-          providers[providerId] = { ...providerData }
+          providers[providerId] = JSON.parse(JSON.stringify(providerData))
           needsSave = true
         } else {
           // Update models for existing provider if default has more models
@@ -205,7 +207,7 @@ function loadProviders() {
           // Add any missing models from defaults
           for (const [modelId, modelData] of Object.entries(defaultModels)) {
             if (!existingModels[modelId]) {
-              existingModels[modelId] = { ...modelData }
+              existingModels[modelId] = JSON.parse(JSON.stringify(modelData))
               needsSave = true
             }
           }
@@ -226,14 +228,14 @@ function loadProviders() {
       }
     } else {
       // Create default providers file
-      providers = { ...defaultProviders }
+      providers = JSON.parse(JSON.stringify(defaultProviders))
       if (providersPath) {
         saveProviders()
       }
     }
   } catch (error) {
     console.error('Failed to load providers, using defaults:', error)
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
   }
 }
 
@@ -256,7 +258,7 @@ function saveProviders() {
  */
 function getProviderIds() {
   if (!providers) {
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
   }
   return Object.keys(providers)
 }
@@ -267,7 +269,7 @@ function getProviderIds() {
  */
 function getAllProviders() {
   if (!providers) {
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
   }
   return { ...providers }
 }
@@ -279,7 +281,7 @@ function getAllProviders() {
  */
 function getProvider(id) {
   if (!providers) {
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
   }
   return providers[id] || null
 }
@@ -291,7 +293,7 @@ function getProvider(id) {
  */
 function hasProvider(id) {
   if (!providers) {
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
   }
   if (!id) return false
   return Object.keys(providers).some(providerId =>
@@ -304,15 +306,26 @@ function hasProvider(id) {
  * @param {string} id - Provider ID
  * @returns {Array} Array of model objects with id and metadata
  */
-function getModels(id) {
+function getModels(id, { visionOnly = false } = {}) {
   const provider = getProvider(id)
   if (!provider || !provider.models) return []
 
   // Convert models object to array format
   return Object.entries(provider.models).map(([modelId, modelMeta]) => ({
+    ...modelMeta,
     id: modelId,
-    ...modelMeta
-  }))
+    name: modelMeta.name || modelId,
+    capabilities: resolveCapabilities(provider, modelMeta)
+  })).filter(model => !visionOnly || model.capabilities.vision === true)
+}
+
+function getModelCapabilities(providerId, modelId) {
+  const provider = getProvider(providerId)
+  return resolveCapabilities(provider || {}, provider?.models?.[modelId] || {})
+}
+
+function getDefaultModels(providerId) {
+  return JSON.parse(JSON.stringify(defaultProviders[providerId]?.models || {}))
 }
 
 /**
@@ -321,7 +334,7 @@ function getModels(id) {
  */
 function generateDefaultProvidersConfig() {
   if (!providers) {
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
   }
 
   const config = {}
@@ -347,7 +360,7 @@ function generateDefaultProvidersConfig() {
  */
 function updateProviderModels(providerId, models) {
   if (!providers) {
-    providers = { ...defaultProviders }
+    providers = JSON.parse(JSON.stringify(defaultProviders))
   }
 
   if (!providers[providerId]) {
@@ -356,7 +369,13 @@ function updateProviderModels(providerId, models) {
   }
 
   // Update models and lastFetched timestamp
-  providers[providerId].models = models
+  if (!models || typeof models !== 'object' || Array.isArray(models) || !Object.keys(models).length) {
+    throw new Error(`No models returned for ${providerId}; keeping the existing model cache`)
+  }
+  const existing = providers[providerId].models || {}
+  providers[providerId].models = Object.fromEntries(Object.entries(models).map(([id, model]) => [
+    id, mergeModelMetadata(existing[id] || defaultProviders[providerId]?.models?.[id], model)
+  ]))
   providers[providerId].lastFetched = new Date().toISOString()
 
   // Save to file
@@ -372,6 +391,8 @@ module.exports = {
   getProvider,
   hasProvider,
   getModels,
+  getModelCapabilities,
+  getDefaultModels,
   generateDefaultProvidersConfig,
   updateProviderModels
 }

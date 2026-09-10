@@ -145,22 +145,7 @@ class GeminiProvider extends LLMProvider {
    * Get list of available Gemini models
    * @returns {Array<{id: string, name: string}>} - List of model objects
    */
-  getModels() {
-    return [
-      // Gemini 3 Series (Latest - Nov 2025)
-      { id: 'gemini-3.0-pro', name: 'Gemini 3.0 Pro (Most Intelligent)' },
-      { id: 'gemini-3.0-deep-think', name: 'Gemini 3.0 Deep Think' },
-
-      // Gemini 2.5 Series (Production - Dec 2025)
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Complex Reasoning)' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recommended)' },
-      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite (High Throughput)' },
-      { id: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image (Image Generation)' },
-
-      // Gemini 2.0 Series
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' }
-    ]
-  }
+  getModels() { return super.getModels() }
 
   /**
    * Get the provider name
