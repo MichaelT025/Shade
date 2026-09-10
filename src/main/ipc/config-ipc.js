@@ -1,5 +1,6 @@
 const { ipcMain, screen } = require('electron')
 const LLMFactory = require('../../services/llm-factory')
+const { getPlatformCapabilities } = require('../../services/platform/platform-service')
 
 function registerConfigIpcHandlers({ configService, updateService, sendToWindows, broadcastConfigChanged, getMainWindow }) {
   ipcMain.handle('save-api-key', async (_event, { provider, apiKey }) => {
@@ -358,7 +359,9 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
   ipcMain.handle('get-auto-update-enabled', async () => {
     try {
       const enabled = configService.getAutoUpdateEnabled()
-      return { success: true, enabled }
+      const capabilities = getPlatformCapabilities()
+      return { success: true, enabled: capabilities.automaticUpdates && enabled,
+        supported: capabilities.automaticUpdates, message: capabilities.updateMessage }
     } catch (error) {
       console.error('Failed to get auto update setting:', error)
       return { success: false, error: error.message }
@@ -383,7 +386,9 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
   ipcMain.handle('get-exclude-overlay-from-screenshots', async () => {
     try {
       const exclude = configService.getExcludeOverlayFromScreenshots()
-      return { success: true, exclude }
+      const capabilities = getPlatformCapabilities()
+      return { success: true, exclude: capabilities.contentProtection && exclude,
+        supported: capabilities.contentProtection, message: capabilities.contentProtectionMessage }
     } catch (error) {
       console.error('Failed to get overlay screenshot exclusion setting:', error)
       return { success: false, error: error.message }
@@ -392,6 +397,10 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
 
   ipcMain.handle('set-exclude-overlay-from-screenshots', async (_event, exclude) => {
     try {
+      const capabilities = getPlatformCapabilities()
+      if (!capabilities.contentProtection) {
+        return { success: false, error: capabilities.contentProtectionMessage }
+      }
       configService.setExcludeOverlayFromScreenshots(exclude)
 
       // Apply immediately so users don't need an app restart.

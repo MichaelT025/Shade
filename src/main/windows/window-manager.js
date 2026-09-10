@@ -1,5 +1,6 @@
 const { BrowserWindow, screen, shell, ipcMain } = require('electron')
 const path = require('path')
+const { getPlatformCapabilities } = require('../../services/platform/platform-service')
 
 function isAllowedInternalUrl(url) {
   return url.startsWith('file://') || url.startsWith('http://localhost')
@@ -35,7 +36,7 @@ function attachNavigationGuards(win) {
   })
 }
 
-function createWindowManager({ rendererPath, getIconPath, configService, onOverlayShow, onOverlayHide }) {
+function createWindowManager({ rendererPath, getIconPath, configService, onOverlayShow, onOverlayHide, capabilities = getPlatformCapabilities() }) {
   let mainWindow = null
   let settingsWindow = null
   let modelSwitcherWindow = null
@@ -86,6 +87,7 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
   }
 
   function applyPreferredBoundsBeforeShow(source) {
+    if (capabilities.compositorControlsPlacement) return
     if (!mainWindow || mainWindow.isDestroyed()) return
 
     const preferredBounds = overlayIsCollapsed ? overlayCollapsedBounds : overlayExpandedBounds
@@ -115,16 +117,21 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
     
     // Workaround for transparent window flicker on Windows:
     // Briefly set opacity to 0 before showing, then fade in
-    mainWindow.setOpacity(0)
-    mainWindow.showInactive()
-    mainWindow.focus()
+    if (capabilities.windowsShowWorkaround) {
+      mainWindow.setOpacity(0)
+      mainWindow.showInactive()
+      mainWindow.focus()
     
-    // Small delay to let the compositor settle, then fade in
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.setOpacity(1)
-      }
-    }, 16)
+      // Small delay to let the compositor settle, then fade in
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setOpacity(1)
+        }
+      }, 16)
+    } else {
+      mainWindow.show()
+      mainWindow.focus()
+    }
 
     mainWindow.webContents.send('window-shown')
     logMainWindowVisibility('show-request', source)
@@ -169,6 +176,7 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
       x,
       y,
       show: false,
+      title: 'Shade Overlay',
       transparent: true,
       frame: false,
       alwaysOnTop: true,
@@ -188,6 +196,7 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
     })
 
     attachNavigationGuards(mainWindow)
+    mainWindow.on('page-title-updated', (event) => event.preventDefault())
 
     overlayExpandedBounds = mainWindow.getBounds()
 
@@ -196,7 +205,7 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
     const excludeFromScreenshots = configService
       ? configService.getExcludeOverlayFromScreenshots()
       : false
-    mainWindow.setContentProtection(!!excludeFromScreenshots)
+    if (capabilities.contentProtection) mainWindow.setContentProtection(!!excludeFromScreenshots)
 
     mainWindow.loadFile(path.join(rendererPath, 'index.html'))
 

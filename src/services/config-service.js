@@ -5,6 +5,31 @@ const ProviderRegistry = require('./provider-registry')
 const { safeParseJson } = require('./utils/json-safe')
 const { writeFileAtomicSync } = require('./utils/atomic-write')
 
+const ENCRYPTED_KEY_PREFIX = 'enc:v1:'
+const LINUX_SECURE_STORAGE_BACKENDS = new Set([
+  'gnome_libsecret',
+  'gnome-libsecret',
+  'kwallet',
+  'kwallet5',
+  'kwallet6'
+])
+
+function isLinux() {
+  return process.platform === 'linux'
+}
+
+function secureStorageError(action = 'store') {
+  return new Error(
+    `Secure storage is unavailable, so Shade cannot ${action} this API key safely. ` +
+    'Unlock or install a Secret Service-compatible keyring (such as GNOME Keyring or KWallet), then try again.'
+  )
+}
+
+function isBase64(value) {
+  if (!value || !/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 !== 0) return false
+  return Buffer.from(value, 'base64').toString('base64') === value
+}
+
 // Default system prompt for screenshot analysis
 const DEFAULT_SYSTEM_PROMPT = String.raw`
 You're Shade, a real time assistant that gives short precise answers. 
@@ -134,11 +159,12 @@ function migrateConfig(oldConfig) {
  * Stores API keys and provider configurations using simple JSON file
  */
 class ConfigService {
-  constructor(userDataPath) {
+  constructor(userDataPath, { secureStorage = safeStorage } = {}) {
     // Use provided user data path (must be passed from main process after app is ready)
     if (!userDataPath) {
       throw new Error('userDataPath is required for ConfigService')
     }
+    this.secureStorage = secureStorage
     
     // Ensure data directory exists
     const dataDir = path.join(userDataPath, 'data')
@@ -322,42 +348,87 @@ Memory:
   }
 
   /**
-   * Encrypt a string using electron.safeStorage if available
-   * @param {string} text 
-   * @returns {string} Base64 encoded encrypted string or original text
+   * Whether Electron has a secure backend that is safe to use for new keys.
+   * Electron's Linux "basic_text" backend only uses a hard-coded password and
+   * must never be used for credentials.
+   */
+  isSecureStorageAvailable() {
+    const secureStorage = this.secureStorage
+    if (!secureStorage) return false
+
+    try {
+      if (!secureStorage.isEncryptionAvailable()) return false
+      if (isLinux()) {
+        if (typeof secureStorage.getSelectedStorageBackend !== 'function') return false
+        return LINUX_SECURE_STORAGE_BACKENDS.has(secureStorage.getSelectedStorageBackend())
+      }
+      return true
+    } catch (error) {
+      console.warn('Secure storage is unavailable:', error.message)
+      return false
+    }
+  }
+
+  /**
+   * Encrypt a string using electron.safeStorage.
+   * @param {string} text
+   * @returns {string} An explicitly marked, Base64-encoded encrypted string
    */
   encryptKey(text) {
     if (!text) return ''
-    if (safeStorage && safeStorage.isEncryptionAvailable()) {
+    if (this.isSecureStorageAvailable()) {
       try {
-        return safeStorage.encryptString(text).toString('base64')
+        return `${ENCRYPTED_KEY_PREFIX}${this.secureStorage.encryptString(text).toString('base64')}`
       } catch (error) {
         console.error('Encryption failed:', error)
-        return text
+        if (isLinux()) throw secureStorageError('store')
       }
     }
+
+    if (isLinux()) throw secureStorageError('store')
+
+    // Preserve the existing Windows/macOS behavior when safeStorage is
+    // temporarily unavailable. Linux has no plaintext fallback.
     return text
   }
 
   /**
    * Decrypt a string using electron.safeStorage if available
-   * @param {string} encryptedText 
-   * @returns {string} Decrypted string or original text
+   * @param {string} encryptedText
+   * @returns {string} Decrypted string or a legacy plaintext value
    */
   decryptKey(encryptedText) {
     if (!encryptedText) return ''
-    if (safeStorage && safeStorage.isEncryptionAvailable()) {
+
+    if (encryptedText.startsWith(ENCRYPTED_KEY_PREFIX)) {
+      if (!this.isSecureStorageAvailable()) {
+        throw secureStorageError('read')
+      }
+
       try {
-        // Check if string is base64
-        if (/^[a-zA-Z0-9+/]*={0,2}$/.test(encryptedText)) {
-            const buffer = Buffer.from(encryptedText, 'base64')
-            return safeStorage.decryptString(buffer)
-        }
+        const buffer = Buffer.from(encryptedText.slice(ENCRYPTED_KEY_PREFIX.length), 'base64')
+        return this.secureStorage.decryptString(buffer)
       } catch (error) {
-        // If decryption fails, it might be a plain text key (from migration or manual edit)
-        return encryptedText
+        throw new Error('This API key cannot be decrypted on this machine. Re-enter the key after unlocking your system keyring.')
       }
     }
+
+    // Unmarked values predate the explicit encrypted-value marker. Preserve
+    // Windows/macOS behavior for those values, while refusing to mistake an
+    // unreadable Linux ciphertext for an API key.
+    if (isBase64(encryptedText) && this.isSecureStorageAvailable()) {
+      try {
+        return this.secureStorage.decryptString(Buffer.from(encryptedText, 'base64'))
+      } catch (error) {
+        if (isLinux()) {
+          throw new Error('This legacy API key cannot be decrypted on this machine. Re-enter the key after unlocking your system keyring.')
+        }
+      }
+    }
+    if (isLinux() && !this.isSecureStorageAvailable()) {
+      throw secureStorageError('read')
+    }
+
     return encryptedText
   }
 
@@ -393,61 +464,37 @@ Memory:
           }
         }
         
-        // Check if config needs migration from old format
-        if (needsMigration(loadedConfig)) {
+        // Check if config needs migration from old format. On Linux, defer
+        // persisting that migration until stored keys have a secure backend.
+        const configWasMigrated = needsMigration(loadedConfig)
+        if (configWasMigrated) {
           loadedConfig = migrateConfig(loadedConfig)
-          // Save the migrated config (will trigger encryption if implemented in save)
-          this.config = loadedConfig
-          this.saveConfig()
         }
 
-        // Auto-encrypt keys that are in plain text
+        // Migrate legacy values to explicit encrypted markers only while a
+        // secure backend is available. This avoids turning ciphertext into a
+        // bad key, or overwriting existing values while a Linux keyring is
+        // locked or unavailable.
         let needsSave = false
-        if (loadedConfig.providers) {
+        if (loadedConfig.providers && this.isSecureStorageAvailable()) {
           for (const providerId in loadedConfig.providers) {
             const provider = loadedConfig.providers[providerId]
-            if (provider.apiKey && safeStorage && safeStorage.isEncryptionAvailable()) {
-              // Try to decrypt; if it returns same string but wasn't empty, it might be plain text
-              // But a simpler heuristic: if it doesn't look like base64 or safeStorage throws on decrypt, 
-              // we can assume it's plain text.
-              // However, "sk-..." is valid base64 chars (mostly).
-              // Let's use a flag or try-decrypt approach. 
-              // Our decryptKey function returns the input if it fails.
-              // But we can't easily distinguish "failed because plain text" vs "failed because corrupt".
-              
-              // Strategy: Attempt to decrypt. If it throws or we want to be sure, we can just re-encrypt plain text keys.
-              // But how do we know if it IS plain text?
-              // Standard API keys (sk-...) usually contain characters that are valid in base64.
-              // We'll rely on the fact that we encrypt on set.
-              // Migration: If we just migrated, the keys are plain text.
-              // We can check if the key starts with 'sk-' (OpenAI) or 'AIza' (Gemini) etc.
-              // Or we can just try to encrypt everything that isn't already encrypted?
-              // No, duplicate encryption is bad.
-              
-              // Let's rely on `needsMigration` logic which we already ran.
-              // If we want to ensure encryption for existing keys in a new file location:
-              
-              // We'll leave it for now. The `setApiKey` will handle new keys.
-              // Ideally, we should iterate and encrypt all plain text keys once.
-              // Since keys like 'sk-...' usually fail decryption (invalid ciphertext), we can detect that.
-              
+            if (provider.apiKey && !provider.apiKey.startsWith(ENCRYPTED_KEY_PREFIX)) {
               try {
-                  const buffer = Buffer.from(provider.apiKey, 'base64')
-                  safeStorage.decryptString(buffer)
-                  // If this succeeds, it's likely already encrypted.
+                const buffer = Buffer.from(provider.apiKey, 'base64')
+                this.secureStorage.decryptString(buffer)
+                provider.apiKey = `${ENCRYPTED_KEY_PREFIX}${provider.apiKey}`
+                needsSave = true
               } catch (e) {
-                  // Decryption failed, assume plain text and encrypt it.
-                  // Only encrypt if it looks like a real key (length > 0)
-                  if (provider.apiKey.length > 0) {
-                      provider.apiKey = this.encryptKey(provider.apiKey)
-                      needsSave = true
-                  }
+                // It may be legacy plaintext, or ciphertext tied to another
+                // machine/user. Keep the original value either way; guessing
+                // here would double-encrypt ciphertext and lose the key.
               }
             }
           }
         }
         
-        if (needsSave) {
+        if (needsSave || (configWasMigrated && (!isLinux() || this.isSecureStorageAvailable()))) {
           this.config = loadedConfig
           this.saveConfig()
         }
@@ -538,10 +585,12 @@ Memory:
       if (!this.config.providers[providerName]) {
         this.config.providers[providerName] = {}
       }
-      // Merge config instead of replacing to preserve existing fields like apiKey
+      // API keys have a dedicated write path so configuration updates cannot
+      // inject plaintext or replace an encrypted value.
+      const { apiKey: _ignoredApiKey, ...providerConfig } = config || {}
       this.config.providers[providerName] = {
         ...this.config.providers[providerName],
-        ...config
+        ...providerConfig
       }
       this.saveConfig()
     }

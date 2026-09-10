@@ -1,24 +1,42 @@
 const sharp = require('sharp')
-const screenshot = require('screenshot-desktop')
 const fs = require('fs')
 const path = require('path')
+const { getPlatformCapabilities } = require('./platform/platform-service')
+
+function isWaylandSession() {
+  return getPlatformCapabilities().isWayland
+}
+
+function initializeScreenCapture() {
+  if (isWaylandSession()) {
+    require('./capture/wayland-capture').initializeWaylandCapture()
+  }
+}
+
+function disposeScreenCapture() {
+  if (isWaylandSession()) require('./capture/wayland-capture').disposeWaylandCapture()
+}
 
 /**
- * Captures a screenshot of the primary display.
- * Windows with setContentProtection(true) are automatically excluded from capture
- * Multi-display selection is intentionally disabled for v1.
+ * Captures the desktop using the platform backend. Wayland captures the source
+ * selected in the portal; Windows keeps its existing display behavior.
  * @returns {Promise<Buffer>} Screenshot as a buffer
  */
 async function captureScreen(options = {}) {
   try {
     const captureMode = typeof options.captureMode === 'string' ? options.captureMode : 'unknown'
-    const pngBuffer = await screenshot({ format: 'png' })
+    const pngBuffer = isWaylandSession()
+      ? await require('./capture/wayland-capture').captureWayland(options)
+      : await require('./capture/desktop-capture').captureDesktop(options)
 
     if (!Buffer.isBuffer(pngBuffer) || pngBuffer.length === 0) {
       throw new Error('Screenshot capture returned an invalid image buffer')
     }
 
-    console.log('Screenshot captured successfully using screenshot-desktop', { captureMode })
+    console.log('Screenshot captured successfully', {
+      captureMode,
+      captureBackend: isWaylandSession() ? 'wayland-portal' : 'screenshot-desktop'
+    })
     return pngBuffer
   } catch (error) {
     console.error('Error capturing screenshot:', error)
@@ -132,5 +150,8 @@ async function captureAndCompress(options = {}) {
 module.exports = {
   captureScreen,
   compressImage,
-  captureAndCompress
+  captureAndCompress,
+  initializeScreenCapture,
+  disposeScreenCapture,
+  isWaylandSession
 }

@@ -1,12 +1,15 @@
 {
   "name": "shade",
   "version": "0.15.1",
-  "description": "Shade - Your screen, smarter. A Windows desktop overlay for AI-powered screen assistance.",
+  "description": "Shade - Your screen, smarter. A desktop overlay for AI-powered screen assistance.",
+  "desktopName": "com.shade.app.desktop",
   "main": "src/main/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"electron .\"",
     "build": "vite build && electron-builder",
     "build:win": "vite build && electron-builder --win",
+    "build:linux": "vite build && electron-builder --linux AppImage --x64 --publish never",
+    "build:linux:dir": "vite build && electron-builder --linux --x64 --dir --publish never",
     "start": "electron .",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -49,6 +52,20 @@
         "nsis"
       ],
       "verifyUpdateCodeSignature": false
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "build/appicon.png",
+      "category": "Utility",
+      "executableName": "shade",
+      "syncDesktopName": true,
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "com.shade.app",
+          "Comment": "AI-powered screen assistance"
+        }
+      }
     },
     "publish": [
       {

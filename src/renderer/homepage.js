@@ -1646,6 +1646,10 @@ async function initConfigurationView() {
       const enabled = autoUpdateResult?.success ? autoUpdateResult.enabled !== false : true
       autoUpdateToggle.checked = enabled
       setAutoUpdateMsg(enabled)
+      if (autoUpdateResult?.supported === false) {
+        autoUpdateToggle.disabled = true
+        if (autoUpdateMsg) autoUpdateMsg.textContent = autoUpdateResult.message
+      }
     }
 
     if (excludeScreenshotsToggle) {
@@ -1658,6 +1662,11 @@ async function initConfigurationView() {
       const excludeOverlay = excludeOverlayResult?.success ? excludeOverlayResult.exclude !== false : true
       excludeOverlayToggle.checked = excludeOverlay
       setExcludeOverlayMsg(excludeOverlay)
+      if (excludeOverlayResult?.supported === false) {
+        excludeOverlayToggle.disabled = true
+        excludeOverlayToggle.checked = false
+        if (excludeOverlayMsg) excludeOverlayMsg.textContent = excludeOverlayResult.message
+      }
     }
   } catch (error) {
     console.error('Failed to load config toggles:', error)
