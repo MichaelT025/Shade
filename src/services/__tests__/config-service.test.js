@@ -3,6 +3,17 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+const safeStorageMock = vi.hoisted(() => ({
+  isEncryptionAvailable: vi.fn(() => false),
+  getSelectedStorageBackend: vi.fn(() => 'gnome_libsecret'),
+  encryptString: vi.fn(value => Buffer.from(`encrypted:${value}`)),
+  decryptString: vi.fn(buffer => {
+    const value = Buffer.from(buffer).toString()
+    if (!value.startsWith('encrypted:')) throw new Error('Not encrypted')
+    return value.slice('encrypted:'.length)
+  })
+}))
+
 // Import ConfigService
 const ConfigService = (await import('../config-service.js')).default
 
@@ -12,6 +23,17 @@ describe('ConfigService', () => {
   let testDir
 
   beforeEach(() => {
+    // Unit tests supply a keyring on every host; no real Electron keyring runs
+    // under Node. Unavailable/locked backends are exercised explicitly below.
+    safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
+    safeStorageMock.getSelectedStorageBackend.mockReturnValue('gnome_libsecret')
+    safeStorageMock.encryptString.mockImplementation(value => Buffer.from(`encrypted:${value}`))
+    safeStorageMock.decryptString.mockImplementation(buffer => {
+      const value = Buffer.from(buffer).toString()
+      if (!value.startsWith('encrypted:')) throw new Error('Not encrypted')
+      return value.slice('encrypted:'.length)
+    })
+
     // Set up test directory
     testDir = path.join('/tmp/shade-test')
     configPath = path.join(testDir, 'data', 'config.json')
@@ -34,7 +56,7 @@ describe('ConfigService', () => {
     }
 
     // Create fresh instance with test directory
-    configService = new ConfigService(testDir)
+    configService = new ConfigService(testDir, { secureStorage: safeStorageMock })
   })
 
   afterEach(() => {
@@ -105,7 +127,7 @@ describe('ConfigService', () => {
 
   describe('Default config isolation', () => {
     test('saveMode does not corrupt defaultConfig.modes (factory default isolation)', () => {
-      const service = new ConfigService(testDir)
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
       service.getModes()
       const factory = service.getDefaultModes().find(m => m.id === 'bolt').prompt
 
@@ -116,7 +138,7 @@ describe('ConfigService', () => {
     })
 
     test('setHistoryLimit does not corrupt defaultConfig.memorySettings', () => {
-      const service = new ConfigService(testDir)
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
       const f = service.defaultConfig.memorySettings.historyLimit
 
       service.setHistoryLimit(f + 500)
@@ -127,7 +149,7 @@ describe('ConfigService', () => {
     test('setAutoUpdateEnabled does not corrupt defaultConfig when config loaded from disk', () => {
       const partialConfig = { activeProvider: 'gemini', providers: {} }
       fs.writeFileSync(configPath, JSON.stringify(partialConfig))
-      const service = new ConfigService(testDir)
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
       const before = service.defaultConfig.autoUpdate.enabled
 
       service.setAutoUpdateEnabled(!before)
@@ -157,6 +179,136 @@ describe('ConfigService', () => {
     })
   })
 
+  describe('Linux secure API key storage', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', { value: 'linux' })
+      safeStorageMock.isEncryptionAvailable.mockReturnValue(true)
+      safeStorageMock.getSelectedStorageBackend.mockReturnValue('gnome_libsecret')
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform })
+    })
+
+    test('stores new keys with an encrypted-value marker when a keyring is available', () => {
+      configService.setApiKey('gemini', 'linux-key')
+
+      const stored = configService.getAllConfig().providers.gemini.apiKey
+      expect(stored).toBe(`enc:v1:${Buffer.from('encrypted:linux-key').toString('base64')}`)
+      expect(configService.getApiKey('gemini')).toBe('linux-key')
+    })
+
+    test('refuses to save a key when Electron selects the basic_text backend', () => {
+      safeStorageMock.getSelectedStorageBackend.mockReturnValue('basic_text')
+
+      expect(() => configService.setApiKey('gemini', 'must-not-be-plaintext')).toThrow(/Secure storage is unavailable/)
+      expect(configService.getAllConfig().providers.gemini.apiKey).toBe('')
+      expect(fs.existsSync(configPath)).toBe(false)
+    })
+
+    test('refuses to save a key when Electron cannot identify a secure backend', () => {
+      safeStorageMock.getSelectedStorageBackend.mockReturnValue('unknown')
+
+      expect(() => configService.setApiKey('gemini', 'must-not-be-plaintext')).toThrow(/Secure storage is unavailable/)
+      expect(configService.getAllConfig().providers.gemini.apiKey).toBe('')
+    })
+
+    test('refuses to save a key while the keyring is locked or unavailable', () => {
+      safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+
+      expect(() => configService.setApiKey('gemini', 'must-not-be-plaintext')).toThrow(/Unlock or install a Secret Service-compatible keyring/)
+      expect(configService.getAllConfig().providers.gemini.apiKey).toBe('')
+    })
+
+    test('preserves an existing marked value while the keyring is unavailable', () => {
+      const markedKey = `enc:v1:${Buffer.from('encrypted:existing-key').toString('base64')}`
+      fs.mkdirSync(path.dirname(configPath), { recursive: true })
+      fs.writeFileSync(configPath, JSON.stringify({
+        activeProvider: 'gemini',
+        providers: { gemini: { apiKey: markedKey } }
+      }))
+      safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
+
+      expect(service.getAllConfig().providers.gemini.apiKey).toBe(markedKey)
+      expect(() => service.getApiKey('gemini')).toThrow(/Secure storage is unavailable/)
+      expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).providers.gemini.apiKey).toBe(markedKey)
+    })
+
+    test('keeps a marked value intact when it cannot be decrypted', () => {
+      const markedKey = `enc:v1:${Buffer.from('encrypted:existing-key').toString('base64')}`
+      safeStorageMock.decryptString.mockImplementation(() => {
+        throw new Error('keyring reset')
+      })
+      fs.mkdirSync(path.dirname(configPath), { recursive: true })
+      fs.writeFileSync(configPath, JSON.stringify({
+        activeProvider: 'gemini',
+        providers: { gemini: { apiKey: markedKey } }
+      }))
+
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
+
+      expect(() => service.getApiKey('gemini')).toThrow(/cannot be decrypted on this machine/)
+      expect(service.getAllConfig().providers.gemini.apiKey).toBe(markedKey)
+    })
+
+    test('does not return an unmarked legacy ciphertext as an API key when the keyring is unavailable', () => {
+      const legacyCiphertext = Buffer.from('encrypted:old-machine-key').toString('base64')
+      fs.mkdirSync(path.dirname(configPath), { recursive: true })
+      fs.writeFileSync(configPath, JSON.stringify({
+        activeProvider: 'gemini',
+        providers: { gemini: { apiKey: legacyCiphertext } }
+      }))
+      safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
+
+      expect(() => service.getApiKey('gemini')).toThrow(/Secure storage is unavailable/)
+      expect(service.getAllConfig().providers.gemini.apiKey).toBe(legacyCiphertext)
+    })
+
+    test('migrates a legacy encrypted value to the explicit marker', () => {
+      const legacyCiphertext = Buffer.from('encrypted:legacy-key').toString('base64')
+      fs.mkdirSync(path.dirname(configPath), { recursive: true })
+      fs.writeFileSync(configPath, JSON.stringify({
+        activeProvider: 'gemini',
+        providers: { gemini: { apiKey: legacyCiphertext } }
+      }))
+
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
+
+      expect(service.getAllConfig().providers.gemini.apiKey).toBe(`enc:v1:${legacyCiphertext}`)
+      expect(service.getApiKey('gemini')).toBe('legacy-key')
+    })
+
+    test('never re-encrypts unreadable ciphertext from another machine', () => {
+      const ciphertext = Buffer.from('other-machine-ciphertext').toString('base64')
+      fs.mkdirSync(path.dirname(configPath), { recursive: true })
+      fs.writeFileSync(configPath, JSON.stringify({ providers: { gemini: { apiKey: ciphertext } } }))
+      safeStorageMock.encryptString.mockClear()
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
+      expect(() => service.getApiKey('gemini')).toThrow(/legacy API key cannot be decrypted/)
+      expect(safeStorageMock.encryptString).not.toHaveBeenCalled()
+      expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).providers.gemini.apiKey).toBe(ciphertext)
+    })
+
+    test('failed encryption preserves the saved key and allows deletion while locked', () => {
+      configService.setApiKey('gemini', 'existing-key')
+      const stored = fs.readFileSync(configPath, 'utf8')
+      safeStorageMock.encryptString.mockImplementation(() => { throw new Error('Keyring locked') })
+      expect(() => configService.setApiKey('gemini', 'replacement')).toThrow(/Secure storage/)
+      expect(fs.readFileSync(configPath, 'utf8')).toBe(stored)
+      expect(configService.getApiKey('gemini')).toBe('existing-key')
+      safeStorageMock.isEncryptionAvailable.mockReturnValue(false)
+      configService.setApiKey('gemini', '')
+      expect(configService.getApiKey('gemini')).toBe('')
+      expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).providers.gemini.apiKey).toBe('')
+    })
+  })
+
   describe('Provider Management', () => {
     test('should set and get active provider', () => {
       configService.setActiveProvider('openai')
@@ -167,7 +319,7 @@ describe('ConfigService', () => {
       configService.setActiveProvider('openai')
 
       // Create new instance to test persistence
-      const newConfigService = new ConfigService(testDir)
+      const newConfigService = new ConfigService(testDir, { secureStorage: safeStorageMock })
       expect(newConfigService.getActiveProvider()).toBe('openai')
     })
   })
@@ -194,9 +346,23 @@ describe('ConfigService', () => {
       configService.setProviderConfig('gemini', newConfig)
 
       // Create new instance to test persistence
-      const newConfigService = new ConfigService(testDir)
+      const newConfigService = new ConfigService(testDir, { secureStorage: safeStorageMock })
       const retrieved = newConfigService.getProviderConfig('gemini')
       expect(retrieved.model).toBe('gemini-2.0-flash')
+    })
+
+    test('does not allow provider configuration updates to overwrite an API key', () => {
+      configService.setApiKey('gemini', 'stored-key')
+
+      configService.setProviderConfig('gemini', {
+        model: 'gemini-2.0-flash',
+        apiKey: 'plaintext-injection'
+      })
+
+      expect(configService.getApiKey('gemini')).toBe('stored-key')
+      expect(configService.getProviderConfig('gemini').apiKey).toMatch(/^enc:v1:/)
+      expect(configService.getApiKey('gemini')).toBe('stored-key')
+      expect(configService.getProviderConfig('gemini').model).toBe('gemini-2.0-flash')
     })
   })
 
@@ -215,7 +381,7 @@ describe('ConfigService', () => {
       fs.writeFileSync(oldConfigPath, JSON.stringify(oldConfig, null, 2))
 
       // Create new instance which should trigger migration
-      const migratedService = new ConfigService(testDir)
+      const migratedService = new ConfigService(testDir, { secureStorage: safeStorageMock })
 
       // Check new structure
       expect(migratedService.getActiveProvider()).toBe('gemini')
@@ -239,7 +405,7 @@ describe('ConfigService', () => {
 
       fs.writeFileSync(oldConfigPath, JSON.stringify(oldConfig, null, 2))
 
-      const service = new ConfigService(testDir)
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
 
       expect(service.getActiveProvider()).toBe('openai')
       expect(service.getApiKey('gemini')).toBe('gemini-key')
@@ -262,7 +428,7 @@ describe('ConfigService', () => {
 
       fs.writeFileSync(oldConfigPath, JSON.stringify(oldConfig, null, 2))
 
-      const service = new ConfigService(testDir)
+      const service = new ConfigService(testDir, { secureStorage: safeStorageMock })
 
       const modes = service.getModes()
       // We expect 2 modes because we manually set them in the old config
@@ -280,7 +446,8 @@ describe('ConfigService', () => {
 
       // Read file and verify content (new format)
       const fileContent = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-      expect(fileContent.providers.gemini.apiKey).toBe('persistent-key')
+      expect(fileContent.providers.gemini.apiKey).toMatch(/^enc:v1:/)
+      expect(configService.getApiKey('gemini')).toBe('persistent-key')
     })
 
     test('should load existing config from disk', () => {
@@ -298,7 +465,7 @@ describe('ConfigService', () => {
       fs.writeFileSync(configPath, JSON.stringify(existingConfig, null, 2))
 
       // Create new instance which should load existing config
-      const loadedService = new ConfigService(testDir)
+      const loadedService = new ConfigService(testDir, { secureStorage: safeStorageMock })
       expect(loadedService.getActiveProvider()).toBe('openai')
       expect(loadedService.getApiKey('openai')).toBe('existing-key')
     })
@@ -306,7 +473,7 @@ describe('ConfigService', () => {
     test('should fall back to defaults when config file is malformed', () => {
       fs.writeFileSync(configPath, '{invalid-json', 'utf8')
 
-      const loadedService = new ConfigService(testDir)
+      const loadedService = new ConfigService(testDir, { secureStorage: safeStorageMock })
       expect(loadedService.getActiveProvider()).toBe('gemini')
       expect(loadedService.getApiKey('openai')).toBe('')
     })
@@ -319,7 +486,8 @@ describe('ConfigService', () => {
 
       const allConfig = configService.getAllConfig()
       expect(allConfig.activeProvider).toBe('gemini')
-      expect(allConfig.providers.gemini.apiKey).toBe('test-key')
+      expect(allConfig.providers.gemini.apiKey).toMatch(/^enc:v1:/)
+      expect(configService.getApiKey('gemini')).toBe('test-key')
     })
 
     test('should clear all configuration', () => {
@@ -455,7 +623,7 @@ describe('ConfigService', () => {
       configService.setExcludeScreenshotsFromMemory(false)
 
       // Create new instance to verify persistence
-      const newService = new ConfigService(testDir)
+      const newService = new ConfigService(testDir, { secureStorage: safeStorageMock })
       expect(newService.getHistoryLimit()).toBe(15)
       expect(newService.getExcludeScreenshotsFromMemory()).toBe(false)
     })
@@ -480,7 +648,7 @@ describe('ConfigService', () => {
     test('should persist screenshot mode', () => {
       configService.setScreenshotMode('auto')
 
-      const newService = new ConfigService(testDir)
+      const newService = new ConfigService(testDir, { secureStorage: safeStorageMock })
       expect(newService.getScreenshotMode()).toBe('auto')
     })
   })
@@ -506,7 +674,7 @@ describe('ConfigService', () => {
       configService.setAutoTitleSessions(false)
       configService.setStartCollapsed(false)
 
-      const newService = new ConfigService(testDir)
+      const newService = new ConfigService(testDir, { secureStorage: safeStorageMock })
       expect(newService.getSessionSettings().autoTitleSessions).toBe(false)
       expect(newService.getStartCollapsed()).toBe(false)
     })
