@@ -1,0 +1,30 @@
+name: Linux compatibility build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      # Install on Linux so sharp and its optional libvips binaries match the host.
+      - run: npm ci --include=optional
+      - run: npm run test:run
+      - run: npm run build:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shade-linux-experimental
+          path: dist/*.AppImage
+          if-no-files-found: error
