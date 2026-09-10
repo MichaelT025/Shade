@@ -33,6 +33,13 @@ References checked for this review: [Electron shortcuts](https://www.electronjs.
 [Electron windows](https://www.electronjs.org/docs/latest/api/browser-window), and
 [Hyprland desktop portal](https://wiki.hypr.land/Hypr-Ecosystem/xdg-desktop-portal-hyprland/).
 
+Initial implementation is committed: platform capabilities, Linux packaging/CI,
+portal capture sessions, shortcut lifecycle, and secure Linux key storage.
+Final Windows-host checks passed: **328 tests passed, 15 skipped**, Windows NSIS
+installer produced, and packaged source verified. Native Linux build/run,
+interactive smoke tests, desktop integration/autostart, and Linux update delivery
+remain open. **The Linux exit gate has not passed.** See `docs/LINUX.md` for evidence.
+
 > **For Astra/Hermes:** Implement this plan one phase at a time. Do not combine the Linux port and provider work into one giant change. Preserve the Windows build throughout.
 
 **Goal:** Make Shade reliable on Omarchy's Arch Linux + Hyprland/Wayland environment first, then add OpenCode Zen, OpenCode Go, and direct DeepSeek as first-class providers.

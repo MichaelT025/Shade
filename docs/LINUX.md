@@ -3,6 +3,24 @@
 Status: experimental, under development. No native Omarchy session has been
 validated yet. Providers remain unchanged. Branch: `codex/linux-omarchy-support`.
 
+## Verified on the Windows development host (2026-09-10)
+
+- Baseline: 18 test files passed; 294 tests passed and 15 skipped.
+- After implementation: **22 test files passed; 328 tests passed and 15 skipped**.
+  The existing skips remain; no new tests were skipped to obtain this result.
+- `npm run build:win -- --publish never` completed from the committed source.
+  `dist/Shade-Setup-0.15.1.exe` was produced (111,142,593 bytes).
+- All 47 packaged JavaScript/HTML files under `src/main` and `src/services` were
+  compared byte-for-byte with the source and matched.
+- Linux builder configuration validates, but Linux CI has not been run remotely
+  and no Linux artifact has been built or launched on this Windows host.
+- Windows interactive smoke tests and every native Omarchy exit-gate item below
+  remain outstanding. The packaged-source check is not an interactive app test.
+
+Implementation commits: `37bb4fb` (platform behavior), `60fd692` (packaging),
+`4647802` (shortcuts/updates), `22105ff` (secure storage), and `69410c4` (capture).
+The earlier `5b29009` commit records the reviewed plan and baseline.
+
 ## Build on Linux
 
 Use a fresh Linux checkout and Node.js 22 or newer. Do not copy Windows
