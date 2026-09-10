@@ -1658,6 +1658,11 @@ async function initConfigurationView() {
       const excludeOverlay = excludeOverlayResult?.success ? excludeOverlayResult.exclude !== false : true
       excludeOverlayToggle.checked = excludeOverlay
       setExcludeOverlayMsg(excludeOverlay)
+      if (excludeOverlayResult?.supported === false) {
+        excludeOverlayToggle.disabled = true
+        excludeOverlayToggle.checked = false
+        if (excludeOverlayMsg) excludeOverlayMsg.textContent = excludeOverlayResult.message
+      }
     }
   } catch (error) {
     console.error('Failed to load config toggles:', error)

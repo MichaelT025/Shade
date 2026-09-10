@@ -1,6 +1,7 @@
 const { ipcMain } = require('electron')
 const { captureAndCompress } = require('../../services/screen-capture')
 const LLMFactory = require('../../services/llm-factory')
+const { getPlatformCapabilities } = require('../../services/platform/platform-service')
 
 function createChatIpcRegistrar({
   configService,
@@ -61,7 +62,7 @@ function createChatIpcRegistrar({
         const alwaysProtected = configService
           ? configService.getExcludeOverlayFromScreenshots()
           : false
-        const needsPerCaptureProtection = !alwaysProtected
+        const needsPerCaptureProtection = getPlatformCapabilities().contentProtection && !alwaysProtected
         if (needsPerCaptureProtection && mainWindow) {
           mainWindow.setContentProtection(true)
         }
@@ -96,7 +97,7 @@ function createChatIpcRegistrar({
         const alwaysProtectedFinal = configService
           ? configService.getExcludeOverlayFromScreenshots()
           : false
-        if (!alwaysProtectedFinal && mainWindow) {
+        if (getPlatformCapabilities().contentProtection && !alwaysProtectedFinal && mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.setContentProtection(false)
         }
       }
@@ -120,6 +121,9 @@ function createChatIpcRegistrar({
 
     // Legacy handler kept for backward compatibility — now reads from config.
     ipcMain.handle('set-persistent-content-protection', async () => {
+      if (!getPlatformCapabilities().contentProtection) {
+        return { success: false, error: getPlatformCapabilities().contentProtectionMessage }
+      }
       const mainWindow = getMainWindow()
       const enabled = configService
         ? configService.getExcludeOverlayFromScreenshots()

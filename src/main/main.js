@@ -1,9 +1,8 @@
 const { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, dialog } = require('electron')
 const path = require('path')
 
-// Improve transparent window rendering stability on Windows
-// Prevents GPU surface recreation flicker when showing/hiding overlay
-app.commandLine.appendSwitch('enable-features', 'CalculateNativeWinOcclusion')
+const { configurePlatform } = require('../services/platform/platform-service')
+const platformCapabilities = configurePlatform(app)
 const LLMFactory = require('../services/llm-factory')
 const ConfigService = require('../services/config-service')
 const SessionStorage = require('../services/session-storage')
@@ -24,6 +23,29 @@ let shouldShowMainWindowAfterReady = false
 
 // Track overlay-specific shortcuts that should only work when overlay is visible
 const overlayShortcuts = new Map()
+const warnedShortcuts = new Set()
+
+function registerShortcut(accelerator, callback, overlayOnly = false) {
+  let success = false
+  try {
+    success = globalShortcut.register(accelerator, () => {
+      const win = windowManager?.getMainWindow()
+      if (overlayOnly && (!win || !win.isVisible() || win.isMinimized())) return
+      callback()
+    })
+  } catch (error) {
+    console.warn('Shortcut registration error:', accelerator, error.message)
+  }
+  if (!success && !warnedShortcuts.has(accelerator)) {
+    warnedShortcuts.add(accelerator)
+    const hint = platformCapabilities.isWayland
+      ? 'Check the desktop GlobalShortcuts portal and compositor bindings. You can still use Shade’s buttons and relaunch Shade to show the overlay.'
+      : 'The shortcut may be reserved by the OS or another app.'
+    dialog.showMessageBox({ type: 'warning', title: 'Shortcut unavailable',
+      message: `Could not register ${accelerator}. ${hint}`, buttons: ['OK'] }).catch(() => {})
+  }
+  return success
+}
 
 function sendToWindows(channel, ...args) {
   windowManager?.sendToWindows(channel, ...args)
@@ -108,34 +130,34 @@ function createTray() {
 function registerOverlayShortcuts() {
   // Ctrl+R to start new chat
   if (!overlayShortcuts.has('CommandOrControl+R')) {
-    const success = globalShortcut.register('CommandOrControl+R', () => {
+    const success = registerShortcut('CommandOrControl+R', () => {
       const mainWindow = windowManager?.getMainWindow()
       if (mainWindow) {
         mainWindow.webContents.send('new-chat')
       }
-    })
+    }, true)
     if (success) overlayShortcuts.set('CommandOrControl+R', true)
   }
 
   // Ctrl+' to toggle overlay collapse
   if (!overlayShortcuts.has('CommandOrControl+\'')) {
-    const success = globalShortcut.register('CommandOrControl+\'', () => {
+    const success = registerShortcut('CommandOrControl+\'', () => {
       const mainWindow = windowManager?.getMainWindow()
       if (mainWindow) {
         mainWindow.webContents.send('toggle-collapse')
       }
-    })
+    }, true)
     if (success) overlayShortcuts.set('CommandOrControl+\'', true)
   }
 
   // Ctrl+Shift+S to capture screenshot
   if (!overlayShortcuts.has('CommandOrControl+Shift+S')) {
-    const success = globalShortcut.register('CommandOrControl+Shift+S', () => {
+    const success = registerShortcut('CommandOrControl+Shift+S', () => {
       const mainWindow = windowManager?.getMainWindow()
       if (mainWindow) {
         mainWindow.webContents.send('capture-screenshot')
       }
-    })
+    }, true)
     if (success) overlayShortcuts.set('CommandOrControl+Shift+S', true)
   }
 
@@ -144,15 +166,17 @@ function registerOverlayShortcuts() {
     ? 'CommandOrControl+Shift+M'
     : 'CommandOrControl+M'
   if (!overlayShortcuts.has(modelSwitcherShortcut)) {
-    const success = globalShortcut.register(modelSwitcherShortcut, () => {
+    const success = registerShortcut(modelSwitcherShortcut, () => {
       windowManager?.toggleModelSwitcherWindow()
-    })
+    }, true)
     if (success) overlayShortcuts.set(modelSwitcherShortcut, true)
   }
 }
 
 // Unregister overlay-specific shortcuts (call when overlay is hidden)
 function unregisterOverlayShortcuts() {
+  // Keep the portal session stable; callbacks are gated by overlay visibility.
+  if (platformCapabilities.isWayland) return
   for (const shortcut of overlayShortcuts.keys()) {
     globalShortcut.unregister(shortcut)
   }
@@ -257,8 +281,16 @@ app.whenReady().then(() => {
     shouldShowMainWindowAfterReady = false
     showMainWindow('deferred-second-instance')
   }
-  createTray()
+  try {
+    createTray()
+  } catch (error) {
+    console.error('System tray unavailable:', error)
+    windowManager.createDashboardWindow()
+    dialog.showMessageBox({ type: 'warning', title: 'System tray unavailable',
+      message: 'Shade could not create its tray icon. Use the dashboard to quit, or launch Shade again to show the overlay.', buttons: ['OK'] }).catch(() => {})
+  }
   registerHotkeys()
+  if (platformCapabilities.isWayland) registerOverlayShortcuts()
 
   registerWindowIpcHandlers(windowManager)
   createChatIpcRegistrar({
