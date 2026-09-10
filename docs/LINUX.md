@@ -51,7 +51,8 @@ AppImage replacement need validation before enabling a Linux release channel.
   secondary path, not a substitute for native Wayland validation.
 - Screen capture requires PipeWire and a working ScreenCast portal, normally
   `xdg-desktop-portal` plus `xdg-desktop-portal-hyprland` in Omarchy. The manual
-  capture flow asks for a source; subsequent frames reuse that session. Predictive
+  capture flow first opens a small Shade consent window; click its button to open
+  the system source picker. Subsequent frames reuse that session. Predictive
   capture must not initiate consent. A revoked/ended session needs manual consent
   again. The portal chooses the source; Windows primary-monitor assumptions do
   not apply. Switching source currently requires restarting Shade.

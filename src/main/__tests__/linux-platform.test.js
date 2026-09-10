@@ -138,3 +138,36 @@ test('experimental Linux builds do not contact the Windows update feed', async (
   expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
   expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled()
 })
+
+test('the Linux overlay avoids unsupported opacity and content-protection calls', () => {
+  const win = {
+    on: vi.fn(), isDestroyed: () => false, isMinimized: () => false,
+    isVisible: () => false, getBounds: () => ({ x: 0, y: 0, width: 500, height: 450 }),
+    setContentProtection: vi.fn(), setOpacity: vi.fn(), loadFile: vi.fn(),
+    show: vi.fn(), showInactive: vi.fn(), focus: vi.fn(),
+    webContents: { setWindowOpenHandler: vi.fn(), on: vi.fn(), send: vi.fn() }
+  }
+  const context = { module: { exports: {} }, __dirname: import.meta.dirname,
+    console: { log: vi.fn() }, setTimeout: vi.fn(), clearTimeout: vi.fn(),
+    require: (id) => {
+      if (id === 'path') return path
+      if (id.includes('platform-service')) return platformService
+      if (id === 'electron') return {
+        BrowserWindow: function () { return win },
+        screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }) },
+        ipcMain: { once: vi.fn() }
+      }
+      throw new Error(`Unexpected dependency ${id}`)
+    }
+  }
+  vm.runInNewContext(fs.readFileSync(path.join(import.meta.dirname, '../windows/window-manager.js'), 'utf8'), context)
+  const manager = context.module.exports.createWindowManager({ rendererPath: '/renderer',
+    getIconPath: () => '/icon.png', configService: { getExcludeOverlayFromScreenshots: () => true },
+    capabilities: platformService.getPlatformCapabilities('linux', { WAYLAND_DISPLAY: 'wayland-1' }) })
+  manager.createMainWindow()
+  manager.showMainWindow()
+  expect(win.setContentProtection).not.toHaveBeenCalled()
+  expect(win.setOpacity).not.toHaveBeenCalled()
+  expect(win.showInactive).not.toHaveBeenCalled()
+  expect(win.show).toHaveBeenCalledOnce()
+})

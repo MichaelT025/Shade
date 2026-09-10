@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"><title>Share your screen with Shade</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #151515; color: #f5f5f5; }
+      body { margin: 0; padding: 28px; text-align: center; }
+      h1 { margin: 0 0 10px; font-size: 20px; }
+      p { margin: 0 0 22px; color: #bbb; line-height: 1.45; }
+      button { border: 0; border-radius: 8px; padding: 11px 18px; background: #fff; color: #111; font-weight: 650; cursor: pointer; }
+      video { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Share your screen with Shade</h1>
+    <p>Choose a screen or window in the system dialog. Shade keeps this share active for faster screenshots until you stop sharing or close Shade.</p>
+    <button id="share-button" type="button">Choose screen or window</button>
+    <video id="capture-video" autoplay muted playsinline></video>
+    <script src="capture-renderer.js"></script>
+  </body>
+</html>

@@ -13,6 +13,7 @@ const { registerConfigIpcHandlers } = require('./ipc/config-ipc')
 const { registerSessionIpcHandlers } = require('./ipc/session-ipc')
 const { registerSystemIpcHandlers } = require('./ipc/system-ipc')
 const { createUpdateService } = require('./services/update-service')
+const { initializeScreenCapture, disposeScreenCapture } = require('../services/screen-capture')
 
 let tray = null
 let configService = null
@@ -214,6 +215,8 @@ if (!hasSingleInstanceLock) {
 
 // App lifecycle events
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return
+  initializeScreenCapture()
   // Initialize config service with user data path
   const userDataPath = app.getPath('userData')
   configService = new ConfigService(userDataPath)
@@ -260,6 +263,8 @@ app.whenReady().then(() => {
   })
 
   windowManager.createMainWindow()
+  // A hidden portal helper must not keep an otherwise closed app running.
+  windowManager.getMainWindow().on('closed', disposeScreenCapture)
   if (shouldShowMainWindowAfterReady) {
     shouldShowMainWindowAfterReady = false
     showMainWindow('deferred-second-instance')
@@ -317,6 +322,7 @@ app.on('window-all-closed', () => {
 })
 
 // Unregister shortcuts and destroy tray when app quits
+app.on('before-quit', disposeScreenCapture)
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   if (tray) {
