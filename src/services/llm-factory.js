@@ -23,10 +23,11 @@ class LLMFactory {
     }
 
     // Get model-specific options if defined
-    const modelOptions = providerMeta.models?.[config.model]?.options || {}
+    const model = config.model || providerMeta.defaultModel || ''
+    const modelOptions = providerMeta.models?.[model]?.options || {}
 
     // Merge config with model-specific options
-    const finalConfig = { ...config, ...modelOptions }
+    const finalConfig = { ...config, model, ...modelOptions, providerId: providerName }
 
     const requiresApiKey = providerMeta.requiresApiKey !== undefined
       ? providerMeta.requiresApiKey

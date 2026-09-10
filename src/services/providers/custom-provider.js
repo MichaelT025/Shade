@@ -177,11 +177,7 @@ class CustomProvider extends LLMProvider {
    * Note: For custom providers, this should be populated from the provider registry
    * @returns {Array<{id: string, name: string}>} - List of model objects
    */
-  getModels() {
-    return [
-      { id: this.modelName, name: this.modelName }
-    ]
-  }
+  getModels() { return super.getModels() }
 
   /**
    * Get the provider name

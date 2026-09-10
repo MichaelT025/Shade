@@ -165,28 +165,7 @@ class OpenAIProvider extends LLMProvider {
    * Get list of available OpenAI models
    * @returns {Array<{id: string, name: string}>} - List of model objects
    */
-  getModels() {
-    return [
-      // GPT-5 Series (Reasoning Models - 2025)
-      { id: 'gpt-5.1', name: 'GPT-5.1 (Flagship Reasoning)' },
-      { id: 'gpt-5.1-chat', name: 'GPT-5.1 Chat' },
-      { id: 'gpt-5-mini', name: 'GPT-5 Mini (Fast Reasoning)' },
-      { id: 'gpt-5-nano', name: 'GPT-5 Nano (Fastest & Affordable)' },
-
-      // GPT-4.1 Family (Apr 2025)
-      { id: 'gpt-4.1', name: 'GPT-4.1 (Recommended - Latest)' },
-      { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
-      { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano (Fastest)' },
-
-      // GPT-4o (Audio Support)
-      { id: 'gpt-4o', name: 'GPT-4o (Audio I/O)' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-
-      // Legacy Models
-      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo (Legacy)' },
-      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo (Legacy)' }
-    ]
-  }
+  getModels() { return super.getModels() }
 
   /**
    * Get the provider name
