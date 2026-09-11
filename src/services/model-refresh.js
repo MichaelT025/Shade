@@ -2,6 +2,7 @@ const https = require('https')
 const http = require('http')
 const ProviderRegistry = require('./provider-registry')
 const { safeParseJson } = require('./utils/json-safe')
+const { parseGatewayModels } = require('./providers/gateway-catalog')
 
 /**
  * Service for refreshing model lists from provider APIs
@@ -41,11 +42,15 @@ class ModelRefreshService {
     if (!provider) {
       return { success: false, error: `Unknown provider: ${providerId}` }
     }
+    if (provider.disabled) return { success: false, error: provider.disabledReason }
 
     try {
       let models = {}
 
       switch (provider.type) {
+        case 'gateway':
+          models = await this.fetchGatewayModels(providerId, provider, apiKey)
+          break
         case 'gemini':
           models = await this.fetchGeminiModels(apiKey)
           break
@@ -167,6 +172,23 @@ class ModelRefreshService {
    */
   async fetchAnthropicModels() {
     return ProviderRegistry.getDefaultModels('anthropic')
+  }
+
+  async fetchGatewayModels(providerId, provider, apiKey) {
+    let availability
+    try {
+      availability = safeParseJson(await this.httpsRequest(`${provider.baseUrl}/models`,
+        apiKey ? { Authorization: `Bearer ${apiKey}` } : {}), null)
+    } catch {
+      throw new Error('Unable to refresh models. Check your API key and connection; the existing list was kept.')
+    }
+    let metadata = null
+    if (provider.catalogId) {
+      try { metadata = safeParseJson(await this.httpsRequest('https://models.dev/api.json'), null) }
+      catch { /* use verified bundled/current metadata when catalog is offline */ }
+    }
+    return parseGatewayModels(provider, availability, metadata,
+      { ...ProviderRegistry.getDefaultModels(providerId), ...provider.models })
   }
 
   /**
