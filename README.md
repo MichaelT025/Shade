@@ -159,35 +159,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing/build commands, 
 - Default shipped modes/prompts: [docs/modes.md](docs/modes.md)
 - Test suite walkthrough: [docs/TESTS_SETUP.md](docs/TESTS_SETUP.md)
 
-## Roadmap
-
-### V1.0 (Current)
-- [x] Multi-provider LLM support (Cloud & Local)
-- [x] Screen capture with overlay exclusion
-- [x] Rich text rendering (Markdown, LaTeX, code)
-- [x] Collapsible overlay with state synchronization
-- [x] Session history dashboard (search, rename, bulk actions)
-- [x] OpenAI-compatible local endpoints (Ollama / LM Studio)
-- [x] Automatic screenshot mode (with predictive caching)
-- [x] Predictive screenshot caching for zero-latency auto-capture
-- [x] Model selection & quick-switcher (`Ctrl+M`, macOS: `Cmd+Shift+M`)
-- [x] System prompt modes (built-in + editable)
-- [x] Smart memory management with summarization
-- [x] Unit test suite (Vitest)
-- [x] Encrypted local storage for API keys
-- [x] Security hardening (XSS protection & atomic writes)
-
-### V1.1
-- [ ] macOS support
-- [ ] Linux support
-- [ ] Usage/cost tracking
-- [ ] File attachments
-### V2.0+
-- [ ] Agentic actions (MCP)
-- [ ] Calendar/email integration
-
-See [PRD.md](docs/PRD.md) for the complete product roadmap.
-
 ## Troubleshooting
 
 ### Overlay appears in screenshots
