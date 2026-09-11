@@ -49,7 +49,8 @@ class LLMProvider {
    * @returns {Array<{id: string, name: string}>} - List of model objects
    */
   getModels() {
-    throw new Error('getModels() must be implemented by provider')
+    const registry = require('./provider-registry')
+    return registry.getModels(this.config.providerId || this.getName())
   }
 
   /**

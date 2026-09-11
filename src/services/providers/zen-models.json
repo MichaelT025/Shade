@@ -1,0 +1,101 @@
+{
+  "claude-sonnet-4-5": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "anthropic-messages",
+    "name": "Claude Sonnet 4.5",
+    "verifiedAt": "2026-09-10"
+  },
+  "claude-haiku-4-5": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "anthropic-messages",
+    "name": "Claude Haiku 4.5",
+    "verifiedAt": "2026-09-10"
+  },
+  "claude-opus-4-5": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "anthropic-messages",
+    "name": "Claude Opus 4.5",
+    "verifiedAt": "2026-09-10"
+  },
+  "gpt-5.4": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "openai-responses",
+    "name": "GPT-5.4",
+    "verifiedAt": "2026-09-10"
+  },
+  "gpt-5.4-mini": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "openai-responses",
+    "name": "GPT-5.4 Mini",
+    "verifiedAt": "2026-09-10"
+  },
+  "gemini-3-flash": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "google-generative-language",
+    "name": "Gemini 3 Flash",
+    "verifiedAt": "2026-09-10"
+  },
+  "gemini-3.1-pro": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "google-generative-language",
+    "name": "Gemini 3.1 Pro Preview",
+    "verifiedAt": "2026-09-10"
+  },
+  "deepseek-v4-flash-vision-exp": {
+    "capabilities": {
+      "vision": true,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "openai-chat-completions",
+    "name": "DeepSeek V4 Flash Vision Exp",
+    "verifiedAt": "2026-09-10"
+  },
+  "deepseek-v4-pro": {
+    "capabilities": {
+      "vision": false,
+      "streaming": true,
+      "reasoning": true
+    },
+    "metadataSource": "https://models.dev/api.json",
+    "protocol": "openai-chat-completions",
+    "name": "DeepSeek V4 Pro",
+    "verifiedAt": "2026-09-10"
+  }
+}

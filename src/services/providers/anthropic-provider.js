@@ -175,21 +175,7 @@ class AnthropicProvider extends LLMProvider {
    * Get list of available Anthropic models
    * @returns {Array<{id: string, name: string}>} - List of model objects
    */
-  getModels() {
-    return [
-      // Claude 4.x Series (Current - 2025)
-      { id: 'claude-opus-4-5', name: 'Claude Opus 4.5 (Most Intelligent - Nov 2025)' },
-      { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5 (Best Coding - Recommended)' },
-      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5 (Fastest & Cheapest)' },
-      { id: 'claude-opus-4-1', name: 'Claude Opus 4.1 (Agentic Tasks)' },
-      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4 (Production)' },
-
-      // Claude 3.x Series (Legacy - Being Deprecated)
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet v2 (Legacy)' },
-      { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet v1 (Legacy)' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (Legacy)' }
-    ]
-  }
+  getModels() { return super.getModels() }
 
   /**
    * Get the provider name

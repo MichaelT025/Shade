@@ -3,6 +3,8 @@ const OpenAIProvider = require('./providers/openai-provider')
 const AnthropicProvider = require('./providers/anthropic-provider')
 const CustomProvider = require('./providers/custom-provider')
 const ProviderRegistry = require('./provider-registry')
+const { GatewayProvider } = require('./providers/gateway-provider')
+const { version } = require('../../package.json')
 
 /**
  * Factory for creating LLM provider instances
@@ -21,12 +23,15 @@ class LLMFactory {
     if (!providerMeta) {
       throw new Error(`Unknown provider: ${providerName}`)
     }
+    if (providerMeta.disabled) throw new Error(providerMeta.disabledReason || 'This provider is not available')
 
     // Get model-specific options if defined
-    const modelOptions = providerMeta.models?.[config.model]?.options || {}
+    const selectedModel = config.model || providerMeta.defaultModel || ''
+    const model = providerMeta.modelAliases?.[selectedModel] || selectedModel
+    const modelOptions = providerMeta.models?.[model]?.options || {}
 
     // Merge config with model-specific options
-    const finalConfig = { ...config, ...modelOptions }
+    const finalConfig = { ...config, model, ...modelOptions, providerId: providerName }
 
     const requiresApiKey = providerMeta.requiresApiKey !== undefined
       ? providerMeta.requiresApiKey
@@ -38,6 +43,16 @@ class LLMFactory {
 
     // Use provider's 'type' field to determine which SDK to instantiate
     switch (providerMeta.type) {
+      case 'gateway': {
+        if (!providerMeta.models?.[model]) throw new Error(`Model ${model} is unavailable. Refresh models and choose another model.`)
+        if (providerName === 'opencode-go' && !(typeof config.conversationId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(config.conversationId))) throw new Error('OpenCode Go requires a conversation session ID')
+        return new GatewayProvider(apiKey, { ...finalConfig,
+          baseUrl: providerMeta.baseUrl, protocol: providerMeta.models[model].protocol,
+          capabilities: ProviderRegistry.getModelCapabilities(providerName, model),
+          defaultHeaders: { 'User-Agent': `shade/${version}`,
+            ...(providerName === 'opencode-go' ? { 'x-opencode-session': config.conversationId } : {}) }
+        })
+      }
       case 'gemini':
         return new GeminiProvider(apiKey, finalConfig)
 
