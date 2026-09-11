@@ -2,6 +2,7 @@ import { describe, test, expect, vi } from 'vitest'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import platformService from '../../services/platform/platform-service.js'
 
 // Execute the real CommonJS IPC module with injected Electron dependencies.
@@ -17,6 +18,7 @@ function configHandlers(platform) {
   const context = {
     module: { exports: {} }, console,
     require: (id) => {
+      if (id === 'node:crypto') return crypto
       if (id === 'electron') return { ipcMain }
       if (id.includes('platform-service')) return {
         getPlatformCapabilities: () => platformService.getPlatformCapabilities(platform, {})

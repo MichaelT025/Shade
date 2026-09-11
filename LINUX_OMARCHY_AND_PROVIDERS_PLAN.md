@@ -507,3 +507,8 @@ These services and model lists change quickly. Re-check the official pages immed
 - Automated validation: 369 tests passed, 15 existing tests skipped. No paid provider calls were made. Live text/image/auth/cancellation smoke tests remain outstanding.
 
 - Packaging validation for provider commit `b94698b`: Windows NSIS installer built successfully; all 55 packaged main/service source and JSON files matched disk. [Linux workflow](https://github.com/MichaelT025/Shade/actions/runs/34558197774) passed tests, built the AppImage, and uploaded the artifact. These builds do not replace interactive Wayland or live API smoke tests.
+
+
+## Go enablement - 2026-09-11
+
+Go is now enabled at the user's request. Current docs require a client-specific User-Agent and stable x-opencode-session; they do not require prior approval. Shade persists conversation IDs across saved chats and shares them across replies, summaries, and titles. New chats rotate IDs; key verification uses a separate probe session. Saved catalogs migrate out of the unavailable state. Seven bundled Go models provide a fallback. Live authenticated Go requests remain untested.

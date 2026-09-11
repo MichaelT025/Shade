@@ -134,7 +134,7 @@ function createChatIpcRegistrar({
       return { success: true }
     })
 
-    ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot }) => {
+    ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot, conversationId }) => {
       try {
         let resolvedImageBase64 = imageBase64
         if (!resolvedImageBase64 && usePredictiveScreenshot && hasFreshPredictiveScreenshot()) {
@@ -177,6 +177,7 @@ function createChatIpcRegistrar({
         const activeSystemPrompt = configService.getActiveSystemPrompt()
         const configWithPrompt = {
           ...config,
+          conversationId,
           systemPrompt: activeSystemPrompt
         }
 
@@ -238,10 +239,14 @@ function createChatIpcRegistrar({
       return { success: false }
     })
 
-    ipcMain.handle('generate-summary', async (_event, messages) => {
+    ipcMain.handle('generate-summary', async (_event, payload) => {
       try {
+        const messages = Array.isArray(payload) ? payload : payload.messages
+        const conversationId = payload?.conversationId
         console.log('Summary generation requested for', messages.length, 'messages')
-        const providerName = configService.getActiveProvider()
+        const activeMode = configService.getMode(configService.getActiveMode())
+        const providerName = activeMode?.overrideProviderModel && activeMode.provider
+          ? activeMode.provider : configService.getActiveProvider()
         const apiKey = configService.getApiKey(providerName)
 
         if (!isLocalProvider(providerName) && !apiKey) {
@@ -251,7 +256,11 @@ function createChatIpcRegistrar({
         const config = configService.getProviderConfig(providerName)
         const summaryConfig = {
           ...config,
+          conversationId,
           systemPrompt: ''
+        }
+        if (activeMode?.overrideProviderModel && activeMode.provider === providerName && activeMode.model) {
+          summaryConfig.model = activeMode.model
         }
 
         const provider = LLMFactory.createProvider(providerName, apiKey, summaryConfig)
@@ -274,8 +283,10 @@ function createChatIpcRegistrar({
       }
     })
 
-    ipcMain.handle('generate-session-title', async (_event, assistantReply) => {
+    ipcMain.handle('generate-session-title', async (_event, payload) => {
       try {
+        const assistantReply = typeof payload === 'string' ? payload : payload.assistantReply
+        const conversationId = payload?.conversationId
         const replyText = typeof assistantReply === 'string' ? assistantReply.trim() : ''
         if (!replyText) {
           return { success: false, error: 'Empty reply' }
@@ -296,6 +307,7 @@ function createChatIpcRegistrar({
         const config = configService.getProviderConfig(providerName)
         const titleConfig = {
           ...config,
+          conversationId,
           systemPrompt: ''
         }
 

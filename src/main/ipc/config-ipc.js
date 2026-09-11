@@ -1,3 +1,4 @@
+const { randomUUID } = require('node:crypto')
 const { ipcMain, screen } = require('electron')
 const LLMFactory = require('../../services/llm-factory')
 const { getPlatformCapabilities } = require('../../services/platform/platform-service')
@@ -139,7 +140,7 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
       }
 
       const config = configService.getProviderConfig(provider)
-      const providerInstance = LLMFactory.createProvider(provider, apiKey, config)
+      const providerInstance = LLMFactory.createProvider(provider, apiKey, { ...config, conversationId: randomUUID() })
       const isValid = await providerInstance.validateApiKey()
       return { success: true, isValid }
     } catch (error) {

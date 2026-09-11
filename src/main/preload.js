@@ -10,9 +10,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setPersistentContentProtection: (enabled) => ipcRenderer.invoke('set-persistent-content-protection', enabled),
 
   // LLM messaging
-  sendMessage: (text, imageBase64, conversationHistory, summary, usePredictiveScreenshot = false) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot }),
+  sendMessage: (text, imageBase64, conversationHistory, summary, usePredictiveScreenshot = false, conversationId) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot, conversationId }),
   stopMessage: () => ipcRenderer.invoke('stop-message'),
-  generateSummary: (messages) => ipcRenderer.invoke('generate-summary', messages),
+  generateSummary: (messages, conversationId) => ipcRenderer.invoke('generate-summary', { messages, conversationId }),
 
   // Listen for streaming message chunks
   onMessageChunk: (callback) => {
@@ -119,7 +119,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setStartCollapsed: (startCollapsed) => ipcRenderer.invoke('set-start-collapsed', startCollapsed),
   getAutoUpdateEnabled: () => ipcRenderer.invoke('get-auto-update-enabled'),
   setAutoUpdateEnabled: (enabled) => ipcRenderer.invoke('set-auto-update-enabled', enabled),
-  generateSessionTitle: (assistantReply) => ipcRenderer.invoke('generate-session-title', assistantReply),
+  generateSessionTitle: (assistantReply, conversationId) => ipcRenderer.invoke('generate-session-title', { assistantReply, conversationId }),
 
   // Display detection
   getDisplays: () => ipcRenderer.invoke('get-displays'),
