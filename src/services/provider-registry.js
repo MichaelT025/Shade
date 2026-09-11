@@ -8,6 +8,7 @@ const path = require('path')
 const { safeParseJson } = require('./utils/json-safe')
 const { writeFileAtomicSync } = require('./utils/atomic-write')
 const { getModelCapabilities: resolveCapabilities, mergeModelMetadata } = require('./model-capabilities')
+const { providers: gatewayProviders } = require('./providers/gateway-catalog')
 
 // Default providers JSON (embedded fallback)
 const defaultProviders = {
@@ -124,6 +125,7 @@ const defaultProviders = {
       'bakllava': { name: 'BakLLaVA' }
     }
   },
+  ...gatewayProviders,
   'lm-studio': {
     name: 'LM Studio',
     type: 'openai-compatible',
