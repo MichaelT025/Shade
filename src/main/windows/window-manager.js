@@ -265,10 +265,13 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
     })
 
     mainWindow.on('show', () => {
+      // Cover every reveal path, including renderer-ready on first launch.
+      if (onOverlayShow) onOverlayShow()
       logMainWindowVisibility('event-show', 'electron-event')
     })
 
     mainWindow.on('hide', () => {
+      if (onOverlayHide) onOverlayHide()
       if (focusTimer) {
         clearTimeout(focusTimer)
         focusTimer = null
@@ -282,6 +285,7 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
         focusTimer = null
       }
       clearTimeout(readyTimeout)
+      if (onOverlayHide) onOverlayHide()
       mainWindow = null
     })
   }
@@ -439,8 +443,6 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
   function showMainWindow(source = 'unknown') {
     if (!mainWindow || mainWindow.isDestroyed()) return
     showAndFocusMainWindow(source)
-    // Notify main process to register overlay-specific shortcuts
-    if (onOverlayShow) onOverlayShow()
   }
 
   function hideMainWindow(source = 'unknown') {
@@ -457,8 +459,6 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
 
     logMainWindowVisibility('hide-request', source)
     mainWindow.hide()
-    // Notify main process to unregister overlay-specific shortcuts
-    if (onOverlayHide) onOverlayHide()
   }
 
   function resumeSessionInOverlay(sessionId) {
