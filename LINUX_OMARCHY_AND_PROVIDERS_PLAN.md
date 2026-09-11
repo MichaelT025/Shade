@@ -505,3 +505,5 @@ These services and model lists change quickly. Re-check the official pages immed
 - Explicit key testing sends a bounded text request and can consume credits; settings disclose this before testing.
 - Go is visibly unavailable and rejected by the factory. Stable conversation identity across main/auxiliary requests and eligibility confirmation remain required before enabling it.
 - Automated validation: 369 tests passed, 15 existing tests skipped. No paid provider calls were made. Live text/image/auth/cancellation smoke tests remain outstanding.
+
+- Packaging validation for provider commit `b94698b`: Windows NSIS installer built successfully; all 55 packaged main/service source and JSON files matched disk. [Linux workflow](https://github.com/MichaelT025/Shade/actions/runs/34558197774) passed tests, built the AppImage, and uploaded the artifact. These builds do not replace interactive Wayland or live API smoke tests.
