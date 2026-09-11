@@ -179,7 +179,7 @@ function registerHotkeys() {
   }
 
   // Overlay-specific shortcuts will be registered when overlay becomes visible
-  // via showMainWindow -> registerOverlayShortcuts
+  // via the main window's show event -> registerOverlayShortcuts
 
   if (registrationFailures.length > 0) {
     console.warn('Global shortcut registration failed for:', registrationFailures)
