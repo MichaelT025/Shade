@@ -1,3 +1,4 @@
+import { capabilityLabel } from './utils/provider-capabilities.js'
 import { initIcons, insertIcon } from './assets/icons/icons.js'
 import { escapeHtml } from './utils/html-escape.js'
 
@@ -122,7 +123,7 @@ function renderList() {
       const isHighlighted = idx === state.highlightedIndex
       return `
         <div class="model-item ${isCurrent ? 'active' : ''} ${isHighlighted ? 'highlighted' : ''}" role="option" aria-selected="${isCurrent}" data-model-id="${escapeHtml(m.id)}" data-index="${idx}">
-          <div class="item-id" title="${escapeHtml(m.id)}">${escapeHtml(m.id)}</div>
+          <div class="item-id" title="${escapeHtml(m.id)}">${escapeHtml(m.id)}<div class="note">${escapeHtml(capabilityLabel(m, state.allProviders.find(p => p.id === state.providerId)))}</div></div>
           ${isCurrent ? '<span class="badge-active">Active</span>' : ''}
         </div>
       `
@@ -212,7 +213,7 @@ async function loadProviderState() {
     els.providerSelect.innerHTML = providers.map(p => {
       const label = getProviderLabel(p)
       const isSelected = p.id === providerId
-      return `<option value="${escapeHtml(p.id)}" ${isSelected ? 'selected' : ''}>${escapeHtml(label)}</option>`
+      return `<option value="${escapeHtml(p.id)}" ${isSelected ? 'selected' : ''} ${p.disabled ? 'disabled' : ''}>${escapeHtml(label)}${p.disabled ? ' (unavailable)' : ''}</option>`
     }).join('')
   }
 
@@ -333,7 +334,8 @@ async function handleProviderChange(newProviderId) {
 
   try {
     // Update active provider
-    await window.electronAPI.setActiveProvider(newProviderId)
+    const result = await window.electronAPI.setActiveProvider(newProviderId)
+    if (result?.success === false) throw new Error(result.error || 'Provider unavailable')
     state.providerId = newProviderId
 
     // Reload provider state and models

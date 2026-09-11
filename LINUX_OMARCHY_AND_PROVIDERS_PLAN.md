@@ -2,7 +2,8 @@
 
 ## Implementation review â€” 2026-09-10
 
-Linux work is on `codex/linux-omarchy-support`; provider phases remain deferred.
+Linux work is submitted as draft PR #2 on `codex/linux-omarchy-support`.
+Provider work is proceeding on `codex/provider-capabilities` with user authorization, while native Linux validation remains pending.
 The original architecture is sound, with these corrections before implementation:
 
 - Portal capture must keep a consented stream alive between screenshots. Repeated
@@ -493,3 +494,14 @@ Do not stack all of this into one heroic PR. Heroic PRs are how bugs acquire squ
 - DeepSeek API: https://api-docs.deepseek.com
 
 These services and model lists change quickly. Re-check the official pages immediately before implementing each provider rather than treating this plan as eternal scripture.
+
+
+## Provider implementation checkpoint — 2026-09-10
+
+- Shared registry/capability groundwork committed as `0700987`.
+- Zen now routes models through Chat Completions, Responses, Messages, or Google adapters using verified per-model metadata. Direct DeepSeek uses Chat Completions with canonical Flash aliases.
+- Model refresh combines live availability with explicit capability metadata and retains the existing catalog on failure. Bundled Zen models remain usable offline.
+- Settings and both model pickers label screenshot capability. Image requests for unsupported models are rejected before transmission; chat preflight preserves the draft.
+- Explicit key testing sends a bounded text request and can consume credits; settings disclose this before testing.
+- Go is visibly unavailable and rejected by the factory. Stable conversation identity across main/auxiliary requests and eligibility confirmation remain required before enabling it.
+- Automated validation: 369 tests passed, 15 existing tests skipped. No paid provider calls were made. Live text/image/auth/cancellation smoke tests remain outstanding.
