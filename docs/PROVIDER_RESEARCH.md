@@ -14,7 +14,7 @@ Zen is a multi-protocol gateway, not one OpenAI-compatible API. Its current cata
 
 The current documented examples include GPT and Grok models on Responses, Claude and Qwen models on Messages, Gemini models on Google routes, and DeepSeek/MiniMax/GLM/Kimi models on Chat Completions. This confirms that Shade needs protocol metadata per model and cannot safely route all Zen models through its existing custom OpenAI-compatible provider.
 
-The public models endpoint responds, but its JSON body was not inspectable through the research browser. The documentation calls it a source of full model metadata, but does not specify a stable response schema or guarantee which field declares image input. Treat the fetched catalog as untrusted cache data, validate its schema, and retain a small bundled fallback. Do not infer vision support from a vendor family or endpoint alone.
+A direct public fetch on 2026-09-10 confirmed that `/models` returns `data` entries with `id`, `object`, `created`, and `owned_by`, without protocol or image-input fields. Shade combines these available IDs with [OpenCode model metadata](https://models.dev/api.json): `opencode.models[id].modalities.input` establishes image support and the model/provider `npm` field selects the protocol. Unknown routes are excluded. A bundled nine-model snapshot supplies metadata when that catalog is offline; model names alone never establish image support.
 
 Authentication is by an OpenCode API key. OpenCode's official inference guide documents `Authorization: Bearer <token>` for its protocol endpoints. The Zen page itself does not separately spell out the wire-level authentication header, so verify a real Zen request before release.
 

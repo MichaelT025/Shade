@@ -2,6 +2,16 @@ const { ipcMain, screen } = require('electron')
 const LLMFactory = require('../../services/llm-factory')
 
 function registerConfigIpcHandlers({ configService, updateService, sendToWindows, broadcastConfigChanged, getMainWindow }) {
+  ipcMain.handle('get-active-model-capabilities', async () => {
+    const mode = configService.getMode(configService.getActiveMode())
+    const providerId = mode?.overrideProviderModel && mode.provider ? mode.provider : configService.getActiveProvider()
+    const provider = LLMFactory.getProviderMeta(providerId)
+    const selected = mode?.overrideProviderModel && mode.provider === providerId && mode.model
+      ? mode.model : configService.getProviderConfig(providerId).model || provider?.defaultModel
+    const model = provider?.modelAliases?.[selected] || selected
+    return { strict: !!provider?.strictCapabilities, vision: provider?.models?.[model]?.capabilities?.vision === true,
+      disabled: !!provider?.disabled, reason: provider?.disabledReason, model }
+  })
   ipcMain.handle('save-api-key', async (_event, { provider, apiKey }) => {
     try {
       configService.setApiKey(provider, apiKey)
@@ -26,6 +36,8 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
 
   ipcMain.handle('set-active-provider', async (_event, provider) => {
     try {
+      const metadata = LLMFactory.getProviderMeta(provider)
+      if (metadata?.disabled) throw new Error(metadata.disabledReason || 'Provider unavailable')
       configService.setActiveProvider(provider)
       console.log(`Active provider set to: ${provider}`)
       broadcastConfigChanged()

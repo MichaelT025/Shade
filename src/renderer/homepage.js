@@ -1,3 +1,4 @@
+import { capabilityLabel } from './utils/provider-capabilities.js'
 import { initIcons, insertIcon } from './assets/icons/icons.js'
 
 import { showToast } from './utils/ui-helpers.js'
@@ -648,13 +649,14 @@ function renderConfig(container, state) {
   const providerOptions = providers
     .slice()
     .sort((a, b) => getProviderLabel(a).localeCompare(getProviderLabel(b)))
-    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(getProviderLabel(p))}</option>`)
+    .map(p => `<option value="${escapeHtml(p.id)}" ${p.disabled ? 'disabled' : ''} title="${escapeHtml(p.disabledReason || '')}">${escapeHtml(getProviderLabel(p))}${p.disabled ? ' (unavailable)' : ''}</option>`)
     .join('')
 
   container.innerHTML = `
     <div class="config-card">
       <h2>Provider</h2>
       <p>Select which provider Shade uses for new chats.</p>
+      ${providers.filter(p => p.disabled).map(p => `<p class="status-line">${escapeHtml(p.name)}: ${escapeHtml(p.disabledReason || 'Unavailable')}</p>`).join('')}
       <div class="form-row">
         <div class="form-field">
           <label for="config-provider">Active provider</label>
@@ -671,6 +673,7 @@ function renderConfig(container, state) {
         <div class="form-field" style="min-width: 320px;">
           <label for="config-api-key">API key</label>
           <input id="config-api-key" class="text-input" type="password" placeholder="Enter API key" autocomplete="off" />
+          <div id="config-key-notice" class="status-line"></div>
           <div id="config-key-status" class="status-line"></div>
         </div>
         <div class="inline-actions">
@@ -972,7 +975,7 @@ async function renderModeEditor(container, state) {
   const providerOptions = (providers || [])
     .slice()
     .sort((a, b) => getProviderLabel(a).localeCompare(getProviderLabel(b)))
-    .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(getProviderLabel(p))}</option>`)
+    .map(p => `<option value="${escapeHtml(p.id)}" ${p.disabled ? 'disabled' : ''} title="${escapeHtml(p.disabledReason || '')}">${escapeHtml(getProviderLabel(p))}${p.disabled ? ' (unavailable)' : ''}</option>`)
     .join('')
 
   const providerId = sanitized.provider || activeProvider || (providers?.[0]?.id || '')
@@ -1126,7 +1129,7 @@ async function updateModeModelList(editorEl, providerId, selectedModelId) {
       const isActive = m.id === selectedModelId
       return `
         <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${escapeHtml(m.id)}">
-          <span style="font-size: 13px; font-weight: 500;">${escapeHtml(m.id)}</span>
+          <span style="font-size: 13px; font-weight: 500;">${escapeHtml(m.id)}</span><span class="status-line">${escapeHtml(capabilityLabel(m, providerMeta))}</span>
           ${isActive ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 14px; height: 14px;"></span>' : ''}
         </div>
       `
@@ -1437,6 +1440,9 @@ async function updateProviderDependentUI(container, providerId, { preserveKeySta
 
   // Avoid showing the embedded/default model list until we've refreshed at least once.
   // We still *attempt* a refresh automatically when possible.
+  const keyNotice = container.querySelector('#config-key-notice')
+  if (keyNotice) keyNotice.textContent = providerMeta?.disabledReason || providerMeta?.verificationNotice || ''
+
   const hasFetchedModels = !!providerMeta?.lastFetched
   const canAutoRefresh = isLocalProvider || providerMeta?.type === 'anthropic' || hasApiKey
 
@@ -1458,7 +1464,7 @@ async function updateProviderDependentUI(container, providerId, { preserveKeySta
     }
   }
 
-  const models = (hasFetchedModels ? extractModelsFromProviderMeta(providerMeta) : [])
+  const models = (hasFetchedModels || providerMeta?.strictCapabilities ? extractModelsFromProviderMeta(providerMeta) : [])
     .sort((a, b) => (a.id || '').localeCompare(b.id || ''))
 
   const query = (modelSearch?.value || '').trim()
@@ -1515,7 +1521,7 @@ async function updateProviderDependentUI(container, providerId, { preserveKeySta
         const isActive = m.id === selectedModelId
         return `
           <div class="model-item ${isActive ? 'active' : ''}" data-model-id="${escapeHtml(m.id)}">
-            <span style="font-size: 13px; font-weight: 500;">${escapeHtml(m.id)}</span>
+            <span style="font-size: 13px; font-weight: 500;">${escapeHtml(m.id)}</span><span class="status-line">${escapeHtml(capabilityLabel(m, providerMeta))}</span>
             ${isActive ? '<span class="nav-icon" data-icon="check" style="color: var(--accent); width: 14px; height: 14px;"></span>' : ''}
           </div>
         `
@@ -1665,7 +1671,12 @@ async function initConfigurationView() {
 
   const setProvider = async (providerId) => {
     if (!providerId) return
-    await window.electronAPI.setActiveProvider(providerId)
+    const result = await window.electronAPI.setActiveProvider(providerId)
+    if (result?.success === false) {
+      setStatus(modelStatus, result.error || 'Provider unavailable', 'bad')
+      if (providerSelect) providerSelect.value = cachedActiveProvider
+      return
+    }
     cachedActiveProvider = providerId
 
     setStatus(modelStatus, 'Refreshing models…', null)

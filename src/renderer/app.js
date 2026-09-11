@@ -1127,6 +1127,18 @@ async function handleSendMessage() {
   if (!text && !sendScreenshot) return
 
   // Change to generating state
+  if (sendScreenshot) {
+    try {
+      const capabilities = await window.electronAPI.getActiveModelCapabilities()
+      if (capabilities.disabled || (capabilities.strict && !capabilities.vision)) {
+        showToast(capabilities.reason || 'This model cannot accept screenshots. Remove the screenshot or choose a screenshot-capable model.', 'error', 5000)
+        return
+      }
+    } catch (error) {
+      showToast('Unable to check screenshot support. Please try again.', 'error', 3000)
+      return
+    }
+  }
   isGenerating = true
   sendBtn.title = 'Stop'
   sendBtn.setAttribute('aria-label', 'Stop generating')
