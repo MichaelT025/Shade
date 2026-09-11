@@ -202,6 +202,14 @@ function loadProviders() {
           providers[providerId] = JSON.parse(JSON.stringify(providerData))
           needsSave = true
         } else {
+          // Remove the retired Go availability gate from previously saved catalogs.
+          if (providerId === 'opencode-go') {
+            delete providers[providerId].disabled
+            delete providers[providerId].disabledReason
+            providers[providerId].description = providerData.description
+            providers[providerId].verificationNotice = providerData.verificationNotice
+            needsSave = true
+          }
           // Update models for existing provider if default has more models
           const existingModels = providers[providerId].models || {}
           const defaultModels = providerData.models || {}

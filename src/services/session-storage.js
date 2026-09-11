@@ -38,6 +38,14 @@ function safePathPart(value) {
   return cleaned
 }
 
+function normalizeConversationId(value, fallbackId = '') {
+  const conversationId = safeText(value).trim()
+  if (/^[a-zA-Z0-9_-]{1,128}$/.test(conversationId)) return conversationId
+
+  const legacyId = safeText(fallbackId)
+  return /^[a-zA-Z0-9_-]{1,128}$/.test(legacyId) ? legacyId : ''
+}
+
 function normalizeSessionMessage(message) {
   const timestamp = normalizeIsoTimestamp(message?.timestamp)
   const type = message?.type === 'ai' ? 'ai' : 'user'
@@ -281,20 +289,27 @@ class SessionStorage {
     // explicit title is provided. This prevents autosave calls from
     // overwriting AI/manual titles with fallback generated titles.
     let existingTitle = ''
-    if (!requestedTitle && safeText(session?.id)) {
+    let existingConversationId = ''
+    if (safeText(session?.id)) {
       try {
         const existingRaw = await fs.readFile(filePath, 'utf8')
         const existingSession = safeParseJson(existingRaw, null)
-        existingTitle = safeText(existingSession?.title).trim()
+        if (!requestedTitle) existingTitle = safeText(existingSession?.title).trim()
+        existingConversationId = normalizeConversationId(existingSession?.conversationId, existingSession?.id)
       } catch {
         // Ignore missing/corrupt existing files and fall back to generated title.
       }
     }
 
     const title = requestedTitle || existingTitle || this.generateTitle(messages)
+    const conversationId = normalizeConversationId(session?.conversationId)
+      || existingConversationId
+      || normalizeConversationId('', id)
+      || generateId()
 
     const normalizedSession = {
       id,
+      conversationId,
       title,
       createdAt,
       updatedAt,
@@ -335,6 +350,7 @@ class SessionStorage {
     return {
       ...session,
       id: safeText(session.id) || id,
+      conversationId: normalizeConversationId(session.conversationId, safeText(session.id) || id) || generateId(),
       title: safeText(session.title) || 'New Chat',
       createdAt: normalizeIsoTimestamp(session.createdAt),
       updatedAt: normalizeIsoTimestamp(session.updatedAt),

@@ -1,4 +1,5 @@
 const zenModels = require('./zen-models.json')
+const goModels = require('./go-models.json')
 
 const providers = {
   'opencode-zen': {
@@ -10,11 +11,11 @@ const providers = {
   },
   'opencode-go': {
     name: 'OpenCode Go', type: 'gateway', strictCapabilities: true, requiresApiKey: true,
-    description: 'Coding-agent subscription; Shade compatibility pending',
+    description: 'OpenCode Go subscription models',
     website: 'https://opencode.ai/docs/go/', baseUrl: 'https://opencode.ai/zen/go/v1',
     catalogId: 'opencode-go', defaultModel: 'deepseek-v4-flash-vision-exp',
-    disabled: true, disabledReason: 'OpenCode Go is intended for coding-agent traffic. Availability in Shade is pending confirmation from OpenCode.',
-    models: { 'deepseek-v4-flash-vision-exp': zenModels['deepseek-v4-flash-vision-exp'] }
+    verificationNotice: 'Testing the key sends a small text request and uses subscription allowance.',
+    models: goModels
   },
   deepseek: {
     name: 'DeepSeek', type: 'gateway', strictCapabilities: true, requiresApiKey: true,

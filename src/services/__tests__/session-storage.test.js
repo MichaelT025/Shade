@@ -93,6 +93,17 @@ describe('SessionStorage', () => {
       expect(result.id).toBe('my-custom-id')
     })
 
+    test('should preserve a conversation ID through save and reload', async () => {
+      const conversationId = 'bf106fd4-3da8-46a4-877d-a34e31ba2526'
+      const saved = await sessionStorage.saveSession({
+        conversationId,
+        messages: [{ type: 'user', text: 'Test' }]
+      })
+
+      const loaded = await sessionStorage.loadSession(saved.id)
+      expect(loaded.conversationId).toBe(conversationId)
+    })
+
     test('should auto-generate title from first user message', async () => {
       const session = {
         messages: [
@@ -232,6 +243,20 @@ describe('SessionStorage', () => {
       expect(loaded.createdAt).toBeDefined()
       expect(loaded.updatedAt).toBeDefined()
       expect(Array.isArray(loaded.messages)).toBe(true)
+    })
+
+    test('should derive a stable conversation ID from a safe legacy session ID', async () => {
+      await sessionStorage.ensureSessionsDir()
+      await fs.writeFile(
+        path.join(sessionStorage.sessionsDir, 'legacy-session.json'),
+        JSON.stringify({ id: 'legacy-session', messages: [] }),
+        'utf8'
+      )
+
+      const firstLoad = await sessionStorage.loadSession('legacy-session')
+      const secondLoad = await sessionStorage.loadSession('legacy-session')
+      expect(firstLoad.conversationId).toBe('legacy-session')
+      expect(secondLoad.conversationId).toBe(firstLoad.conversationId)
     })
 
     test('should throw invalid session error for malformed json session file', async () => {

@@ -45,7 +45,7 @@ class LLMFactory {
     switch (providerMeta.type) {
       case 'gateway': {
         if (!providerMeta.models?.[model]) throw new Error(`Model ${model} is unavailable. Refresh models and choose another model.`)
-        if (providerName === 'opencode-go' && !config.conversationId) throw new Error('OpenCode Go requires a conversation session ID')
+        if (providerName === 'opencode-go' && !(typeof config.conversationId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(config.conversationId))) throw new Error('OpenCode Go requires a conversation session ID')
         return new GatewayProvider(apiKey, { ...finalConfig,
           baseUrl: providerMeta.baseUrl, protocol: providerMeta.models[model].protocol,
           capabilities: ProviderRegistry.getModelCapabilities(providerName, model),

@@ -37,7 +37,7 @@ Every Shade request would need:
 - A stable `x-opencode-session` value for a conversation, reused across its main and auxiliary requests.
 - The Go API key and Go-specific subscription/error handling.
 
-There is a product-policy gate. OpenCode says Go is designed for OpenCode and other coding agents that send similar traffic, and that traffic is monitored for abuse. Shade is a general screen assistant, so the current documentation does not establish that normal Shade traffic is eligible. Ask OpenCode for confirmation before publicly enabling Go. Implementation can be prepared behind a disabled or experimental gate, but it should not ship as generally available based only on protocol compatibility.
+Update 2026-09-11: The docs still describe coding-agent traffic and request a client-specific User-Agent plus a stable `x-opencode-session` per conversation. They do not require prior approval from OpenCode. The earlier approval gate was our interpretation and has been removed at the user's request. Shade identifies itself as `shade/<version>` and sends the same persisted conversation ID on chat, summary, and title requests. New chats get new IDs; explicit key verification gets a separate probe ID. This implements the documented identity requirements without claiming Shade is a validated client.
 
 The Go model endpoint was reachable but its response body/schema was not inspectable through the research browser. As with Zen, capability fields require live schema validation. The docs list `deepseek-v4-flash-vision-exp`, but do not independently certify image support for every other Go model.
 
@@ -69,5 +69,5 @@ Sources: [current models, pricing, aliases, and retirement routing](https://api-
 1. Add protocol and capability fields to Shade's provider/model registry before adding a provider. Keep bundled capability truth separate from fetched availability.
 2. Implement Zen with one adapter per protocol. For the first usable screenshot path, start with its documented Chat Completions route and `deepseek-v4-flash-vision-exp`; then add Responses, Messages, and Google adapters deliberately. Do not expose models whose image capability has not been verified.
 3. Implement direct DeepSeek Chat Completions with canonical `deepseek-flash` as the default and mark it vision-capable. Keep `deepseek-v4-pro` text-only and migrate legacy Flash IDs.
-4. Prepare Go's header/session plumbing only after the common protocol layer exists. Keep Go unavailable to normal users until OpenCode confirms Shade's traffic is permitted.
+4. Prepare Go's header/session plumbing only after the common protocol layer exists. Enable Go with its own client identity and stable conversation header; retain the documented traffic expectations.
 5. Before release, make opt-in live checks for authentication, one text request, one screenshot request, streaming cancellation, and live model-catalog parsing. Paid live calls must stay out of the default test suite.

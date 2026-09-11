@@ -19,6 +19,7 @@ import { setupScreenshotPreview, clearScreenshotChip } from './utils/screenshot-
 // State management
 const messages = [] // Chat history array (for UI display)
 let currentSessionId = null
+let currentConversationId = createConversationId()
 let memoryManager = null // Memory manager instance (for context optimization)
 let capturedScreenshot = null // Current screenshot base64
 let capturedThumbnail = null // Screenshot thumbnail for preview
@@ -30,6 +31,33 @@ let accumulatedText = '' // Accumulated text during streaming
 let isCollapsed = true // Overlay collapse state (starts collapsed)
 let lastShownErrorSignature = ''
 let lastShownErrorAt = 0
+
+function createConversationId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+
+  const bytes = new Uint8Array(16)
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    globalThis.crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256)
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+function legacyConversationId(session, fallbackId) {
+  const persisted = typeof session?.conversationId === 'string' ? session.conversationId.trim() : ''
+  if (/^[a-zA-Z0-9_-]{1,128}$/.test(persisted)) return persisted
+
+  const legacyId = typeof session?.id === 'string' && session.id ? session.id : fallbackId
+  return typeof legacyId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(legacyId)
+    ? legacyId
+    : createConversationId()
+}
 
 // Behavior settings (from Configuration)
 let screenshotMode = 'manual' // 'manual' | 'auto'
@@ -115,6 +143,9 @@ async function saveCurrentSession() {
   if (!Array.isArray(messages) || messages.length === 0) {
     return
   }
+  const conversationId = currentConversationId
+  const sessionId = currentSessionId
+  const messagesSnapshot = messages.slice()
   const activeProviderResult = await window.electronAPI.getActiveProvider()
 
   const provider = activeProviderResult?.success ? activeProviderResult.provider : ''
@@ -126,21 +157,22 @@ async function saveCurrentSession() {
   }
 
   const sessionPayload = buildSessionPayload({
-    currentSessionId,
+    currentSessionId: sessionId,
     provider,
     mode: modeDropdownInput?.value || '',
     model,
-    messages
+    messages: messagesSnapshot
   })
+  sessionPayload.conversationId = conversationId
 
   const result = await window.electronAPI.saveSession(sessionPayload)
-  if (result?.success && result.session?.id) {
+  if (result?.success && result.session?.id && currentConversationId === conversationId) {
     currentSessionId = result.session.id
   }
 
   // Once a screenshot message is persisted, keep only the on-disk reference.
   if (result?.success) {
-    prunePersistedScreenshotBase64(messages)
+    prunePersistedScreenshotBase64(messagesSnapshot)
   }
 }
 
@@ -170,6 +202,7 @@ async function loadSessionIntoChat(sessionId) {
   // Reset state
   messages.length = 0
   currentSessionId = session.id || sessionId
+  currentConversationId = legacyConversationId(session, sessionId)
   sessionAutoTitleApplied = true
 
   if (memoryManager) {
@@ -332,15 +365,18 @@ async function maybeAutoTitleSessionFromFirstReply(replyText) {
   if (aiCount !== 1) return
 
   try {
+    const conversationId = currentConversationId
     // Ensure session is persisted and has an id
     await saveCurrentSession()
-    if (!currentSessionId) return
+    if (currentConversationId !== conversationId || !currentSessionId) return
+    const sessionId = currentSessionId
 
-    const titleResult = await window.electronAPI.generateSessionTitle(normalized)
+    const titleResult = await window.electronAPI.generateSessionTitle(normalized, conversationId)
     if (!titleResult?.success || !titleResult.title) return
+    if (currentConversationId !== conversationId) return
 
-    await window.electronAPI.renameSession(currentSessionId, titleResult.title)
-    sessionAutoTitleApplied = true
+    await window.electronAPI.renameSession(sessionId, titleResult.title)
+    if (currentConversationId === conversationId) sessionAutoTitleApplied = true
   } catch (error) {
     console.error('Failed to auto-title session:', error)
   }
@@ -1061,6 +1097,9 @@ async function handleSendMessage() {
     return
   }
 
+  // Bind all work started by this send to the chat that initiated it.
+  const conversationId = currentConversationId
+
   // Auto-expand on first message
   expand()
 
@@ -1174,7 +1213,7 @@ async function handleSendMessage() {
       console.log('Generating conversation summary...')
       try {
         await memoryManager.generateSummary(async (messages) => {
-          const result = await window.electronAPI.generateSummary(messages)
+          const result = await window.electronAPI.generateSummary(messages, conversationId)
           if (!result.success) {
             throw new Error(result.error || 'Failed to generate summary')
           }
@@ -1211,7 +1250,9 @@ async function handleSendMessage() {
       promptText, 
       sendScreenshot, 
       conversationHistory,
-      context.summary
+      context.summary,
+      false,
+      conversationId
     )
 
     // Remove loading indicator if it hasn't been removed by first chunk
@@ -1820,6 +1861,7 @@ function handleNewChat() {
 
   // Start a new persisted session
   currentSessionId = null
+  currentConversationId = createConversationId()
   sessionAutoTitleApplied = false
   if (sessionSaveTimer) {
     clearTimeout(sessionSaveTimer)
