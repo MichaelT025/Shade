@@ -1,190 +1,150 @@
 # Shade
 
-**Your screen, smarter**
+**Your screen, smarter.**
 
-A Windows desktop application providing real-time AI assistance through a translucent, always-on-top overlay. Capture your screen and ask questions - powered by your choice of LLM provider.
+Shade is a Windows desktop assistant that stays in a translucent, always-on-top overlay. Ask a question, attach your screen when useful, and get streaming answers from your choice of cloud or local model.
 
-![Version](https://img.shields.io/badge/version-0.14.0-blue)
+![Version](https://img.shields.io/badge/version-0.15.1-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> Note: Windows is the primary supported platform today. Shade has some macOS compatibility work (icons + shortcut conflicts), but packaged macOS releases are not yet an official target.
-
-## Why Shade?
-
-- **Privacy-First** - All data stays on your machine. No telemetry, no cloud sync, no tracking.
-- **BYOK (Bring Your Own Key)** - No subscriptions. Use your own API keys and pay only for what you use.
-- **Free & Open Source** - MIT licensed, community-driven development.
-- **Lightweight** - Minimal, fast, stays out of your way until you need it.
-- **Provider Agnostic** - Works with Gemini, OpenAI, Anthropic, Grok, OpenRouter or your own local models.
-
 ## Features
 
-- **Always-on-top translucent overlay** - Floats above all windows, always accessible
-- **Collapsible interface** - Minimal input bar by default, expands when you need it
-- **Screen capture** - Overlay automatically excluded from screenshots
-- **Automatic screenshot mode** - Predictive capture for zero-latency AI assistance
-- **Polished UI/UX** - Fluid animations and intelligent screenshot preview positioning
-- **Multi-provider support** - Gemini, OpenAI, Anthropic, plus OpenAI-compatible endpoints (Ollama / LM Studio)
-- **Rich responses** - Markdown, LaTeX math, and professional syntax highlighting with custom themes
-- **Session history dashboard** - Browse, search, rename, save, and resume conversations (stored locally)
-- **System prompt modes** - Built-in modes and editable prompts (per-mode)
-- **In-app configuration** - Provider, API key validation, model selection + refresh, and screenshot/memory toggles
-- **Model switcher** - Dedicated model picker window (`Ctrl+M`) with provider switching and toggle support
-- **Keyboard shortcuts** - Toggle visibility, start new chat, collapse/expand, capture screenshot
+- **Screen-aware chat:** attach a screenshot manually or capture automatically when sending a message.
+- **Compact overlay:** collapse, expand, move, and resize the window without leaving your work.
+- **Cloud and local providers:** switch providers and models from Configuration or the model switcher.
+- **Screenshot capability labels:** Zen, Go, and DeepSeek models show whether they support screenshots; unsupported image requests are blocked before sending.
+- **Streaming responses:** read answers as they arrive and stop generation when needed.
+- **Rich formatting:** Markdown, syntax-highlighted code, and LaTeX math.
+- **Saved conversations:** browse, search, rename, and resume sessions from the Dashboard.
+- **Prompt modes:** use built-in prompts or create your own, with optional provider/model overrides.
+- **Conversation memory:** configure recent history and optional summarization for longer chats.
+- **Local settings:** manage keys, screenshot history, memory, and updates in the app.
 
-## Installation
+## Install
 
-### Prerequisites
+Download the Windows installer from [Releases](https://github.com/MichaelT025/Shade/releases), run it, and launch Shade. Node.js is not required for the installer.
 
-- Windows 10 (version 2004+) or Windows 11
-- Node.js 18+ and npm
-- API key from your preferred provider:
-  - **Gemini**: [Get API key](https://makersuite.google.com/app/apikey) (free tier available)
-  - **OpenAI**: [Get API key](https://platform.openai.com/api-keys)
-  - **Anthropic**: [Get API key](https://console.anthropic.com/)
+Windows 10 version 2004 or later and Windows 11 are the supported targets. This branch does not include the separate Linux/Wayland port. Some macOS compatibility code exists, but packaged macOS releases are not an official target.
 
-### Quick Start
+The README describes the code in this branch; published releases may not yet include all listed providers.
 
-```bash
-# Clone the repository
-git clone https://github.com/MichaelT025/Shade.git
-cd Shade
+## Connect a provider
 
-# Install dependencies
-npm install
+1. Open the **Dashboard**, then **Configuration**.
+2. Select a provider, paste its API key if required, and click **Save**.
+3. Use **Test key** to check access. For Zen, Go, and DeepSeek, this sends a small text request and can consume credits or subscription allowance.
+4. Select a model. Use the model refresh control to fetch available models.
+5. For screen questions, choose an image-capable model. Zen, Go, and DeepSeek display **Screenshots supported**, **Text only**, or **Screenshot support unverified**.
+6. Return to the overlay and send a message. Optionally choose or customize a mode in the Dashboard.
 
-# Start in dev mode (Vite + Electron)
-npm run dev
+Shade has no subscription of its own. Hosted providers require their own API access, billing, or subscription; local providers require a running model server.
 
-# Or launch Electron directly (requires built renderer assets)
-# npm start
-```
+| Provider | Setup in Shade |
+| --- | --- |
+| Google Gemini | Save a Gemini API key and select an available model. |
+| OpenAI | Save an OpenAI API key and select an available model. |
+| Anthropic Claude | Save an Anthropic API key and select a Claude model. |
+| Grok (X.AI) | Save an X.AI API key. |
+| OpenRouter | Save an OpenRouter API key. |
+| OpenCode Zen | Save an OpenCode key. Shade routes each model through its appropriate API format. |
+| OpenCode Go | Save your Go-enabled OpenCode key. Shade sends its own client identity and a stable session ID across replies, summaries, and titles. |
+| DeepSeek | Save a direct DeepSeek API key. Flash supports screenshots; use the capability label for other models. |
+| Ollama | Start your local server; the default endpoint is `http://localhost:11434/v1`. |
+| LM Studio | Start its local API server; the default endpoint is `http://localhost:1234/v1`. |
 
+For local models, an API key is not required by default. Screenshot support depends on the model you load. Additional OpenAI-compatible endpoints can be configured through provider metadata; see [Configuration](docs/CONFIGURATION.md).
 
+Zen and Go use model metadata to determine API format and image support. Bundled catalogs provide a fallback, and a failed refresh retains the existing list. Live authenticated checks of the new Zen, Go, and DeepSeek integrations remain outstanding; automated adapter tests do not establish live service compatibility. See [provider research](docs/PROVIDER_RESEARCH.md) for the implementation sources and Go's documented usage expectations.
 
-### First-Time Setup
+## Use Shade
 
-1. Open Shade — you’ll see a minimal input bar
-2. Open the Dashboard and go to **Configuration**
-3. Choose your provider and paste your API key (it auto-tests/validates)
-4. Select your default model (or refresh the model list)
-5. Optional: open **Modes** to choose/customize a system prompt
-6. Start chatting!
-
-## Usage
-
-### Keyboard Shortcuts
-
-> **Note:** Most shortcuts (except `Ctrl+/`) are only active when the Shade overlay is visible to prevent conflicts with other applications.
+Press `Ctrl+/` to show the overlay, type a question, and press Enter. To ask about your screen, attach a screenshot first or use `Ctrl+Enter` to send with a fresh capture. In automatic screenshot mode, Shade uses predictive capture when available and captures on send when needed.
 
 | Shortcut | Action |
-|----------|--------|
-| `Ctrl+/` | Toggle overlay visibility (minimize/restore) |
-| `Ctrl+R` | Start new chat |
-| `Enter` | Send message (Shift+Enter for newline) |
-| `Ctrl+Enter` | Quick send with fresh screenshot ("Assist") |
-| `Ctrl+'` | Toggle collapsed/expanded |
-| `Ctrl+Shift+S` | Capture screenshot |
-| `Ctrl+M` | Toggle model switcher (macOS: `Cmd+Shift+M`) |
+| --- | --- |
+| `Ctrl+/` | Toggle overlay visibility |
+| `Ctrl+R` | Start a new chat |
+| `Enter` | Send a message |
+| `Shift+Enter` | Insert a newline |
+| `Ctrl+Enter` | Send with a fresh screenshot; empty input uses “Assist” |
+| `Ctrl+'` | Toggle collapsed/expanded view |
+| `Ctrl+Shift+S` | Capture a screenshot |
+| `Ctrl+M` | Toggle the model switcher |
 
-### Basic Workflow
+Most overlay shortcuts are active only while the overlay is visible. Use the Dashboard to manage sessions and settings. The send button becomes a stop button while a response is generating.
 
-1. **See something on screen you have a question about?**
-2. **Press `Ctrl+/`** to show Shade
-3. **Click the Image button** to capture a screenshot (or enable auto-capture in settings)
-4. **Type your question** and press Enter
-5. **Get AI-powered answers** with full context of what's on your screen
+## Privacy and storage
 
-### Tips
-
-- Drag the title bar to reposition
-- Resize by dragging edges (Both states are resizable)
-- Screenshots persist until you start a new chat
-- Use the Dashboard to manage sessions and configuration
-
-## Technology
-
-- **Framework:** Electron
-- **Bundler:** Vite
-- **UI:** JavaScript/HTML/CSS (renderer)
-- **LLM Providers:** Gemini, OpenAI, Anthropic, OpenAI-compatible endpoints
-- **Screen Capture:** `screenshot-desktop` with `setContentProtection` (optional overlay exclusion)
-- **Rendering:** marked.js (Markdown), KaTeX (LaTeX), highlight.js (code)
-
-## Privacy & Security
-
-Shade is designed with privacy as a core principle:
-
-- **Local Storage Only** - Config and sessions stored in your user data directory
-- **Encrypted API keys** - Stored using OS-level encryption via Electron `safeStorage` when available
-- **No Cloud Sync** - Nothing leaves your machine except API calls to your chosen provider
-- **No Telemetry** - We don't track usage, collect analytics, or phone home
-- **You Control the Data** - Sessions (and any attached screenshots) are stored locally in your user data folder, and can be deleted any time (including a full wipe from the Dashboard)
-- **Open Source** - Audit the code yourself
+- Settings and conversations are stored locally in Electron's user-data directory, under `data/`. On Windows this is typically `%APPDATA%/Shade/`.
+- Messages, included conversation context, and attached screenshots are sent to the selected provider. Optional summaries and session titles also make model requests. The provider's own retention and usage policies apply.
+- Screenshot history is optional and disabled by default. Saved screenshots live alongside session data; prior screenshots are not resent as conversation history.
+- API keys use Electron's OS-backed `safeStorage` encryption when available. This branch can fall back to plaintext if encryption is unavailable or fails; local storage is not a guarantee of encryption.
+- Shade has no cloud session sync or usage telemetry. Model refresh contacts provider catalogs and, for OpenCode metadata, `models.dev`. Enabled update checks contact the release service.
+- On supported Windows systems, **Exclude overlay from screenshots** controls persistent capture protection. When disabled, Shade still attempts to hide its overlay during its own capture.
 
 ## Development
 
-### Project Structure
-
-```
-/src
-  /main           - Electron main process
-    /ipc          - Domain-specific IPC handlers
-    /services     - Main-process services (e.g., updates)
-    /windows      - Window management and creation
-  /renderer       - UI (HTML, JS, CSS)
-    /homepage     - Dashboard logic (controllers, services)
-    /utils        - Shared renderer utilities (rendering, session)
-  /services       - Core business logic (LLM providers, config, persistence)
-/docs             - Documentation and plans
-```
-
-### Commands
+Use Windows and **Node.js 22.12 or newer** with npm. The Vite toolchain no longer supports Node.js 18.
 
 ```bash
-npm run dev       # Run in development mode (Vite + Electron)
-npm start         # Run Electron (built assets)
-npm test          # Run unit tests
-npm run build:win # Build Windows executable
+git clone https://github.com/MichaelT025/Shade.git
+cd Shade
+npm ci
+npm run dev
 ```
 
-### Contributing
+Development mode starts Vite and Electron together. To launch Electron without the development server, build the renderer first:
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing/build commands, and pull request guidelines.
+```bash
+npx vite build
+npm start
+```
 
-### Docs
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start Vite and Electron |
+| `npm run test:run` | Run the test suite once |
+| `npm test` | Run tests in watch mode |
+| `npm run test:ui` | Open the Vitest UI |
+| `npm run test:coverage` | Collect test coverage |
+| `npm run build:win -- --publish never` | Build a Windows installer without publishing |
 
-- Provider/model config details: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
-- Default shipped modes/prompts: [docs/modes.md](docs/modes.md)
-- Test suite walkthrough: [docs/TESTS_SETUP.md](docs/TESTS_SETUP.md)
+Windows build output is written to `dist/`, including `Shade-Setup-<version>.exe` and the unpacked app. Provider-only branch validation passed 342 tests (15 existing skips) and produced a Windows installer. Live API and interactive app tests are separate checks.
+
+```text
+src/main/       Electron lifecycle, windows, IPC, and updates
+src/renderer/   Overlay, Dashboard, model switcher, and rendering
+src/services/   Provider adapters, catalogs, configuration, and persistence
+docs/           Configuration, modes, testing, and design notes
+```
 
 ## Troubleshooting
 
-### Overlay appears in screenshots
-1. You need Windows 10 version 2004 (May 2020) or later.
-2. Check the **Overlay Visibility** setting in the Dashboard (Configuration). When "Exclude overlay from screenshots" is enabled, the window is hidden from all captures (including those by other apps). When disabled, it's only hidden during Shade's own capture process.
+**A provider or model is missing:** confirm you installed a build containing it, save the appropriate key, and refresh models. A model must have recognized protocol metadata to appear in the Zen/Go picker.
 
+**A screenshot request is blocked:** choose a model marked **Screenshots supported**, or remove the image and switch to manual screenshot mode for text-only chat.
 
+**Key validation fails:** confirm the key belongs to the selected provider and that its account has access to the chosen model. Go requires Go access; Zen credits and Go allowance are separate. The app reports authentication, quota, and rate-limit errors.
 
-### API key not saving
-Check write permissions in your user data directory.
+**Local models do not appear:** start the Ollama or LM Studio server before refreshing. Load an image-capable model if you want screen assistance.
 
-## License
+**The overlay appears in captures:** check **Exclude overlay from screenshots** in Configuration and confirm you are running a supported Windows version. Verify the behavior with the capture application you use.
 
-MIT License - see [LICENSE](LICENSE) for details.
+**`npm start` opens a blank window:** run `npx vite build` first, or use `npm run dev`.
 
-## Acknowledgments
+## Documentation and contributing
 
-- Built with [Electron](https://www.electronjs.org/)
-- LLM Providers: [Google Gemini](https://deepmind.google/technologies/gemini/), [OpenAI](https://openai.com/), [Anthropic](https://www.anthropic.com/)
-- Image processing: [Sharp](https://sharp.pixelplumbing.com/)
+- [Contributing](CONTRIBUTING.md)
+- [Configuration and data layout](docs/CONFIGURATION.md)
+- [Provider integration research](docs/PROVIDER_RESEARCH.md)
+- [Built-in modes](docs/modes.md)
+- [Test suite guide](docs/TESTS_SETUP.md)
 
-### Inspiration
+Some older detailed guides still show historical model names; use the current in-app model list when configuring a provider.
 
-- [Cluely](https://cluely.com/)
-- [Pluely](https://pluely.com/)
+## License and acknowledgments
 
----
+Shade is MIT licensed. See [LICENSE](LICENSE).
 
-**Made for Windows users who want AI assistance without the bloat.**
+Built with Electron, Vite, Sharp, marked, DOMPurify, highlight.js, and KaTeX, with provider SDKs and protocol adapters. Inspired by [Cluely](https://cluely.com/) and [Pluely](https://pluely.com/).
