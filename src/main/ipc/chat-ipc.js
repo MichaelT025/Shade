@@ -10,7 +10,8 @@ function createChatIpcRegistrar({
   let requestSequence = 0
   let predictiveScreenshotCache = null
   let predictiveScreenshotTimestamp = null
-  let captureInProgress = false
+  let activeCaptureCount = 0
+  let captureProtectionActive = false
   const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000
 
   function createRequestId(requestId) {
@@ -85,21 +86,23 @@ function createChatIpcRegistrar({
   function registerChatIpcHandlers() {
     ipcMain.handle('capture-screen', async (_event, payload) => {
       const mainWindow = getMainWindow()
+
+      let captureMode = 'unknown'
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        captureMode = typeof payload.captureMode === 'string' ? payload.captureMode : 'unknown'
+      } else {
+        captureMode = 'legacy'
+      }
+
+      // Reject overlapping predictive captures — screen capture is expensive
+      if (captureMode === 'predictive' && activeCaptureCount > 0) {
+        return { success: false, error: 'Capture already in progress' }
+      }
+
+      let captureAcquired = false
       try {
-        let captureMode = 'unknown'
-
-        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-          captureMode = typeof payload.captureMode === 'string' ? payload.captureMode : 'unknown'
-        } else {
-          captureMode = 'legacy'
-        }
-
-        // Reject overlapping predictive captures — screen capture is expensive
-        if (captureMode === 'predictive' && captureInProgress) {
-          return { success: false, error: 'Capture already in progress' }
-        }
-
-        captureInProgress = true
+        activeCaptureCount += 1
+        captureAcquired = true
         console.log('Screen capture requested:', captureMode)
 
         // When the "exclude overlay from screenshots" config is ON, protection
@@ -108,12 +111,14 @@ function createChatIpcRegistrar({
           ? configService.getExcludeOverlayFromScreenshots()
           : false
         const needsPerCaptureProtection = !alwaysProtected
-        if (needsPerCaptureProtection && mainWindow) {
+        const shouldToggleProtection = needsPerCaptureProtection && !captureProtectionActive
+        if (shouldToggleProtection && mainWindow) {
           mainWindow.setContentProtection(true)
+          captureProtectionActive = true
         }
 
         // Only wait for DWM compositing when we just toggled protection on
-        if (needsPerCaptureProtection) {
+        if (shouldToggleProtection) {
           await new Promise(resolve => setTimeout(resolve, 60))
         }
 
@@ -137,13 +142,19 @@ function createChatIpcRegistrar({
         console.error('Failed to capture screen:', error)
         return { success: false, error: error.message }
       } finally {
-        captureInProgress = false
-        // Only toggle protection off if we toggled it on per-capture
-        const alwaysProtectedFinal = configService
-          ? configService.getExcludeOverlayFromScreenshots()
-          : false
-        if (!alwaysProtectedFinal && mainWindow) {
-          mainWindow.setContentProtection(false)
+        if (captureAcquired) {
+          activeCaptureCount -= 1
+
+          if (activeCaptureCount === 0) {
+            // Only toggle protection off if this capture group enabled it.
+            const alwaysProtectedFinal = configService
+              ? configService.getExcludeOverlayFromScreenshots()
+              : false
+            if (!alwaysProtectedFinal && mainWindow && captureProtectionActive) {
+              mainWindow.setContentProtection(false)
+            }
+            captureProtectionActive = false
+          }
         }
       }
     })

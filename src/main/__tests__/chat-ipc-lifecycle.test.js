@@ -3,7 +3,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 
-function createChatIpcHarness(streamResponse) {
+function createChatIpcHarness(streamResponse, {
+  captureAndCompress = vi.fn(),
+  getExcludeOverlayFromScreenshots = vi.fn(() => false),
+  mainWindow = null
+} = {}) {
   const handlers = new Map()
   const createProvider = vi.fn(() => ({ streamResponse }))
   const factory = {
@@ -16,25 +20,37 @@ function createChatIpcHarness(streamResponse) {
     getMode: vi.fn(() => ({})),
     getApiKey: vi.fn(() => 'test-key'),
     getProviderConfig: vi.fn(() => ({ model: 'test-model' })),
-    getActiveSystemPrompt: vi.fn(() => '')
+    getActiveSystemPrompt: vi.fn(() => ''),
+    getExcludeOverlayFromScreenshots
   }
   const context = {
     AbortController,
     console: { error: vi.fn(), log: vi.fn() },
+    setTimeout,
     module: { exports: {} },
     require: id => {
       if (id === 'electron') return { ipcMain: { handle: (name, handler) => handlers.set(name, handler) } }
-      if (id.includes('screen-capture')) return { captureAndCompress: vi.fn() }
+      if (id.includes('screen-capture')) return { captureAndCompress }
       if (id.includes('llm-factory')) return factory
       throw new Error(`Unexpected dependency: ${id}`)
     }
   }
   const file = path.join(import.meta.dirname, '../ipc/chat-ipc.js')
   vm.runInNewContext(fs.readFileSync(file, 'utf8'), context, { filename: file })
-  context.module.exports.createChatIpcRegistrar({ configService, getMainWindow: () => null })
+  context.module.exports.createChatIpcRegistrar({ configService, getMainWindow: () => mainWindow })
     .registerChatIpcHandlers()
 
-  return { createProvider, handlers }
+  return { createProvider, handlers, captureAndCompress }
+}
+
+function createDeferred() {
+  let resolve
+  let reject
+  const promise = new Promise((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
 }
 
 function requestPayload(requestId) {
@@ -128,5 +144,56 @@ describe('chat IPC request lifecycle', () => {
 
     pending[0].resolve()
     await expect(summaryPromise).resolves.toMatchObject({ success: false, aborted: true })
+  })
+
+  test('keeps capture protection active until all overlapping captures finish', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const pendingCaptures = []
+      const captureAndCompress = vi.fn(({ captureMode }) => {
+        const capture = createDeferred()
+        pendingCaptures.push({ captureMode, ...capture })
+        return capture.promise
+      })
+      const mainWindow = { setContentProtection: vi.fn() }
+      const { handlers } = createChatIpcHarness(undefined, {
+        captureAndCompress,
+        mainWindow
+      })
+      const captureScreen = handlers.get('capture-screen')
+
+      const manualPromise = captureScreen({}, { captureMode: 'manual' })
+      await vi.advanceTimersByTimeAsync(60)
+
+      expect(pendingCaptures.map(({ captureMode }) => captureMode)).toEqual(['manual'])
+      expect(mainWindow.setContentProtection).toHaveBeenCalledWith(true)
+
+      await expect(captureScreen({}, { captureMode: 'predictive' })).resolves.toEqual({
+        success: false,
+        error: 'Capture already in progress'
+      })
+      expect(mainWindow.setContentProtection).toHaveBeenCalledTimes(1)
+
+      const sendPromise = captureScreen({}, { captureMode: 'send' })
+      await Promise.resolve()
+      expect(pendingCaptures.map(({ captureMode }) => captureMode)).toEqual(['manual', 'send'])
+
+      pendingCaptures[1].reject(new Error('send failed'))
+      await expect(sendPromise).resolves.toEqual({ success: false, error: 'send failed' })
+      expect(mainWindow.setContentProtection).toHaveBeenCalledTimes(1)
+
+      pendingCaptures[0].resolve({ base64: 'manual-image', size: 12 })
+      await expect(manualPromise).resolves.toEqual({
+        success: true,
+        base64: 'manual-image',
+        size: 12
+      })
+      expect(mainWindow.setContentProtection).toHaveBeenNthCalledWith(2, false)
+      expect(mainWindow.setContentProtection).toHaveBeenCalledTimes(2)
+      expect(captureAndCompress).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
