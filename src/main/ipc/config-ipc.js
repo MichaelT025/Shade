@@ -74,20 +74,9 @@ function registerConfigIpcHandlers({ configService, updateService, sendToWindows
       configService.setProviderConfig(provider, config)
       console.log(`Provider config saved for: ${provider}`)
 
-      try {
-        const activeModeId = configService.getActiveMode()
-        const activeMode = configService.getMode(activeModeId)
-        if (activeMode?.overrideProviderModel) {
-          configService.saveMode({
-            ...activeMode,
-            provider,
-            model: config?.model || ''
-          })
-        }
-      } catch (e) {
-        console.warn('Failed to sync active mode with provider config:', e?.message || e)
-      }
-
+      // General provider configuration must not rewrite the active mode's
+      // provider/model override; overrides change only through explicit mode
+      // actions (save-mode / set-active-mode) and are resolved at request time.
       broadcastConfigChanged()
       return { success: true }
     } catch (error) {
