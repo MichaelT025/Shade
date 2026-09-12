@@ -32,6 +32,7 @@ let activeRequest = null // Request lifecycle owner for preparation and streamin
 let requestSequence = 0
 let lifecycleVersion = 0
 let sessionLoadVersion = 0
+let activeSessionLoad = null
 let captureLifecycleVersion = 0
 let captureSequence = 0
 let activeManualCapture = null
@@ -205,7 +206,12 @@ async function stopActiveRequest() {
   }
 
   try {
-    await window.electronAPI.stopMessage?.(request.requestId)
+    const result = await window.electronAPI.stopMessage?.(request.requestId)
+    if (result?.success === false) {
+      // A matching terminal event can already be queued behind this IPC reply.
+      // Give it one turn to finalize any visible partial response first.
+      setTimeout(() => recoverRequestAfterMissingStop(request), 0)
+    }
   } catch (error) {
     if (activeRequest === request) {
       request.discarded = true
@@ -215,6 +221,27 @@ async function stopActiveRequest() {
       showError('Failed to stop response: ' + error.message)
     }
   }
+}
+
+function recoverRequestAfterMissingStop(request) {
+  if (activeRequest !== request || request.terminalHandled) return
+
+  if (currentLoadingId) {
+    removeLoadingMessage(currentLoadingId)
+    currentLoadingId = null
+  }
+  if (currentStreamingMessageId && accumulatedText) {
+    finalizeStreamingMessage(currentStreamingMessageId, accumulatedText)
+  } else {
+    removeCurrentStreamingMessage()
+  }
+  currentStreamingMessageId = null
+  accumulatedText = ''
+  cleanupRequestScreenshots(request)
+  request.discarded = true
+  activeRequest = null
+  lifecycleVersion += 1
+  resetSendButton()
 }
 
 // Behavior settings (from Configuration)
@@ -335,113 +362,151 @@ async function saveCurrentSession() {
   }
 }
 
+function startSessionLoad() {
+  if (activeSessionLoad) activeSessionLoad.cancelled = true
+
+  const load = { version: ++sessionLoadVersion, cancelled: false }
+  activeSessionLoad = load
+  invalidateActiveRequest()
+  messageInput.disabled = true
+  sendBtn.disabled = true
+  sendBtn.title = 'Loading session'
+  sendBtn.setAttribute('aria-label', 'Loading session')
+  return load
+}
+
+function isSessionLoadCurrent(load) {
+  return activeSessionLoad === load && !load.cancelled && load.version === sessionLoadVersion
+}
+
+function finishSessionLoad(load) {
+  if (!isSessionLoadCurrent(load)) return
+  activeSessionLoad = null
+  resetSendButton()
+}
+
+function cancelSessionLoad() {
+  const hadActiveLoad = !!activeSessionLoad
+  if (activeSessionLoad) activeSessionLoad.cancelled = true
+  activeSessionLoad = null
+  sessionLoadVersion += 1
+  if (hadActiveLoad) resetSendButton()
+}
+
 async function loadSessionIntoChat(sessionId) {
   if (!sessionId) return
 
-  const loadVersion = ++sessionLoadVersion
-  invalidateActiveRequest()
-
-  const result = await window.electronAPI.loadSession(sessionId)
-  if (loadVersion !== sessionLoadVersion) return
-  if (!result?.success) {
-    console.error('Failed to load session:', result?.error)
-    showToast('Failed to load session', 'error', 2500)
-    return
-  }
-
-  const session = result.session
-  if (!session || !Array.isArray(session.messages)) {
-    showToast('Session data was invalid', 'error', 2500)
-    return
-  }
-
-  // Clear any previously attached screenshot to prevent leakage between sessions.
-  removeScreenshot()
-
-  // Reset UI container
-  messagesContainer.innerHTML = '<div class="chat-wrapper" id="chat-wrapper"></div>'
-  chatWrapper = document.getElementById('chat-wrapper')
-
-  // Reset state
-  messages.length = 0
-  currentSessionId = session.id || sessionId
-  currentConversationId = legacyConversationId(session, sessionId)
-  sessionAutoTitleApplied = true
-
-  if (memoryManager) {
-    memoryManager.clearConversation()
-  }
-
-  // Render all messages without re-saving during hydration
-  const hydratedMessages = normalizeSessionMessages(session.messages)
-  for (const m of hydratedMessages) {
-    const type = m.type
-    const text = m.text
-    const hasScreenshot = m.hasScreenshot
-    const timestamp = m.timestamp
-
-    const messageEl = document.createElement('div')
-    messageEl.className = `message ${type}`
-
-    if (type === 'ai') {
-      messageEl.innerHTML = renderMarkdown(text)
-      addCopyButtons(messageEl)
-      addMessageCopyButton(messageEl, text)
-    } else {
-      messageEl.textContent = text
+  const load = startSessionLoad()
+  try {
+    const result = await window.electronAPI.loadSession(sessionId)
+    if (!isSessionLoadCurrent(load)) return
+    if (!result?.success) {
+      console.error('Failed to load session:', result?.error)
+      showToast('Failed to load session', 'error', 2500)
+      return
     }
 
-    chatWrapper.appendChild(messageEl)
-
-    if (hasScreenshot && type === 'user') {
-      const meta = document.createElement('div')
-      meta.className = 'message-meta'
-      meta.textContent = 'Sent with screenshot'
-      
-      // Setup hover preview
-      setupScreenshotPreview(meta, () => ({
-        sessionId: currentSessionId || session.id,
-        screenshotPath: m.screenshotPath,
-        base64: m.screenshotBase64
-      }), window.electronAPI.getScreenshot)
-
-      chatWrapper.appendChild(meta)
+    const session = result.session
+    if (!session || !Array.isArray(session.messages)) {
+      showToast('Session data was invalid', 'error', 2500)
+      return
     }
 
-    messages.push({
-      id: m.id,
-      type,
-      text,
-      hasScreenshot,
-      ...(typeof m.screenshotPath === 'string' && m.screenshotPath ? { screenshotPath: m.screenshotPath } : {}),
-      timestamp
-    })
+    // Clear any previously attached screenshot to prevent leakage between sessions.
+    removeScreenshot()
+
+    // Reset UI container
+    messagesContainer.innerHTML = '<div class="chat-wrapper" id="chat-wrapper"></div>'
+    chatWrapper = document.getElementById('chat-wrapper')
+
+    // Reset state
+    messages.length = 0
+    currentSessionId = session.id || sessionId
+    currentConversationId = legacyConversationId(session, sessionId)
+    sessionAutoTitleApplied = true
 
     if (memoryManager) {
-      const role = type === 'user' ? 'user' : 'assistant'
-      memoryManager.addMessage(role, text)
+      memoryManager.clearConversation()
     }
-  }
 
-  // Restore the last screenshot for this session (only if we keep screenshots in memory).
-  if (screenshotMode === 'manual' && !excludeScreenshotsFromMemory) {
-    const lastScreenshotBase64 = typeof session.lastScreenshotBase64 === 'string'
-      ? session.lastScreenshotBase64
-      : ''
+    // Render all messages without re-saving during hydration
+    const hydratedMessages = normalizeSessionMessages(session.messages)
+    for (const m of hydratedMessages) {
+      const type = m.type
+      const text = m.text
+      const hasScreenshot = m.hasScreenshot
+      const timestamp = m.timestamp
 
-    if (lastScreenshotBase64) {
-      capturedScreenshot = lastScreenshotBase64
-      capturedThumbnail = lastScreenshotBase64
-      isScreenshotActive = true
-      screenshotBtn.classList.add('active')
-      screenshotBtn.title = 'Remove screenshot'
-      messageInput.placeholder = 'Ask about the captured screen...'
+      const messageEl = document.createElement('div')
+      messageEl.className = `message ${type}`
+
+      if (type === 'ai') {
+        messageEl.innerHTML = renderMarkdown(text)
+        addCopyButtons(messageEl)
+        addMessageCopyButton(messageEl, text)
+      } else {
+        messageEl.textContent = text
+      }
+
+      chatWrapper.appendChild(messageEl)
+
+      if (hasScreenshot && type === 'user') {
+        const meta = document.createElement('div')
+        meta.className = 'message-meta'
+        meta.textContent = 'Sent with screenshot'
+      
+        // Setup hover preview
+        setupScreenshotPreview(meta, () => ({
+          sessionId: currentSessionId || session.id,
+          screenshotPath: m.screenshotPath,
+          base64: m.screenshotBase64
+        }), window.electronAPI.getScreenshot)
+
+        chatWrapper.appendChild(meta)
+      }
+
+      messages.push({
+        id: m.id,
+        type,
+        text,
+        hasScreenshot,
+        ...(typeof m.screenshotPath === 'string' && m.screenshotPath ? { screenshotPath: m.screenshotPath } : {}),
+        timestamp
+      })
+
+      if (memoryManager) {
+        const role = type === 'user' ? 'user' : 'assistant'
+        memoryManager.addMessage(role, text)
+      }
     }
-  }
 
-  // Ensure the overlay is usable when resuming
-  expand()
-  scrollToBottom()
+    // Restore the last screenshot for this session (only if we keep screenshots in memory).
+    if (screenshotMode === 'manual' && !excludeScreenshotsFromMemory) {
+      const lastScreenshotBase64 = typeof session.lastScreenshotBase64 === 'string'
+        ? session.lastScreenshotBase64
+        : ''
+
+      if (lastScreenshotBase64) {
+        capturedScreenshot = lastScreenshotBase64
+        capturedThumbnail = lastScreenshotBase64
+        isScreenshotActive = true
+        screenshotBtn.classList.add('active')
+        screenshotBtn.title = 'Remove screenshot'
+        messageInput.placeholder = 'Ask about the captured screen...'
+      }
+    }
+
+    // Ensure the overlay is usable when resuming
+    expand()
+    scrollToBottom()
+  } catch (error) {
+    if (isSessionLoadCurrent(load)) {
+      console.error('Failed to load session:', error)
+      showToast('Failed to load session', 'error', 2500)
+    }
+  } finally {
+    finishSessionLoad(load)
+  }
 }
 
 function autosizeMessageInput() {
@@ -1025,6 +1090,8 @@ function invalidatePredictiveCapture() {
 }
 
 async function handleScreenshotCapture({ request = null } = {}) {
+  if (activeSessionLoad) return null
+
   const capture = {
     id: ++captureSequence,
     conversationId: currentConversationId,
@@ -1151,7 +1218,7 @@ function setVisualEffectsEnabled(enabled, delay = 0, reason = 'unspecified') {
 
 async function performPredictiveCapture(forceFresh = false) {
   // Only capture in auto mode and if not already in progress
-  if (screenshotMode !== 'auto' || predictiveCaptureInProgress) {
+  if (activeSessionLoad || screenshotMode !== 'auto' || predictiveCaptureInProgress) {
     return
   }
 
@@ -1259,6 +1326,14 @@ function removeScreenshot() {
 }
 
 function resetSendButton() {
+  if (activeSessionLoad) {
+    messageInput.disabled = true
+    sendBtn.disabled = true
+    sendBtn.title = 'Loading session'
+    sendBtn.setAttribute('aria-label', 'Loading session')
+    return
+  }
+
   isGenerating = false
   inputContainer.classList.remove('generating')
   inputContainer.classList.remove('thinking')
@@ -1294,6 +1369,8 @@ async function handleMessageInputKeydown(e) {
 }
 
 async function handleSendMessage({ captureFreshScreenshot = false } = {}) {
+  if (activeSessionLoad) return
+
   // If already generating, stop it
   if (isGenerating) {
     await stopActiveRequest()
@@ -2085,7 +2162,7 @@ function addMessageCopyButton(messageElement, originalText) {
 function handleNewChat() {
   console.log('Starting new chat...')
 
-  sessionLoadVersion += 1
+  cancelSessionLoad()
   invalidateActiveRequest()
 
   // Clear message history

@@ -26,6 +26,7 @@ function createRendererFixture() {
   expect(source).toContain('let captureLifecycleVersion = 0')
   expect(source).toContain('let predictiveCaptureVersion = 0')
   const capture = deferred()
+  const sessionLoads = []
   const sendMessage = vi.fn(async () => ({ success: true, provider: 'test' }))
   const stopMessage = vi.fn(async () => ({ success: true }))
   const clearPredictiveScreenshot = vi.fn(async () => ({ success: true }))
@@ -51,6 +52,7 @@ function createRendererFixture() {
     captureLifecycleVersion: 0,
     captureSequence: 0,
     activeRequest: null,
+    activeSessionLoad: null,
     activeManualCapture: null,
     currentConversationId: 'old-chat',
     currentSessionId: null,
@@ -92,6 +94,11 @@ function createRendererFixture() {
     window: {
       electronAPI: {
         captureScreen: vi.fn(() => capture.promise),
+        loadSession: vi.fn(() => {
+          const load = deferred()
+          sessionLoads.push(load)
+          return load.promise
+        }),
         clearPredictiveScreenshot,
         stopMessage,
         getActiveModelCapabilities: vi.fn(async () => ({ disabled: false, strict: false, vision: true })),
@@ -107,6 +114,9 @@ function createRendererFixture() {
     addMessage: vi.fn(),
     addLoadingMessage: vi.fn(() => 'loading'),
     removeLoadingMessage: vi.fn(),
+    finalizeStreamingMessage: vi.fn(),
+    showInterruptedMessage: vi.fn(),
+    showErrorDedup: vi.fn(),
     scrollToBottom: vi.fn(),
     showToast: vi.fn(),
     showError: vi.fn(),
@@ -132,14 +142,16 @@ function createRendererFixture() {
   vm.runInContext(
     sourceSegment(source, 'function createRequestId()', '// Behavior settings') + '\n' +
     sourceSegment(source, 'function isManualCaptureCurrent(capture)', 'function schedulePredictiveCapture(') + '\n' +
+    sourceSegment(source, 'function startSessionLoad()', 'function autosizeMessageInput()') + '\n' +
     sourceSegment(source, 'async function performPredictiveCapture(forceFresh = false)', 'function isPredictiveScreenshotFresh()') + '\n' +
     sourceSegment(source, 'function isPredictiveScreenshotFresh()', 'function removeScreenshot()') + '\n' +
     sourceSegment(source, 'function resetSendButton()', '/**\n * Handle sending a message') + '\n' +
     sourceSegment(source, 'async function handleQuickScreenshotSend()', '/**\n * Setup hover preview for screenshot metadata') + '\n' +
+    sourceSegment(source, 'function handleMessageTerminal(payload)', 'function handleMessageComplete(payload)') + '\n' +
     sourceSegment(source, 'function handleNewChat()', '/**\n * Load modes'),
     context
   )
-  return { context, capture, sendMessage, stopMessage, clearPredictiveScreenshot, click }
+  return { context, capture, sessionLoads, sendMessage, stopMessage, clearPredictiveScreenshot, click }
 }
 
 function ctrlEnter() {
@@ -227,5 +239,142 @@ describe('renderer capture lifecycle (REV-01)', () => {
 
     expect(context.predictiveScreenshot).toBeNull()
     expect(clearPredictiveScreenshot).toHaveBeenCalled()
+  })
+})
+
+describe('renderer session-load lifecycle (REV-02)', () => {
+  test('a delayed Ctrl+Enter capture cannot attach or send after an actual resume begins', async () => {
+    const { context, capture, sessionLoads, sendMessage } = createRendererFixture()
+
+    const quickSend = context.handleMessageInputKeydown(ctrlEnter())
+    await Promise.resolve()
+    const resume = context.loadSessionIntoChat('resumed-chat')
+    capture.resolve({ success: true, base64: 'old-screen' })
+    await quickSend
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(context.capturedScreenshot).toBeNull()
+
+    sessionLoads[0].resolve({ success: true, session: { id: 'resumed-chat', conversationId: 'resumed-chat', messages: [] } })
+    await resume
+  })
+
+  test('a pending resume blocks sends and standalone captures until its hydration completes', async () => {
+    const { context, sessionLoads, sendMessage } = createRendererFixture()
+
+    const resume = context.loadSessionIntoChat('resumed-chat')
+    await Promise.resolve()
+    expect(context.messageInput.disabled).toBe(true)
+    expect(await context.handleScreenshotCapture()).toBeNull()
+    context.messageInput.value = 'during load'
+    await context.handleMessageInputKeydown({ key: 'Enter', ctrlKey: false, shiftKey: false, preventDefault: vi.fn() })
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(context.window.electronAPI.captureScreen).not.toHaveBeenCalled()
+    expect(context.activeRequest).toBeNull()
+    expect(context.messageInput.disabled).toBe(true)
+
+    sessionLoads[0].resolve({ success: true, session: { id: 'resumed-chat', conversationId: 'resumed-chat', messages: [] } })
+    await resume
+
+    expect(context.currentConversationId).toBe('resumed-chat')
+    expect(context.activeSessionLoad).toBeNull()
+    expect(context.messageInput.disabled).toBe(false)
+  })
+
+  test('New Chat cancels a pending resume and restores the composer for the next send', async () => {
+    const { context, sessionLoads, sendMessage } = createRendererFixture()
+
+    const resume = context.loadSessionIntoChat('old-session')
+    await Promise.resolve()
+    context.handleNewChat()
+    expect(context.messageInput.disabled).toBe(false)
+
+    context.messageInput.value = 'after new chat'
+    await context.handleSendMessage()
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    const newRequest = context.activeRequest
+    sessionLoads[0].resolve({ success: true, session: { id: 'old-session', conversationId: 'old-session', messages: [] } })
+    await resume
+
+    expect(context.currentConversationId).toBe('new-chat')
+    expect(context.activeRequest).toBe(newRequest)
+    expect(context.messageInput.disabled).toBe(true)
+  })
+
+  test('only the newest of two rapid resumes can release the composer', async () => {
+    const { context, sessionLoads } = createRendererFixture()
+
+    const first = context.loadSessionIntoChat('first')
+    const second = context.loadSessionIntoChat('second')
+    await Promise.resolve()
+    sessionLoads[0].resolve({ success: true, session: { id: 'first', conversationId: 'first', messages: [] } })
+    await first
+    expect(context.messageInput.disabled).toBe(true)
+
+    sessionLoads[1].resolve({ success: true, session: { id: 'second', conversationId: 'second', messages: [] } })
+    await second
+    expect(context.currentConversationId).toBe('second')
+    expect(context.messageInput.disabled).toBe(false)
+  })
+
+  test('a failed resume releases the composer', async () => {
+    const { context, sessionLoads } = createRendererFixture()
+
+    const resume = context.loadSessionIntoChat('broken')
+    await Promise.resolve()
+    sessionLoads[0].resolve({ success: false, error: 'missing' })
+    await resume
+
+    expect(context.activeSessionLoad).toBeNull()
+    expect(context.messageInput.disabled).toBe(false)
+  })
+
+  test('a queued terminal finalizes once before missing-stop recovery runs', async () => {
+    const { context, stopMessage } = createRendererFixture()
+    stopMessage.mockResolvedValue({ success: false })
+    const request = context.beginRequest('old-chat')
+    request.phase = 'streaming'
+    context.currentStreamingMessageId = 'streaming-message'
+    context.accumulatedText = 'partial response'
+
+    await context.stopActiveRequest()
+    context.handleMessageTerminal({ requestId: request.requestId, status: 'completed' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(context.finalizeStreamingMessage).toHaveBeenCalledWith('streaming-message', 'partial response')
+    expect(context.finalizeStreamingMessage).toHaveBeenCalledTimes(1)
+    expect(context.activeRequest).toBeNull()
+    expect(context.messageInput.disabled).toBe(false)
+  })
+
+  test('a missing stop with no terminal recovers and preserves visible partial output', async () => {
+    const { context, stopMessage } = createRendererFixture()
+    stopMessage.mockResolvedValue({ success: false })
+    const request = context.beginRequest('old-chat')
+    request.phase = 'streaming'
+    context.currentStreamingMessageId = 'streaming-message'
+    context.accumulatedText = 'partial response'
+
+    await context.stopActiveRequest()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(context.finalizeStreamingMessage).toHaveBeenCalledExactlyOnceWith('streaming-message', 'partial response')
+    expect(context.activeRequest).toBeNull()
+    expect(context.messageInput.disabled).toBe(false)
+  })
+
+  test('a queued missing-stop recovery cannot reset a replacement request', async () => {
+    const { context, stopMessage } = createRendererFixture()
+    stopMessage.mockResolvedValue({ success: false })
+    const oldRequest = context.beginRequest('old-chat')
+    oldRequest.phase = 'streaming'
+
+    await context.stopActiveRequest()
+    context.handleNewChat()
+    const replacement = context.beginRequest('new-chat')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(context.activeRequest).toBe(replacement)
+    expect(context.messageInput.disabled).toBe(true)
+    expect(context.finalizeStreamingMessage).not.toHaveBeenCalled()
   })
 })
