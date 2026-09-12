@@ -62,6 +62,10 @@ class GeminiProvider extends LLMProvider {
    */
   async streamResponse(text, imageBase64 = null, conversationHistory = [], onChunk, signal = null) {
     try {
+      if (signal?.aborted) {
+        return
+      }
+
       const contents = []
 
       // Add conversation history (excluding the current message)
@@ -95,10 +99,9 @@ class GeminiProvider extends LLMProvider {
         parts
       })
 
-      // Note: Gemini SDK doesn't natively support AbortSignal in generateContentStream yet in some versions,
-      // but we can wrap it or hope the fetch-based ones do.
-      // For now we'll pass it if possible, or manually check it.
-      const result = await this.model.generateContentStream({ contents })
+      const result = signal
+        ? await this.model.generateContentStream({ contents }, { signal })
+        : await this.model.generateContentStream({ contents })
 
       // Stream the response chunks
       for await (const chunk of result.stream) {

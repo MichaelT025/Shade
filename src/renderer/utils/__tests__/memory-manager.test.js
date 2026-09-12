@@ -184,6 +184,26 @@ describe('MemoryManager', () => {
       ).rejects.toThrow('API Error')
     })
 
+    test('should not commit a summary after its lifecycle token is invalidated', async () => {
+      for (let i = 0; i < 20; i++) {
+        memoryManager.addMessage('user', `Message ${i}`)
+      }
+
+      let isCurrent = true
+      let resolveSummary
+      const summaryPromise = new Promise(resolve => { resolveSummary = resolve })
+      const generation = memoryManager.generateSummary(
+        () => summaryPromise,
+        () => isCurrent
+      )
+
+      isCurrent = false
+      resolveSummary('Stale summary')
+      await generation
+
+      expect(memoryManager.summary).toBeNull()
+    })
+
     test('should increment summary version on re-summarization', async () => {
       for (let i = 0; i < 20; i++) {
         memoryManager.addMessage('user', `Message ${i}`)

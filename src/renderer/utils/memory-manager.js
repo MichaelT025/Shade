@@ -52,11 +52,12 @@ class MemoryManager {
   /**
    * Generate a summary of old messages
    * @param {Function} summaryGenerator - Async function that generates summary from messages
+   * @param {Function} isCurrent - Lifecycle check used before committing async results
    */
-  async generateSummary(summaryGenerator) {
+  async generateSummary(summaryGenerator, isCurrent = () => true) {
     if (this.messages.length <= this.historyLimit) {
       if (DEBUG) console.log('Not enough messages to summarize')
-      return
+      return false
     }
 
     // Get messages that will be summarized (all except last N)
@@ -64,14 +65,18 @@ class MemoryManager {
 
     if (messagesToSummarize.length === 0) {
       if (DEBUG) console.log('No messages to summarize')
-      return
+      return false
     }
 
     try {
       if (DEBUG) console.log('Generating summary for', messagesToSummarize.length, 'messages')
+
+      if (!isCurrent()) return false
       
       // Call the summary generator (passed from app.js)
       const summaryText = await summaryGenerator(messagesToSummarize)
+
+      if (!isCurrent()) return false
 
       this.summary = {
         text: summaryText,
@@ -87,6 +92,7 @@ class MemoryManager {
           version: this.summary.version
         })
       }
+      return true
     } catch (error) {
       console.error('Failed to generate summary:', error)
       throw error

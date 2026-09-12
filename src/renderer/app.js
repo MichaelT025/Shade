@@ -28,6 +28,10 @@ let isGenerating = false // Whether LLM is currently generating
 let currentStreamingMessageId = null // ID of currently streaming message
 let currentLoadingId = null // ID of current loading indicator
 let accumulatedText = '' // Accumulated text during streaming
+let activeRequest = null // Request lifecycle owner for preparation and streaming
+let requestSequence = 0
+let lifecycleVersion = 0
+let sessionLoadVersion = 0
 let isCollapsed = true // Overlay collapse state (starts collapsed)
 let lastShownErrorSignature = ''
 let lastShownErrorAt = 0
@@ -57,6 +61,153 @@ function legacyConversationId(session, fallbackId) {
   return typeof legacyId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(legacyId)
     ? legacyId
     : createConversationId()
+}
+
+function createRequestId() {
+  requestSequence += 1
+  return `request-${Date.now()}-${requestSequence}`
+}
+
+function setGeneratingState() {
+  isGenerating = true
+  sendBtn.title = 'Stop'
+  sendBtn.setAttribute('aria-label', 'Stop generating')
+  insertIcon(sendBtn, 'stop')
+  messageInput.disabled = true
+}
+
+function beginRequest(conversationId) {
+  const request = {
+    requestId: createRequestId(),
+    conversationId,
+    token: ++lifecycleVersion,
+    phase: 'preparing',
+    stopRequested: false,
+    discarded: false,
+    terminalHandled: false,
+    cleanupDone: false,
+    sendHasScreenshot: false
+  }
+  activeRequest = request
+  setGeneratingState()
+  return request
+}
+
+function isRequestCurrent(request) {
+  return activeRequest === request &&
+    request.token === lifecycleVersion &&
+    !request.stopRequested &&
+    !request.discarded &&
+    currentConversationId === request.conversationId
+}
+
+function isRequestUiOwner(request) {
+  return !request.discarded &&
+    currentConversationId === request.conversationId &&
+    (activeRequest === request || activeRequest === null)
+}
+
+function removeCurrentStreamingMessage() {
+  if (!currentStreamingMessageId) return
+  const streamingEl = document.getElementById(currentStreamingMessageId)
+  if (streamingEl) streamingEl.remove()
+}
+
+function resetStreamingState() {
+  if (currentLoadingId) {
+    removeLoadingMessage(currentLoadingId)
+    currentLoadingId = null
+  }
+  removeCurrentStreamingMessage()
+  currentStreamingMessageId = null
+  accumulatedText = ''
+  inputContainer.classList.remove('generating')
+  inputContainer.classList.remove('thinking')
+}
+
+function finishRequest(request) {
+  if (activeRequest !== request) return
+  activeRequest = null
+  request.finished = true
+  resetSendButton()
+}
+
+function cleanupRequestScreenshots(request) {
+  if (request.cleanupDone || !isRequestUiOwner(request)) return
+  request.cleanupDone = true
+  clearPredictiveScreenshot()
+
+  // In manual mode, keep screenshots sticky across messages.
+  // Users can toggle it off via the screenshot button.
+  if (screenshotMode === 'manual') {
+    if (!request.sendHasScreenshot) {
+      removeScreenshot()
+    }
+  } else {
+    // Keep icon "toggled on" in auto mode.
+    capturedScreenshot = null
+    capturedThumbnail = null
+    isScreenshotActive = true
+    screenshotBtn.classList.add('active')
+    screenshotBtn.classList.add('show-label')
+    const label = document.getElementById('screenshot-label')
+    if (label) label.textContent = 'Using screen'
+    messageInput.placeholder = 'Ask about your screen or conversation, or ↩ for Assist'
+  }
+}
+
+function finishPreparingRequest(request) {
+  if (!isRequestUiOwner(request)) return
+  cleanupRequestScreenshots(request)
+  finishRequest(request)
+}
+
+function invalidateActiveRequest() {
+  const request = activeRequest
+  if (!request) return
+
+  request.discarded = true
+  request.stopRequested = true
+  activeRequest = null
+  lifecycleVersion += 1
+  resetStreamingState()
+  resetSendButton()
+
+  const stopPromise = window.electronAPI.stopMessage?.(request.requestId)
+  if (stopPromise?.catch) {
+    stopPromise.catch(error => {
+      console.error('Failed to cancel request:', error)
+    })
+  }
+}
+
+async function stopActiveRequest() {
+  const request = activeRequest
+  if (!request) {
+    resetSendButton()
+    return
+  }
+
+  request.stopRequested = true
+  if (request.phase !== 'streaming') {
+    request.discarded = true
+    activeRequest = null
+    lifecycleVersion += 1
+    resetStreamingState()
+    resetSendButton()
+  }
+
+  try {
+    await window.electronAPI.stopMessage?.(request.requestId)
+  } catch (error) {
+    if (activeRequest === request) {
+      request.discarded = true
+      activeRequest = null
+      resetStreamingState()
+      resetSendButton()
+      showError('Failed to stop response: ' + error.message)
+    }
+  }
 }
 
 // Behavior settings (from Configuration)
@@ -179,7 +330,11 @@ async function saveCurrentSession() {
 async function loadSessionIntoChat(sessionId) {
   if (!sessionId) return
 
+  const loadVersion = ++sessionLoadVersion
+  invalidateActiveRequest()
+
   const result = await window.electronAPI.loadSession(sessionId)
+  if (loadVersion !== sessionLoadVersion) return
   if (!result?.success) {
     console.error('Failed to load session:', result?.error)
     showToast('Failed to load session', 'error', 2500)
@@ -1086,19 +1241,13 @@ function resetSendButton() {
 async function handleSendMessage() {
   // If already generating, stop it
   if (isGenerating) {
-    try {
-      await window.electronAPI.stopMessage()
-      showInterruptedMessage()
-    } catch (error) {
-      showError('Failed to stop response: ' + error.message)
-    } finally {
-      resetSendButton()
-    }
+    await stopActiveRequest()
     return
   }
 
   // Bind all work started by this send to the chat that initiated it.
   const conversationId = currentConversationId
+  const request = beginRequest(conversationId)
 
   // Auto-expand on first message
   expand()
@@ -1126,6 +1275,7 @@ async function handleSendMessage() {
         predictiveCapturePromise,
         new Promise(resolve => setTimeout(resolve, 3000))
       ])
+      if (!isRequestCurrent(request)) return
       if (predictiveCaptureInProgress) {
         console.log('Predictive capture timed out, proceeding without it')
       }
@@ -1135,6 +1285,7 @@ async function handleSendMessage() {
     if (isPredictiveScreenshotFresh()) {
       try {
         const predictiveResult = await window.electronAPI.consumePredictiveScreenshot()
+        if (!isRequestCurrent(request)) return
         if (predictiveResult?.success && predictiveResult.base64) {
           sendScreenshot = predictiveResult.base64
           sendHasScreenshot = true
@@ -1149,6 +1300,7 @@ async function handleSendMessage() {
       // No fresh cached screenshot - capture now (this will block sending)
       try {
         const captureResult = await window.electronAPI.captureScreen({ captureMode: 'send' })
+        if (!isRequestCurrent(request)) return
         if (captureResult?.success) {
           sendScreenshot = captureResult.base64
           sendHasScreenshot = true
@@ -1163,28 +1315,33 @@ async function handleSendMessage() {
   }
 
   // Don't send if both text and screenshot are empty
-  if (!text && !sendScreenshot) return
+  if (!text && !sendScreenshot) {
+    finishPreparingRequest(request)
+    return
+  }
 
   // Change to generating state
+  request.sendHasScreenshot = sendHasScreenshot
   if (sendScreenshot) {
     try {
       const capabilities = await window.electronAPI.getActiveModelCapabilities()
+      if (!isRequestCurrent(request)) return
       if (capabilities.disabled || (capabilities.strict && !capabilities.vision)) {
         showToast(capabilities.reason || 'This model cannot accept screenshots. Remove the screenshot or choose a screenshot-capable model.', 'error', 5000)
+        finishPreparingRequest(request)
         return
       }
     } catch (error) {
+      if (!isRequestCurrent(request)) return
       showToast('Unable to check screenshot support. Please try again.', 'error', 3000)
+      finishPreparingRequest(request)
       return
     }
   }
-  isGenerating = true
-  sendBtn.title = 'Stop'
-  sendBtn.setAttribute('aria-label', 'Stop generating')
-  insertIcon(sendBtn, 'stop')
-  messageInput.disabled = true
 
   try {
+    if (!isRequestCurrent(request)) return
+
     // Add user message to UI (if text exists, otherwise use 'Assist' as default)
     const messageText = text || 'Assist'
     addMessage('user', messageText, sendHasScreenshot, sendScreenshot)
@@ -1213,18 +1370,22 @@ async function handleSendMessage() {
       console.log('Generating conversation summary...')
       try {
         await memoryManager.generateSummary(async (messages) => {
-          const result = await window.electronAPI.generateSummary(messages, conversationId)
+          const result = await window.electronAPI.generateSummary(messages, conversationId, request.requestId)
+          if (!isRequestCurrent(request)) return ''
           if (!result.success) {
             throw new Error(result.error || 'Failed to generate summary')
           }
           return result.summary
-        })
+        }, () => isRequestCurrent(request))
+        if (!isRequestCurrent(request)) return
         console.log('Summary generated successfully')
       } catch (error) {
         console.error('Failed to generate summary:', error)
         // Continue without summary if generation fails
       }
     }
+
+    if (!isRequestCurrent(request)) return
 
     // Get context from memory manager (summary + recent messages)
     const context = memoryManager ? memoryManager.getContextForRequest() : { summary: null, messages: [] }
@@ -1238,6 +1399,8 @@ async function handleSendMessage() {
       timestamp: new Date(m.timestamp)
     }))
 
+    if (!isRequestCurrent(request)) return
+
     console.log('Sending message to LLM...', { 
       hasScreenshot: sendHasScreenshot, 
       totalMessages: memoryManager ? memoryManager.messages.length : 0,
@@ -1246,55 +1409,42 @@ async function handleSendMessage() {
       memoryState: memoryManager ? memoryManager.getState() : null
     })
     
+    request.phase = 'streaming'
     const result = await window.electronAPI.sendMessage(
       promptText, 
       sendScreenshot, 
       conversationHistory,
       context.summary,
       false,
-      conversationId
+      conversationId,
+      request.requestId
     )
 
-    // Remove loading indicator if it hasn't been removed by first chunk
-    if (currentLoadingId) {
-      removeLoadingMessage(currentLoadingId)
-      currentLoadingId = null
-    }
-
-    if (!result.success) {
-      // Some failures are returned without a message-error event (e.g., preflight checks).
-      // Use deduped display to avoid duplicates when both return + event paths fire.
-      showErrorDedup(result.error || 'Failed to get response')
-      resetSendButton()
-    } else {
+    if (isRequestCurrent(request) && result?.aborted) {
+      handleMessageTerminal({ requestId: request.requestId, status: 'aborted' })
+    } else if (isRequestCurrent(request) && !result?.success) {
+      handleMessageTerminal({
+        requestId: request.requestId,
+        status: 'failed',
+        error: result?.error || 'Failed to get response'
+      })
+    } else if (isRequestCurrent(request) && result?.success) {
       console.log('Streaming started from', result.provider)
-      if (result.aborted) {
-        resetSendButton()
-      }
     }
   } catch (error) {
+    if (!isRequestCurrent(request)) return
     console.error('Send message error:', error)
-    showErrorDedup('Error: ' + error.message)
-    resetSendButton()
+    handleMessageTerminal({
+      requestId: request.requestId,
+      status: 'failed',
+      error: 'Error: ' + error.message
+    })
   } finally {
-    clearPredictiveScreenshot()
-
-    // In manual mode, keep screenshots sticky across messages.
-    // Users can toggle it off via the screenshot button.
-    if (screenshotMode === 'manual') {
-      if (!sendHasScreenshot) {
-        removeScreenshot()
-      }
-    } else {
-      // Keep icon "toggled on" in auto mode
-      capturedScreenshot = null
-      capturedThumbnail = null
-      isScreenshotActive = true
-      screenshotBtn.classList.add('active')
-      screenshotBtn.classList.add('show-label')
-      const label = document.getElementById('screenshot-label')
-      if (label) label.textContent = 'Using screen'
-      messageInput.placeholder = 'Ask about your screen or conversation, or ↩ for Assist'
+    if (request.phase !== 'streaming' && isRequestUiOwner(request)) {
+      cleanupRequestScreenshots(request)
+      finishRequest(request)
+    } else if (request.phase === 'streaming' && activeRequest === null) {
+      cleanupRequestScreenshots(request)
     }
   }
 }
@@ -1306,9 +1456,15 @@ async function handleSendMessage() {
  */
 /**
  * Handle streaming message chunk
- * @param {string} chunk - Text chunk from LLM
+ * @param {{requestId: string, chunk: string}} payload - Request-scoped text chunk
  */
-function handleMessageChunk(chunk) {
+function handleMessageChunk(payload) {
+  const request = activeRequest
+  const chunk = payload?.chunk
+  if (!request || payload?.requestId !== request.requestId || typeof chunk !== 'string' || !isRequestCurrent(request)) {
+    return
+  }
+
   // Remove loading indicator on first chunk
   if (currentLoadingId) {
     removeLoadingMessage(currentLoadingId)
@@ -1330,18 +1486,40 @@ function handleMessageChunk(chunk) {
 /**
  * Handle streaming completion
  */
-function handleMessageComplete() {
-  console.log('Streaming complete')
-  inputContainer.classList.remove('generating')
-  inputContainer.classList.remove('thinking')
-  
-  if (currentStreamingMessageId) {
+function handleMessageTerminal(payload) {
+  const request = activeRequest
+  const status = payload?.status
+  if (!request || payload?.requestId !== request.requestId || request.discarded || currentConversationId !== request.conversationId || request.terminalHandled) {
+    return
+  }
+
+  request.terminalHandled = true
+  console.log('Streaming terminal event:', status)
+
+  if (currentLoadingId) {
+    removeLoadingMessage(currentLoadingId)
+    currentLoadingId = null
+  }
+
+  if (currentStreamingMessageId && (status === 'completed' || status === 'aborted' || status === 'failed')) {
     finalizeStreamingMessage(currentStreamingMessageId, accumulatedText)
   }
-  
+
+  if (status === 'aborted') {
+    showInterruptedMessage()
+  } else if (status === 'failed') {
+    showErrorDedup(payload.error || 'Failed to get response')
+  }
+
   currentStreamingMessageId = null
   accumulatedText = ''
-  resetSendButton()
+  request.phase = 'finished'
+  cleanupRequestScreenshots(request)
+  finishRequest(request)
+}
+
+function handleMessageComplete(payload) {
+  handleMessageTerminal(payload)
 }
 
 /**
@@ -1349,25 +1527,10 @@ function handleMessageComplete() {
  * @param {string} error - Error message
  */
 function handleMessageError(error) {
-  console.error('Streaming error:', error)
-  inputContainer.classList.remove('generating')
-  inputContainer.classList.remove('thinking')
-
-  if (currentStreamingMessageId) {
-    // Remove the incomplete streaming message
-    const streamingEl = document.getElementById(currentStreamingMessageId)
-    if (streamingEl) {
-      streamingEl.remove()
-    }
-  }
-
-  // Reset streaming state
-  currentStreamingMessageId = null
-  accumulatedText = ''
-
-  // Show error
-  showErrorDedup(error)
-  resetSendButton()
+  const requestId = error?.requestId || activeRequest?.requestId
+  const message = error?.error || error?.message || String(error)
+  console.error('Streaming error:', message)
+  handleMessageTerminal({ requestId, status: 'failed', error: message })
 }
 
 /**
@@ -1855,6 +2018,9 @@ function addMessageCopyButton(messageElement, originalText) {
  */
 function handleNewChat() {
   console.log('Starting new chat...')
+
+  sessionLoadVersion += 1
+  invalidateActiveRequest()
 
   // Clear message history
   messages.length = 0
