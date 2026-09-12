@@ -12,6 +12,7 @@ function createChatIpcRegistrar({
   let predictiveScreenshotTimestamp = null
   let activeCaptureCount = 0
   let captureProtectionActive = false
+  let captureProtectionReadyPromise = null
   const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000
 
   function createRequestId(requestId) {
@@ -117,9 +118,13 @@ function createChatIpcRegistrar({
           captureProtectionActive = true
         }
 
-        // Only wait for DWM compositing when we just toggled protection on
+        // Share the compositor wait with every overlapping capture. A capture
+        // that starts while protection is settling must not read pixels early.
         if (shouldToggleProtection) {
-          await new Promise(resolve => setTimeout(resolve, 60))
+          captureProtectionReadyPromise = new Promise(resolve => setTimeout(resolve, 60))
+        }
+        if (captureProtectionReadyPromise) {
+          await captureProtectionReadyPromise
         }
 
         const { base64, size } = await captureAndCompress({ captureMode })
@@ -154,6 +159,7 @@ function createChatIpcRegistrar({
               mainWindow.setContentProtection(false)
             }
             captureProtectionActive = false
+            captureProtectionReadyPromise = null
           }
         }
       }

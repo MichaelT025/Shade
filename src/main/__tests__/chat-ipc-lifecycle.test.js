@@ -164,20 +164,23 @@ describe('chat IPC request lifecycle', () => {
       const captureScreen = handlers.get('capture-screen')
 
       const manualPromise = captureScreen({}, { captureMode: 'manual' })
-      await vi.advanceTimersByTimeAsync(60)
+      const sendPromise = captureScreen({}, { captureMode: 'send' })
+      await Promise.resolve()
 
-      expect(pendingCaptures.map(({ captureMode }) => captureMode)).toEqual(['manual'])
+      expect(pendingCaptures).toHaveLength(0)
       expect(mainWindow.setContentProtection).toHaveBeenCalledWith(true)
+
+      await vi.advanceTimersByTimeAsync(59)
+      expect(pendingCaptures).toHaveLength(0)
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(pendingCaptures.map(({ captureMode }) => captureMode)).toEqual(['manual', 'send'])
 
       await expect(captureScreen({}, { captureMode: 'predictive' })).resolves.toEqual({
         success: false,
         error: 'Capture already in progress'
       })
       expect(mainWindow.setContentProtection).toHaveBeenCalledTimes(1)
-
-      const sendPromise = captureScreen({}, { captureMode: 'send' })
-      await Promise.resolve()
-      expect(pendingCaptures.map(({ captureMode }) => captureMode)).toEqual(['manual', 'send'])
 
       pendingCaptures[1].reject(new Error('send failed'))
       await expect(sendPromise).resolves.toEqual({ success: false, error: 'send failed' })
