@@ -23,7 +23,6 @@ export function buildSessionPayload({ currentSessionId, provider, mode, model, m
   return {
     id: currentSessionId,
     title: '',
-    createdAt: null,
     provider,
     mode,
     model,

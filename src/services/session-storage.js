@@ -27,6 +27,19 @@ function normalizeIsoTimestamp(value) {
   return new Date().toISOString()
 }
 
+function parseValidTimestamp(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString()
+  }
+
+  if (typeof value === 'string' && value) {
+    const parsed = new Date(value)
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString()
+  }
+
+  return ''
+}
+
 function safeText(value) {
   if (typeof value !== 'string') return ''
   return value
@@ -261,7 +274,6 @@ class SessionStorage {
     const id = safeText(session?.id) || generateId()
     const filePath = this.sessionPathForId(id)
 
-    const createdAt = normalizeIsoTimestamp(session?.createdAt)
     const updatedAt = new Date().toISOString()
 
     const rawMessages = Array.isArray(session?.messages)
@@ -288,14 +300,20 @@ class SessionStorage {
     // Preserve existing title when saving an existing session unless a new
     // explicit title is provided. This prevents autosave calls from
     // overwriting AI/manual titles with fallback generated titles.
+    // createdAt and isSaved follow the same rule: autosave payloads omit
+    // them, so the persisted values survive; explicit values still win.
     let existingTitle = ''
     let existingConversationId = ''
+    let existingCreatedAt = ''
+    let existingIsSaved = false
     if (safeText(session?.id)) {
       try {
         const existingRaw = await fs.readFile(filePath, 'utf8')
         const existingSession = safeParseJson(existingRaw, null)
         if (!requestedTitle) existingTitle = safeText(existingSession?.title).trim()
         existingConversationId = normalizeConversationId(existingSession?.conversationId, existingSession?.id)
+        existingCreatedAt = parseValidTimestamp(existingSession?.createdAt)
+        if (typeof existingSession?.isSaved === 'boolean') existingIsSaved = existingSession.isSaved
       } catch {
         // Ignore missing/corrupt existing files and fall back to generated title.
       }
@@ -307,6 +325,16 @@ class SessionStorage {
       || normalizeConversationId('', id)
       || generateId()
 
+    // Creation time is immutable: keep the persisted value when the caller
+    // omits it (autosave) and only accept an explicit valid replacement.
+    const createdAt = parseValidTimestamp(session?.createdAt)
+      || existingCreatedAt
+      || new Date().toISOString()
+
+    // An omitted isSaved (undefined) preserves the persisted flag so
+    // autosave cannot silently unsave a session; explicit values apply.
+    const isSaved = session?.isSaved === undefined ? existingIsSaved : !!session?.isSaved
+
     const normalizedSession = {
       id,
       conversationId,
@@ -316,7 +344,7 @@ class SessionStorage {
       provider: safeText(session?.provider),
       mode: safeText(session?.mode),
       model: safeText(session?.model),
-      isSaved: !!session?.isSaved,
+      isSaved,
       messages
     }
 
