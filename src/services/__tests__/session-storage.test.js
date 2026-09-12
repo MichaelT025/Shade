@@ -441,6 +441,95 @@ describe('SessionStorage', () => {
     })
   })
 
+  describe('Autosave Metadata Preservation', () => {
+    test('should preserve isSaved and original createdAt when autosave omits them', async () => {
+      const originalCreatedAt = '2026-08-01T10:00:00.000Z'
+      const created = await sessionStorage.saveSession({
+        messages: [{ type: 'user', text: 'First message' }],
+        createdAt: originalCreatedAt
+      })
+
+      await sessionStorage.setSessionSaved(created.id, true)
+
+      // Autosave payload mirrors the renderer's buildSessionPayload output:
+      // no createdAt and no isSaved fields.
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      const autosaved = await sessionStorage.saveSession({
+        id: created.id,
+        title: '',
+        conversationId: 'conv-autosave-1',
+        provider: 'gemini',
+        mode: '',
+        model: 'gemini-2.0-flash-exp',
+        messages: [
+          { type: 'user', text: 'First message' },
+          { type: 'ai', text: 'First reply' },
+          { type: 'user', text: 'Follow-up after resume' }
+        ]
+      })
+
+      expect(autosaved.isSaved).toBe(true)
+      expect(autosaved.createdAt).toBe(originalCreatedAt)
+
+      const loaded = await sessionStorage.loadSession(created.id)
+      expect(loaded.isSaved).toBe(true)
+      expect(loaded.createdAt).toBe(originalCreatedAt)
+    })
+
+    test('should preserve isSaved and createdAt when autosave passes createdAt: null', async () => {
+      // Legacy renderer payloads sent createdAt: null explicitly.
+      const originalCreatedAt = '2026-08-02T12:30:00.000Z'
+      const created = await sessionStorage.saveSession({
+        messages: [{ type: 'user', text: 'Hello' }],
+        createdAt: originalCreatedAt
+      })
+
+      await sessionStorage.setSessionSaved(created.id, true)
+
+      const autosaved = await sessionStorage.saveSession({
+        id: created.id,
+        title: '',
+        createdAt: null,
+        messages: [
+          { type: 'user', text: 'Hello' },
+          { type: 'ai', text: 'Hi' },
+          { type: 'user', text: 'Another one' }
+        ]
+      })
+
+      expect(autosaved.isSaved).toBe(true)
+      expect(autosaved.createdAt).toBe(originalCreatedAt)
+    })
+
+    test('should let explicit unsave override the preserved saved state', async () => {
+      const created = await sessionStorage.saveSession({
+        messages: [{ type: 'user', text: 'Saved then unsaved' }]
+      })
+
+      await sessionStorage.setSessionSaved(created.id, true)
+
+      // Autosave without metadata keeps the session saved.
+      await sessionStorage.saveSession({
+        id: created.id,
+        title: '',
+        messages: [
+          { type: 'user', text: 'Saved then unsaved' },
+          { type: 'ai', text: 'Reply' }
+        ]
+      })
+      let loaded = await sessionStorage.loadSession(created.id)
+      expect(loaded.isSaved).toBe(true)
+
+      // An explicit unsave still works.
+      const unsaved = await sessionStorage.setSessionSaved(created.id, false)
+      expect(unsaved.isSaved).toBe(false)
+
+      loaded = await sessionStorage.loadSession(created.id)
+      expect(loaded.isSaved).toBe(false)
+    })
+  })
+
   describe('Session Search', () => {
     test('should search sessions by title', async () => {
       await sessionStorage.saveSession({
@@ -532,6 +621,44 @@ describe('SessionStorage', () => {
 
       const sessions = await sessionStorage.getAllSessions()
       expect(sessions.length).toBe(2)
+    })
+
+    test('should not delete old saved sessions even after autosave', async () => {
+      const oldDate = new Date()
+      oldDate.setDate(oldDate.getDate() - 35) // 35 days ago
+
+      const created = await sessionStorage.saveSession({
+        messages: [{ type: 'user', text: 'Important saved chat' }],
+        createdAt: oldDate.toISOString()
+      })
+      await sessionStorage.setSessionSaved(created.id, true)
+
+      // Resume and autosave: metadata omitted, mirroring the renderer payload.
+      await sessionStorage.saveSession({
+        id: created.id,
+        title: '',
+        messages: [
+          { type: 'user', text: 'Important saved chat' },
+          { type: 'ai', text: 'Reply' },
+          { type: 'user', text: 'Follow-up' }
+        ]
+      })
+
+      // Simulate 30+ days passing since the last update.
+      const filePath = path.join(sessionStorage.sessionsDir, `${created.id}.json`)
+      const raw = await fs.readFile(filePath, 'utf8')
+      const agedSession = JSON.parse(raw)
+      agedSession.updatedAt = oldDate.toISOString()
+      await fs.writeFile(filePath, JSON.stringify(agedSession, null, 2), 'utf8')
+
+      const cleanup = await sessionStorage.cleanupOldSessions()
+
+      expect(cleanup.deleted).toBe(0)
+
+      const remaining = await sessionStorage.getAllSessions()
+      expect(remaining.length).toBe(1)
+      expect(remaining[0].isSaved).toBe(true)
+      expect(remaining[0].createdAt).toBe(oldDate.toISOString())
     })
   })
 

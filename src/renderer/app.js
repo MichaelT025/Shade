@@ -28,6 +28,14 @@ let isGenerating = false // Whether LLM is currently generating
 let currentStreamingMessageId = null // ID of currently streaming message
 let currentLoadingId = null // ID of current loading indicator
 let accumulatedText = '' // Accumulated text during streaming
+let activeRequest = null // Request lifecycle owner for preparation and streaming
+let requestSequence = 0
+let lifecycleVersion = 0
+let sessionLoadVersion = 0
+let activeSessionLoad = null
+let captureLifecycleVersion = 0
+let captureSequence = 0
+let activeManualCapture = null
 let isCollapsed = true // Overlay collapse state (starts collapsed)
 let lastShownErrorSignature = ''
 let lastShownErrorAt = 0
@@ -59,6 +67,183 @@ function legacyConversationId(session, fallbackId) {
     : createConversationId()
 }
 
+function createRequestId() {
+  requestSequence += 1
+  return `request-${Date.now()}-${requestSequence}`
+}
+
+function setGeneratingState() {
+  isGenerating = true
+  sendBtn.title = 'Stop'
+  sendBtn.setAttribute('aria-label', 'Stop generating')
+  insertIcon(sendBtn, 'stop')
+  messageInput.disabled = true
+}
+
+function beginRequest(conversationId) {
+  const request = {
+    requestId: createRequestId(),
+    conversationId,
+    token: ++lifecycleVersion,
+    phase: 'preparing',
+    stopRequested: false,
+    discarded: false,
+    terminalHandled: false,
+    cleanupDone: false,
+    sendHasScreenshot: false
+  }
+  activeRequest = request
+  setGeneratingState()
+  return request
+}
+
+function isRequestCurrent(request) {
+  return activeRequest === request &&
+    request.token === lifecycleVersion &&
+    !request.stopRequested &&
+    !request.discarded &&
+    currentConversationId === request.conversationId
+}
+
+function isRequestUiOwner(request) {
+  return !request.discarded &&
+    currentConversationId === request.conversationId &&
+    (activeRequest === request || activeRequest === null)
+}
+
+function removeCurrentStreamingMessage() {
+  if (!currentStreamingMessageId) return
+  const streamingEl = document.getElementById(currentStreamingMessageId)
+  if (streamingEl) streamingEl.remove()
+}
+
+function resetStreamingState() {
+  if (currentLoadingId) {
+    removeLoadingMessage(currentLoadingId)
+    currentLoadingId = null
+  }
+  removeCurrentStreamingMessage()
+  currentStreamingMessageId = null
+  accumulatedText = ''
+  inputContainer.classList.remove('generating')
+  inputContainer.classList.remove('thinking')
+}
+
+function finishRequest(request) {
+  if (activeRequest !== request) return
+  activeRequest = null
+  request.finished = true
+  resetSendButton()
+}
+
+function cleanupRequestScreenshots(request) {
+  if (request.cleanupDone || !isRequestUiOwner(request)) return
+  request.cleanupDone = true
+  clearPredictiveScreenshot()
+
+  // In manual mode, keep screenshots sticky across messages.
+  // Users can toggle it off via the screenshot button.
+  if (screenshotMode === 'manual') {
+    if (!request.sendHasScreenshot) {
+      removeScreenshot()
+    }
+  } else {
+    // Keep icon "toggled on" in auto mode.
+    capturedScreenshot = null
+    capturedThumbnail = null
+    isScreenshotActive = true
+    screenshotBtn.classList.add('active')
+    screenshotBtn.classList.add('show-label')
+    const label = document.getElementById('screenshot-label')
+    if (label) label.textContent = 'Using screen'
+    messageInput.placeholder = 'Ask about your screen or conversation, or ↩ for Assist'
+  }
+}
+
+function finishPreparingRequest(request) {
+  if (!isRequestUiOwner(request)) return
+  cleanupRequestScreenshots(request)
+  finishRequest(request)
+}
+
+function invalidateActiveRequest() {
+  invalidateCaptureLifecycle()
+
+  const request = activeRequest
+  if (!request) return
+
+  request.discarded = true
+  request.stopRequested = true
+  activeRequest = null
+  lifecycleVersion += 1
+  resetStreamingState()
+  resetSendButton()
+
+  const stopPromise = window.electronAPI.stopMessage?.(request.requestId)
+  if (stopPromise?.catch) {
+    stopPromise.catch(error => {
+      console.error('Failed to cancel request:', error)
+    })
+  }
+}
+
+async function stopActiveRequest() {
+  invalidateCaptureLifecycle()
+
+  const request = activeRequest
+  if (!request) {
+    resetSendButton()
+    return
+  }
+
+  request.stopRequested = true
+  if (request.phase !== 'streaming') {
+    request.discarded = true
+    activeRequest = null
+    lifecycleVersion += 1
+    resetStreamingState()
+    resetSendButton()
+  }
+
+  try {
+    const result = await window.electronAPI.stopMessage?.(request.requestId)
+    if (result?.success === false) {
+      // A matching terminal event can already be queued behind this IPC reply.
+      // Give it one turn to finalize any visible partial response first.
+      setTimeout(() => recoverRequestAfterMissingStop(request), 0)
+    }
+  } catch (error) {
+    if (activeRequest === request) {
+      request.discarded = true
+      activeRequest = null
+      resetStreamingState()
+      resetSendButton()
+      showError('Failed to stop response: ' + error.message)
+    }
+  }
+}
+
+function recoverRequestAfterMissingStop(request) {
+  if (activeRequest !== request || request.terminalHandled) return
+
+  if (currentLoadingId) {
+    removeLoadingMessage(currentLoadingId)
+    currentLoadingId = null
+  }
+  if (currentStreamingMessageId && accumulatedText) {
+    finalizeStreamingMessage(currentStreamingMessageId, accumulatedText)
+  } else {
+    removeCurrentStreamingMessage()
+  }
+  currentStreamingMessageId = null
+  accumulatedText = ''
+  cleanupRequestScreenshots(request)
+  request.discarded = true
+  activeRequest = null
+  lifecycleVersion += 1
+  resetSendButton()
+}
+
 // Behavior settings (from Configuration)
 let screenshotMode = 'manual' // 'manual' | 'auto'
 let excludeScreenshotsFromMemory = true
@@ -73,6 +258,7 @@ let predictiveScreenshotTimestamp = null // When the screenshot was captured
 let predictiveCaptureInProgress = false // Whether a predictive capture is currently running
 let predictiveCapturePromise = null // Awaitable promise for in-flight capture
 let predictiveCaptureTimer = null
+let predictiveCaptureVersion = 0
 let inputWasEmpty = true
 let revealEffectsTimer = null
 const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000 // 15 seconds - max age for cached screenshot
@@ -176,109 +362,151 @@ async function saveCurrentSession() {
   }
 }
 
+function startSessionLoad() {
+  if (activeSessionLoad) activeSessionLoad.cancelled = true
+
+  const load = { version: ++sessionLoadVersion, cancelled: false }
+  activeSessionLoad = load
+  invalidateActiveRequest()
+  messageInput.disabled = true
+  sendBtn.disabled = true
+  sendBtn.title = 'Loading session'
+  sendBtn.setAttribute('aria-label', 'Loading session')
+  return load
+}
+
+function isSessionLoadCurrent(load) {
+  return activeSessionLoad === load && !load.cancelled && load.version === sessionLoadVersion
+}
+
+function finishSessionLoad(load) {
+  if (!isSessionLoadCurrent(load)) return
+  activeSessionLoad = null
+  resetSendButton()
+}
+
+function cancelSessionLoad() {
+  const hadActiveLoad = !!activeSessionLoad
+  if (activeSessionLoad) activeSessionLoad.cancelled = true
+  activeSessionLoad = null
+  sessionLoadVersion += 1
+  if (hadActiveLoad) resetSendButton()
+}
+
 async function loadSessionIntoChat(sessionId) {
   if (!sessionId) return
 
-  const result = await window.electronAPI.loadSession(sessionId)
-  if (!result?.success) {
-    console.error('Failed to load session:', result?.error)
-    showToast('Failed to load session', 'error', 2500)
-    return
-  }
-
-  const session = result.session
-  if (!session || !Array.isArray(session.messages)) {
-    showToast('Session data was invalid', 'error', 2500)
-    return
-  }
-
-  // Clear any previously attached screenshot to prevent leakage between sessions.
-  removeScreenshot()
-
-  // Reset UI container
-  messagesContainer.innerHTML = '<div class="chat-wrapper" id="chat-wrapper"></div>'
-  chatWrapper = document.getElementById('chat-wrapper')
-
-  // Reset state
-  messages.length = 0
-  currentSessionId = session.id || sessionId
-  currentConversationId = legacyConversationId(session, sessionId)
-  sessionAutoTitleApplied = true
-
-  if (memoryManager) {
-    memoryManager.clearConversation()
-  }
-
-  // Render all messages without re-saving during hydration
-  const hydratedMessages = normalizeSessionMessages(session.messages)
-  for (const m of hydratedMessages) {
-    const type = m.type
-    const text = m.text
-    const hasScreenshot = m.hasScreenshot
-    const timestamp = m.timestamp
-
-    const messageEl = document.createElement('div')
-    messageEl.className = `message ${type}`
-
-    if (type === 'ai') {
-      messageEl.innerHTML = renderMarkdown(text)
-      addCopyButtons(messageEl)
-      addMessageCopyButton(messageEl, text)
-    } else {
-      messageEl.textContent = text
+  const load = startSessionLoad()
+  try {
+    const result = await window.electronAPI.loadSession(sessionId)
+    if (!isSessionLoadCurrent(load)) return
+    if (!result?.success) {
+      console.error('Failed to load session:', result?.error)
+      showToast('Failed to load session', 'error', 2500)
+      return
     }
 
-    chatWrapper.appendChild(messageEl)
-
-    if (hasScreenshot && type === 'user') {
-      const meta = document.createElement('div')
-      meta.className = 'message-meta'
-      meta.textContent = 'Sent with screenshot'
-      
-      // Setup hover preview
-      setupScreenshotPreview(meta, () => ({
-        sessionId: currentSessionId || session.id,
-        screenshotPath: m.screenshotPath,
-        base64: m.screenshotBase64
-      }), window.electronAPI.getScreenshot)
-
-      chatWrapper.appendChild(meta)
+    const session = result.session
+    if (!session || !Array.isArray(session.messages)) {
+      showToast('Session data was invalid', 'error', 2500)
+      return
     }
 
-    messages.push({
-      id: m.id,
-      type,
-      text,
-      hasScreenshot,
-      ...(typeof m.screenshotPath === 'string' && m.screenshotPath ? { screenshotPath: m.screenshotPath } : {}),
-      timestamp
-    })
+    // Clear any previously attached screenshot to prevent leakage between sessions.
+    removeScreenshot()
+
+    // Reset UI container
+    messagesContainer.innerHTML = '<div class="chat-wrapper" id="chat-wrapper"></div>'
+    chatWrapper = document.getElementById('chat-wrapper')
+
+    // Reset state
+    messages.length = 0
+    currentSessionId = session.id || sessionId
+    currentConversationId = legacyConversationId(session, sessionId)
+    sessionAutoTitleApplied = true
 
     if (memoryManager) {
-      const role = type === 'user' ? 'user' : 'assistant'
-      memoryManager.addMessage(role, text)
+      memoryManager.clearConversation()
     }
-  }
 
-  // Restore the last screenshot for this session (only if we keep screenshots in memory).
-  if (screenshotMode === 'manual' && !excludeScreenshotsFromMemory) {
-    const lastScreenshotBase64 = typeof session.lastScreenshotBase64 === 'string'
-      ? session.lastScreenshotBase64
-      : ''
+    // Render all messages without re-saving during hydration
+    const hydratedMessages = normalizeSessionMessages(session.messages)
+    for (const m of hydratedMessages) {
+      const type = m.type
+      const text = m.text
+      const hasScreenshot = m.hasScreenshot
+      const timestamp = m.timestamp
 
-    if (lastScreenshotBase64) {
-      capturedScreenshot = lastScreenshotBase64
-      capturedThumbnail = lastScreenshotBase64
-      isScreenshotActive = true
-      screenshotBtn.classList.add('active')
-      screenshotBtn.title = 'Remove screenshot'
-      messageInput.placeholder = 'Ask about the captured screen...'
+      const messageEl = document.createElement('div')
+      messageEl.className = `message ${type}`
+
+      if (type === 'ai') {
+        messageEl.innerHTML = renderMarkdown(text)
+        addCopyButtons(messageEl)
+        addMessageCopyButton(messageEl, text)
+      } else {
+        messageEl.textContent = text
+      }
+
+      chatWrapper.appendChild(messageEl)
+
+      if (hasScreenshot && type === 'user') {
+        const meta = document.createElement('div')
+        meta.className = 'message-meta'
+        meta.textContent = 'Sent with screenshot'
+      
+        // Setup hover preview
+        setupScreenshotPreview(meta, () => ({
+          sessionId: currentSessionId || session.id,
+          screenshotPath: m.screenshotPath,
+          base64: m.screenshotBase64
+        }), window.electronAPI.getScreenshot)
+
+        chatWrapper.appendChild(meta)
+      }
+
+      messages.push({
+        id: m.id,
+        type,
+        text,
+        hasScreenshot,
+        ...(typeof m.screenshotPath === 'string' && m.screenshotPath ? { screenshotPath: m.screenshotPath } : {}),
+        timestamp
+      })
+
+      if (memoryManager) {
+        const role = type === 'user' ? 'user' : 'assistant'
+        memoryManager.addMessage(role, text)
+      }
     }
-  }
 
-  // Ensure the overlay is usable when resuming
-  expand()
-  scrollToBottom()
+    // Restore the last screenshot for this session (only if we keep screenshots in memory).
+    if (screenshotMode === 'manual' && !excludeScreenshotsFromMemory) {
+      const lastScreenshotBase64 = typeof session.lastScreenshotBase64 === 'string'
+        ? session.lastScreenshotBase64
+        : ''
+
+      if (lastScreenshotBase64) {
+        capturedScreenshot = lastScreenshotBase64
+        capturedThumbnail = lastScreenshotBase64
+        isScreenshotActive = true
+        screenshotBtn.classList.add('active')
+        screenshotBtn.title = 'Remove screenshot'
+        messageInput.placeholder = 'Ask about the captured screen...'
+      }
+    }
+
+    // Ensure the overlay is usable when resuming
+    expand()
+    scrollToBottom()
+  } catch (error) {
+    if (isSessionLoadCurrent(load)) {
+      console.error('Failed to load session:', error)
+      showToast('Failed to load session', 'error', 2500)
+    }
+  } finally {
+    finishSessionLoad(load)
+  }
 }
 
 function autosizeMessageInput() {
@@ -439,23 +667,7 @@ async function init() {
   autosizeMessageInput()
 
   // Enter to send message, Shift+Enter for newline
-  messageInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-
-      // Ctrl+Enter: Quick send with screenshot (capture if needed)
-      if (e.ctrlKey) {
-        // Always capture a fresh screenshot for Ctrl+Enter "Assist" if we don't have one.
-        // In auto mode, isScreenshotActive is true but capturedScreenshot may be null.
-        if (!capturedScreenshot) {
-          await handleScreenshotCapture()
-        }
-        sendBtn.click()
-      } else {
-        sendBtn.click()
-      }
-    }
-  })
+  messageInput.addEventListener('keydown', handleMessageInputKeydown)
 
   // Home button - go to homepage/dashboard
   homeBtn.addEventListener('click', async () => {
@@ -855,10 +1067,44 @@ function updateCollapseState() {
 /**
  * Handle screenshot capture
  */
-async function handleScreenshotCapture() {
+function isManualCaptureCurrent(capture) {
+  return activeManualCapture === capture &&
+    capture.lifecycleVersion === captureLifecycleVersion &&
+    capture.conversationId === currentConversationId &&
+    (!capture.request || isRequestCurrent(capture.request))
+}
+
+function invalidateCaptureLifecycle() {
+  captureLifecycleVersion += 1
+  activeManualCapture = null
+  invalidatePredictiveCapture()
+}
+
+function invalidatePredictiveCapture() {
+  predictiveCaptureVersion += 1
+  if (predictiveCaptureTimer) {
+    clearTimeout(predictiveCaptureTimer)
+    predictiveCaptureTimer = null
+  }
+  clearPredictiveScreenshot()
+}
+
+async function handleScreenshotCapture({ request = null } = {}) {
+  if (activeSessionLoad) return null
+
+  const capture = {
+    id: ++captureSequence,
+    conversationId: currentConversationId,
+    lifecycleVersion: captureLifecycleVersion,
+    request
+  }
+  activeManualCapture = capture
+
   try {
     console.log('Capturing screenshot...')
     const result = await window.electronAPI.captureScreen({ captureMode: 'manual' })
+
+    if (!isManualCaptureCurrent(capture)) return null
 
     if (result.success) {
       capturedScreenshot = result.base64
@@ -868,7 +1114,7 @@ async function handleScreenshotCapture() {
       screenshotBtn.title = 'Remove screenshot'
       
       // Clear any predictive screenshot since we now have a manual one
-      clearPredictiveScreenshot()
+      invalidatePredictiveCapture()
       
       // Show screenshot chip preview
       
@@ -876,13 +1122,21 @@ async function handleScreenshotCapture() {
       messageInput.placeholder = 'Ask about the captured screen...'
       
       console.log('Screenshot captured and attached')
+      return result
     } else {
       console.error('Screenshot capture failed:', result.error)
       showToast('Failed to capture screenshot: ' + result.error, 'error')
+      return null
     }
   } catch (error) {
+    if (!isManualCaptureCurrent(capture)) return null
     console.error('Screenshot error:', error)
     showToast('Screenshot error: ' + error.message, 'error')
+    return null
+  } finally {
+    if (activeManualCapture === capture) {
+      activeManualCapture = null
+    }
   }
 }
 
@@ -964,7 +1218,7 @@ function setVisualEffectsEnabled(enabled, delay = 0, reason = 'unspecified') {
 
 async function performPredictiveCapture(forceFresh = false) {
   // Only capture in auto mode and if not already in progress
-  if (screenshotMode !== 'auto' || predictiveCaptureInProgress) {
+  if (activeSessionLoad || screenshotMode !== 'auto' || predictiveCaptureInProgress) {
     return
   }
 
@@ -984,14 +1238,17 @@ async function performPredictiveCapture(forceFresh = false) {
   }
 
   predictiveCaptureInProgress = true
+  const captureVersion = predictiveCaptureVersion
+  const conversationId = currentConversationId
   console.log('Starting predictive screenshot capture...')
 
   try {
     const result = await window.electronAPI.captureScreen({ captureMode: 'predictive' })
 
     // Prevent caching when document becomes hidden during capture
-    if (document.hidden) {
-      console.log('Predictive capture completed while hidden; discarding result')
+    if (document.hidden || captureVersion !== predictiveCaptureVersion || conversationId !== currentConversationId) {
+      console.log('Predictive capture no longer belongs to the active conversation; discarding result')
+      clearPredictiveScreenshot()
       return
     }
 
@@ -1069,6 +1326,14 @@ function removeScreenshot() {
 }
 
 function resetSendButton() {
+  if (activeSessionLoad) {
+    messageInput.disabled = true
+    sendBtn.disabled = true
+    sendBtn.title = 'Loading session'
+    sendBtn.setAttribute('aria-label', 'Loading session')
+    return
+  }
+
   isGenerating = false
   inputContainer.classList.remove('generating')
   inputContainer.classList.remove('thinking')
@@ -1083,22 +1348,38 @@ function resetSendButton() {
 /**
  * Handle sending a message
  */
-async function handleSendMessage() {
+async function handleQuickScreenshotSend() {
+  // Ctrl+Enter must never turn the Send/Stop button into an asynchronous
+  // continuation. A second quick shortcut while capture is pending simply
+  // leaves the original request in charge.
+  if (isGenerating || activeRequest) return
+  await handleSendMessage({ captureFreshScreenshot: !capturedScreenshot })
+}
+
+async function handleMessageInputKeydown(e) {
+  if (e.key !== 'Enter' || e.shiftKey) return
+
+  e.preventDefault()
+  if (e.ctrlKey) {
+    await handleQuickScreenshotSend()
+    return
+  }
+
+  await handleSendMessage()
+}
+
+async function handleSendMessage({ captureFreshScreenshot = false } = {}) {
+  if (activeSessionLoad) return
+
   // If already generating, stop it
   if (isGenerating) {
-    try {
-      await window.electronAPI.stopMessage()
-      showInterruptedMessage()
-    } catch (error) {
-      showError('Failed to stop response: ' + error.message)
-    } finally {
-      resetSendButton()
-    }
+    await stopActiveRequest()
     return
   }
 
   // Bind all work started by this send to the chat that initiated it.
   const conversationId = currentConversationId
+  const request = beginRequest(conversationId)
 
   // Auto-expand on first message
   expand()
@@ -1113,6 +1394,15 @@ async function handleSendMessage() {
   let sendScreenshot = capturedScreenshot
   let sendHasScreenshot = isScreenshotActive
 
+  if (captureFreshScreenshot) {
+    const captureResult = await handleScreenshotCapture({ request })
+    if (!isRequestCurrent(request)) return
+    if (captureResult?.success) {
+      sendScreenshot = captureResult.base64
+      sendHasScreenshot = true
+    }
+  }
+
   // Auto mode: use cached predictive screenshot if fresh, otherwise capture fresh
   // Exception: if we already have a manually captured screenshot (from Ctrl+Enter), use it
   if (screenshotMode === 'auto' && !capturedScreenshot) {
@@ -1126,6 +1416,7 @@ async function handleSendMessage() {
         predictiveCapturePromise,
         new Promise(resolve => setTimeout(resolve, 3000))
       ])
+      if (!isRequestCurrent(request)) return
       if (predictiveCaptureInProgress) {
         console.log('Predictive capture timed out, proceeding without it')
       }
@@ -1135,6 +1426,7 @@ async function handleSendMessage() {
     if (isPredictiveScreenshotFresh()) {
       try {
         const predictiveResult = await window.electronAPI.consumePredictiveScreenshot()
+        if (!isRequestCurrent(request)) return
         if (predictiveResult?.success && predictiveResult.base64) {
           sendScreenshot = predictiveResult.base64
           sendHasScreenshot = true
@@ -1149,6 +1441,7 @@ async function handleSendMessage() {
       // No fresh cached screenshot - capture now (this will block sending)
       try {
         const captureResult = await window.electronAPI.captureScreen({ captureMode: 'send' })
+        if (!isRequestCurrent(request)) return
         if (captureResult?.success) {
           sendScreenshot = captureResult.base64
           sendHasScreenshot = true
@@ -1163,30 +1456,77 @@ async function handleSendMessage() {
   }
 
   // Don't send if both text and screenshot are empty
-  if (!text && !sendScreenshot) return
+  if (!text && !sendScreenshot) {
+    finishPreparingRequest(request)
+    return
+  }
 
   // Change to generating state
+  request.sendHasScreenshot = sendHasScreenshot
   if (sendScreenshot) {
     try {
       const capabilities = await window.electronAPI.getActiveModelCapabilities()
+      if (!isRequestCurrent(request)) return
       if (capabilities.disabled || (capabilities.strict && !capabilities.vision)) {
         showToast(capabilities.reason || 'This model cannot accept screenshots. Remove the screenshot or choose a screenshot-capable model.', 'error', 5000)
+        finishPreparingRequest(request)
         return
       }
     } catch (error) {
+      if (!isRequestCurrent(request)) return
       showToast('Unable to check screenshot support. Please try again.', 'error', 3000)
+      finishPreparingRequest(request)
       return
     }
   }
-  isGenerating = true
-  sendBtn.title = 'Stop'
-  sendBtn.setAttribute('aria-label', 'Stop generating')
-  insertIcon(sendBtn, 'stop')
-  messageInput.disabled = true
 
   try {
-    // Add user message to UI (if text exists, otherwise use 'Assist' as default)
+    if (!isRequestCurrent(request)) return
+
+    // Build the prompt before adding it to memory so the request history only
+    // contains prior turns. The user message is still retained if the send
+    // later fails, so retries do not need to remove an arbitrary history item.
     const messageText = text || 'Assist'
+    const promptText = messageText
+
+    // Check if we need to generate or extend the conversation summary.
+    if (memoryManager && (memoryManager.shouldGenerateSummary() || memoryManager.shouldRegenerateSummary())) {
+      console.log('Generating conversation summary...')
+      try {
+        await memoryManager.generateSummary(async (messages) => {
+          const result = await window.electronAPI.generateSummary(messages, conversationId, request.requestId)
+          if (!isRequestCurrent(request)) return ''
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to generate summary')
+          }
+          return result.summary
+        }, () => isRequestCurrent(request))
+        if (!isRequestCurrent(request)) return
+        console.log('Summary generated successfully')
+      } catch (error) {
+        console.error('Failed to generate summary:', error)
+        // Continue without a new summary; the memory manager preserves uncovered messages.
+      }
+    }
+
+    if (!isRequestCurrent(request)) return
+
+    // Snapshot context before adding the current user turn. This avoids
+    // passing the same prompt both as history and as the provider's prompt.
+    const context = memoryManager ? memoryManager.getContextForRequest() : { summary: null, messages: [] }
+
+    // Convert memory manager messages to conversation history format.
+    const conversationHistory = context.messages.map(m => ({
+      type: m.role === 'user' ? 'user' : 'ai',
+      text: m.content,
+      // Only include screenshot in AI context if not excluded
+      hasScreenshot: false,
+      timestamp: new Date(m.timestamp)
+    }))
+
+    if (!isRequestCurrent(request)) return
+
+    // Add user message to UI and memory after the request history is fixed.
     addMessage('user', messageText, sendHasScreenshot, sendScreenshot)
 
     // Clear input immediately for better UX
@@ -1204,40 +1544,6 @@ async function handleSendMessage() {
     currentStreamingMessageId = null
     accumulatedText = ''
 
-    // Send to LLM with optional screenshot (returns immediately, streams via events)
-    // If text is empty but screenshot exists, use 'Assist' as default prompt
-    const promptText = text || 'Assist'
-
-    // Check if we need to generate a summary
-    if (memoryManager && memoryManager.shouldGenerateSummary()) {
-      console.log('Generating conversation summary...')
-      try {
-        await memoryManager.generateSummary(async (messages) => {
-          const result = await window.electronAPI.generateSummary(messages, conversationId)
-          if (!result.success) {
-            throw new Error(result.error || 'Failed to generate summary')
-          }
-          return result.summary
-        })
-        console.log('Summary generated successfully')
-      } catch (error) {
-        console.error('Failed to generate summary:', error)
-        // Continue without summary if generation fails
-      }
-    }
-
-    // Get context from memory manager (summary + recent messages)
-    const context = memoryManager ? memoryManager.getContextForRequest() : { summary: null, messages: [] }
-    
-    // Convert memory manager messages to conversation history format
-    const conversationHistory = context.messages.map(m => ({
-      type: m.role === 'user' ? 'user' : 'ai',
-      text: m.content,
-      // Only include screenshot in AI context if not excluded
-      hasScreenshot: false, 
-      timestamp: new Date(m.timestamp)
-    }))
-
     console.log('Sending message to LLM...', { 
       hasScreenshot: sendHasScreenshot, 
       totalMessages: memoryManager ? memoryManager.messages.length : 0,
@@ -1246,55 +1552,42 @@ async function handleSendMessage() {
       memoryState: memoryManager ? memoryManager.getState() : null
     })
     
+    request.phase = 'streaming'
     const result = await window.electronAPI.sendMessage(
       promptText, 
       sendScreenshot, 
       conversationHistory,
       context.summary,
       false,
-      conversationId
+      conversationId,
+      request.requestId
     )
 
-    // Remove loading indicator if it hasn't been removed by first chunk
-    if (currentLoadingId) {
-      removeLoadingMessage(currentLoadingId)
-      currentLoadingId = null
-    }
-
-    if (!result.success) {
-      // Some failures are returned without a message-error event (e.g., preflight checks).
-      // Use deduped display to avoid duplicates when both return + event paths fire.
-      showErrorDedup(result.error || 'Failed to get response')
-      resetSendButton()
-    } else {
+    if (isRequestCurrent(request) && result?.aborted) {
+      handleMessageTerminal({ requestId: request.requestId, status: 'aborted' })
+    } else if (isRequestCurrent(request) && !result?.success) {
+      handleMessageTerminal({
+        requestId: request.requestId,
+        status: 'failed',
+        error: result?.error || 'Failed to get response'
+      })
+    } else if (isRequestCurrent(request) && result?.success) {
       console.log('Streaming started from', result.provider)
-      if (result.aborted) {
-        resetSendButton()
-      }
     }
   } catch (error) {
+    if (!isRequestCurrent(request)) return
     console.error('Send message error:', error)
-    showErrorDedup('Error: ' + error.message)
-    resetSendButton()
+    handleMessageTerminal({
+      requestId: request.requestId,
+      status: 'failed',
+      error: 'Error: ' + error.message
+    })
   } finally {
-    clearPredictiveScreenshot()
-
-    // In manual mode, keep screenshots sticky across messages.
-    // Users can toggle it off via the screenshot button.
-    if (screenshotMode === 'manual') {
-      if (!sendHasScreenshot) {
-        removeScreenshot()
-      }
-    } else {
-      // Keep icon "toggled on" in auto mode
-      capturedScreenshot = null
-      capturedThumbnail = null
-      isScreenshotActive = true
-      screenshotBtn.classList.add('active')
-      screenshotBtn.classList.add('show-label')
-      const label = document.getElementById('screenshot-label')
-      if (label) label.textContent = 'Using screen'
-      messageInput.placeholder = 'Ask about your screen or conversation, or ↩ for Assist'
+    if (request.phase !== 'streaming' && isRequestUiOwner(request)) {
+      cleanupRequestScreenshots(request)
+      finishRequest(request)
+    } else if (request.phase === 'streaming' && activeRequest === null) {
+      cleanupRequestScreenshots(request)
     }
   }
 }
@@ -1306,9 +1599,15 @@ async function handleSendMessage() {
  */
 /**
  * Handle streaming message chunk
- * @param {string} chunk - Text chunk from LLM
+ * @param {{requestId: string, chunk: string}} payload - Request-scoped text chunk
  */
-function handleMessageChunk(chunk) {
+function handleMessageChunk(payload) {
+  const request = activeRequest
+  const chunk = payload?.chunk
+  if (!request || payload?.requestId !== request.requestId || typeof chunk !== 'string' || !isRequestCurrent(request)) {
+    return
+  }
+
   // Remove loading indicator on first chunk
   if (currentLoadingId) {
     removeLoadingMessage(currentLoadingId)
@@ -1330,18 +1629,40 @@ function handleMessageChunk(chunk) {
 /**
  * Handle streaming completion
  */
-function handleMessageComplete() {
-  console.log('Streaming complete')
-  inputContainer.classList.remove('generating')
-  inputContainer.classList.remove('thinking')
-  
-  if (currentStreamingMessageId) {
+function handleMessageTerminal(payload) {
+  const request = activeRequest
+  const status = payload?.status
+  if (!request || payload?.requestId !== request.requestId || request.discarded || currentConversationId !== request.conversationId || request.terminalHandled) {
+    return
+  }
+
+  request.terminalHandled = true
+  console.log('Streaming terminal event:', status)
+
+  if (currentLoadingId) {
+    removeLoadingMessage(currentLoadingId)
+    currentLoadingId = null
+  }
+
+  if (currentStreamingMessageId && (status === 'completed' || status === 'aborted' || status === 'failed')) {
     finalizeStreamingMessage(currentStreamingMessageId, accumulatedText)
   }
-  
+
+  if (status === 'aborted') {
+    showInterruptedMessage()
+  } else if (status === 'failed') {
+    showErrorDedup(payload.error || 'Failed to get response')
+  }
+
   currentStreamingMessageId = null
   accumulatedText = ''
-  resetSendButton()
+  request.phase = 'finished'
+  cleanupRequestScreenshots(request)
+  finishRequest(request)
+}
+
+function handleMessageComplete(payload) {
+  handleMessageTerminal(payload)
 }
 
 /**
@@ -1349,25 +1670,10 @@ function handleMessageComplete() {
  * @param {string} error - Error message
  */
 function handleMessageError(error) {
-  console.error('Streaming error:', error)
-  inputContainer.classList.remove('generating')
-  inputContainer.classList.remove('thinking')
-
-  if (currentStreamingMessageId) {
-    // Remove the incomplete streaming message
-    const streamingEl = document.getElementById(currentStreamingMessageId)
-    if (streamingEl) {
-      streamingEl.remove()
-    }
-  }
-
-  // Reset streaming state
-  currentStreamingMessageId = null
-  accumulatedText = ''
-
-  // Show error
-  showErrorDedup(error)
-  resetSendButton()
+  const requestId = error?.requestId || activeRequest?.requestId
+  const message = error?.error || error?.message || String(error)
+  console.error('Streaming error:', message)
+  handleMessageTerminal({ requestId, status: 'failed', error: message })
 }
 
 /**
@@ -1855,6 +2161,9 @@ function addMessageCopyButton(messageElement, originalText) {
  */
 function handleNewChat() {
   console.log('Starting new chat...')
+
+  cancelSessionLoad()
+  invalidateActiveRequest()
 
   // Clear message history
   messages.length = 0

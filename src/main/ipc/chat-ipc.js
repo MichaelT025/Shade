@@ -6,11 +6,59 @@ function createChatIpcRegistrar({
   configService,
   getMainWindow
 }) {
-  let currentAbortController = null
+  let currentRequest = null
+  let requestSequence = 0
   let predictiveScreenshotCache = null
   let predictiveScreenshotTimestamp = null
-  let captureInProgress = false
+  let activeCaptureCount = 0
+  let captureProtectionActive = false
+  let captureProtectionReadyPromise = null
   const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000
+
+  function createRequestId(requestId) {
+    if (typeof requestId === 'string' && requestId.length > 0) {
+      return requestId
+    }
+
+    requestSequence += 1
+    return `request-${Date.now()}-${requestSequence}`
+  }
+
+  function beginRequest(requestId) {
+    if (currentRequest) {
+      currentRequest.controller.abort()
+    }
+
+    const request = {
+      requestId: createRequestId(requestId),
+      controller: new AbortController(),
+      terminalSent: false
+    }
+    currentRequest = request
+    return request
+  }
+
+  function clearRequest(request) {
+    if (currentRequest === request) {
+      currentRequest = null
+    }
+  }
+
+  function emitMessageTerminal(event, request, status, error) {
+    if (request.terminalSent) return
+    request.terminalSent = true
+
+    const payload = {
+      requestId: request.requestId,
+      status
+    }
+    if (error) payload.error = error
+    event.sender.send('message-complete', payload)
+  }
+
+  function isAbortError(error) {
+    return error?.name === 'AbortError' || error?.message?.toLowerCase().includes('abort')
+  }
 
   function hasFreshPredictiveScreenshot() {
     if (!predictiveScreenshotCache || !predictiveScreenshotTimestamp) {
@@ -39,21 +87,23 @@ function createChatIpcRegistrar({
   function registerChatIpcHandlers() {
     ipcMain.handle('capture-screen', async (_event, payload) => {
       const mainWindow = getMainWindow()
+
+      let captureMode = 'unknown'
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        captureMode = typeof payload.captureMode === 'string' ? payload.captureMode : 'unknown'
+      } else {
+        captureMode = 'legacy'
+      }
+
+      // Reject overlapping predictive captures — screen capture is expensive
+      if (captureMode === 'predictive' && activeCaptureCount > 0) {
+        return { success: false, error: 'Capture already in progress' }
+      }
+
+      let captureAcquired = false
       try {
-        let captureMode = 'unknown'
-
-        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-          captureMode = typeof payload.captureMode === 'string' ? payload.captureMode : 'unknown'
-        } else {
-          captureMode = 'legacy'
-        }
-
-        // Reject overlapping predictive captures — screen capture is expensive
-        if (captureMode === 'predictive' && captureInProgress) {
-          return { success: false, error: 'Capture already in progress' }
-        }
-
-        captureInProgress = true
+        activeCaptureCount += 1
+        captureAcquired = true
         console.log('Screen capture requested:', captureMode)
 
         // When the "exclude overlay from screenshots" config is ON, protection
@@ -62,13 +112,19 @@ function createChatIpcRegistrar({
           ? configService.getExcludeOverlayFromScreenshots()
           : false
         const needsPerCaptureProtection = !alwaysProtected
-        if (needsPerCaptureProtection && mainWindow) {
+        const shouldToggleProtection = needsPerCaptureProtection && !captureProtectionActive
+        if (shouldToggleProtection && mainWindow) {
           mainWindow.setContentProtection(true)
+          captureProtectionActive = true
         }
 
-        // Only wait for DWM compositing when we just toggled protection on
-        if (needsPerCaptureProtection) {
-          await new Promise(resolve => setTimeout(resolve, 60))
+        // Share the compositor wait with every overlapping capture. A capture
+        // that starts while protection is settling must not read pixels early.
+        if (shouldToggleProtection) {
+          captureProtectionReadyPromise = new Promise(resolve => setTimeout(resolve, 60))
+        }
+        if (captureProtectionReadyPromise) {
+          await captureProtectionReadyPromise
         }
 
         const { base64, size } = await captureAndCompress({ captureMode })
@@ -91,13 +147,20 @@ function createChatIpcRegistrar({
         console.error('Failed to capture screen:', error)
         return { success: false, error: error.message }
       } finally {
-        captureInProgress = false
-        // Only toggle protection off if we toggled it on per-capture
-        const alwaysProtectedFinal = configService
-          ? configService.getExcludeOverlayFromScreenshots()
-          : false
-        if (!alwaysProtectedFinal && mainWindow) {
-          mainWindow.setContentProtection(false)
+        if (captureAcquired) {
+          activeCaptureCount -= 1
+
+          if (activeCaptureCount === 0) {
+            // Only toggle protection off if this capture group enabled it.
+            const alwaysProtectedFinal = configService
+              ? configService.getExcludeOverlayFromScreenshots()
+              : false
+            if (!alwaysProtectedFinal && mainWindow && captureProtectionActive) {
+              mainWindow.setContentProtection(false)
+            }
+            captureProtectionActive = false
+            captureProtectionReadyPromise = null
+          }
         }
       }
     })
@@ -130,7 +193,9 @@ function createChatIpcRegistrar({
       return { success: true }
     })
 
-    ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot, conversationId }) => {
+    ipcMain.handle('send-message', async (event, { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot, conversationId, requestId }) => {
+      const request = beginRequest(requestId)
+
       try {
         let resolvedImageBase64 = imageBase64
         if (!resolvedImageBase64 && usePredictiveScreenshot && hasFreshPredictiveScreenshot()) {
@@ -149,11 +214,6 @@ function createChatIpcRegistrar({
           historyLength: Array.isArray(conversationHistory) ? conversationHistory.length : 0
         })
 
-        if (currentAbortController) {
-          currentAbortController.abort()
-        }
-        currentAbortController = new AbortController()
-
         let providerName = configService.getActiveProvider()
         const activeModeId = configService.getActiveMode()
         const activeMode = configService.getMode(activeModeId)
@@ -163,9 +223,12 @@ function createChatIpcRegistrar({
 
         const apiKey = configService.getApiKey(providerName)
         if (!isLocalProvider(providerName) && !apiKey) {
+          const error = `No API key configured for ${providerName}. Please add your API key in settings.`
+          emitMessageTerminal(event, request, 'failed', error)
           return {
             success: false,
-            error: `No API key configured for ${providerName}. Please add your API key in settings.`
+            error,
+            requestId: request.requestId
           }
         }
 
@@ -204,38 +267,54 @@ function createChatIpcRegistrar({
         }
 
         await provider.streamResponse(promptWithSummary, resolvedImageBase64, historyWithSummary, (chunk) => {
-          event.sender.send('message-chunk', chunk)
-        }, currentAbortController.signal)
+          if (!request.controller.signal.aborted) {
+            event.sender.send('message-chunk', {
+              requestId: request.requestId,
+              chunk
+            })
+          }
+        }, request.controller.signal)
 
-        event.sender.send('message-complete')
+        if (request.controller.signal.aborted) {
+          emitMessageTerminal(event, request, 'aborted')
+          return { success: true, aborted: true, requestId: request.requestId }
+        }
+
+        emitMessageTerminal(event, request, 'completed')
 
         console.log('Response streaming completed')
 
-        return { success: true, provider: providerName }
+        return { success: true, provider: providerName, requestId: request.requestId }
       } catch (error) {
-        if (error.name === 'AbortError' || error.message?.includes('abort')) {
+        if (isAbortError(error) || request.controller.signal.aborted) {
           console.log('Request aborted by user')
-          return { success: true, aborted: true }
+          emitMessageTerminal(event, request, 'aborted')
+          return { success: true, aborted: true, requestId: request.requestId }
         }
         console.error('Failed to send message:', error)
-        event.sender.send('message-error', error.message)
-        return { success: false, error: error.message }
+        emitMessageTerminal(event, request, 'failed', error.message)
+        return { success: false, error: error.message, requestId: request.requestId }
       } finally {
-        currentAbortController = null
+        clearRequest(request)
       }
     })
 
-    ipcMain.handle('stop-message', async () => {
-      if (currentAbortController) {
-        currentAbortController.abort()
-        currentAbortController = null
+    ipcMain.handle('stop-message', async (_event, requestId) => {
+      const requestedId = typeof requestId === 'string' ? requestId : requestId?.requestId
+      const request = currentRequest
+      if (request && (!requestedId || requestedId === request.requestId)) {
+        request.controller.abort()
+        clearRequest(request)
         console.log('User requested to stop message generation')
-        return { success: true }
+        return { success: true, requestId: request.requestId }
       }
       return { success: false }
     })
 
     ipcMain.handle('generate-summary', async (_event, payload) => {
+      const requestId = Array.isArray(payload) ? undefined : payload?.requestId
+      const request = beginRequest(requestId)
+
       try {
         const messages = Array.isArray(payload) ? payload : payload.messages
         const conversationId = payload?.conversationId
@@ -268,14 +347,25 @@ function createChatIpcRegistrar({
 
         let summary = ''
         await provider.streamResponse(summaryPrompt, null, [], (chunk) => {
-          summary += chunk
-        })
+          if (!request.controller.signal.aborted) {
+            summary += chunk
+          }
+        }, request.controller.signal)
+
+        if (request.controller.signal.aborted) {
+          return { success: false, aborted: true, requestId: request.requestId }
+        }
 
         console.log('Summary generated:', summary.length, 'characters')
-        return { success: true, summary: summary.trim() }
+        return { success: true, summary: summary.trim(), requestId: request.requestId }
       } catch (error) {
+        if (isAbortError(error) || request.controller.signal.aborted) {
+          return { success: false, aborted: true, requestId: request.requestId }
+        }
         console.error('Failed to generate summary:', error)
-        return { success: false, error: error.message }
+        return { success: false, error: error.message, requestId: request.requestId }
+      } finally {
+        clearRequest(request)
       }
     })
 

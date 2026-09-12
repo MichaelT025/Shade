@@ -528,6 +528,9 @@ function renderSessionList(container, sessions) {
 
       card.addEventListener('click', activate)
       card.addEventListener('keydown', (e) => {
+        // Ignore keys pressed on child controls (buttons, checkboxes) so their
+        // native keyboard activation runs instead of activating the card.
+        if (e.target !== card) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           activate()

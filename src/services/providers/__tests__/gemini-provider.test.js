@@ -76,6 +76,35 @@ describe('GeminiProvider', () => {
   })
 
   describe('streamResponse', () => {
+    test('passes the abort signal to the Gemini streaming request', async () => {
+      const controller = new AbortController()
+      const onChunk = vi.fn()
+      provider.model = { generateContentStream: mockGenerateContentStream }
+      mockGenerateContentStream.mockResolvedValue({
+        stream: (async function * () {
+          yield { text: () => 'Hello' }
+        })()
+      })
+
+      await provider.streamResponse('Hello', null, [], onChunk, controller.signal)
+
+      expect(mockGenerateContentStream).toHaveBeenCalledWith(
+        expect.objectContaining({ contents: expect.any(Array) }),
+        { signal: controller.signal }
+      )
+      expect(onChunk).toHaveBeenCalledWith('Hello')
+    })
+
+    test('does not call the Gemini SDK for an already aborted signal', async () => {
+      const controller = new AbortController()
+      controller.abort()
+      provider.model = { generateContentStream: mockGenerateContentStream }
+
+      await provider.streamResponse('Hello', null, [], vi.fn(), controller.signal)
+
+      expect(mockGenerateContentStream).not.toHaveBeenCalled()
+    })
+
     test.skip('should stream text-only response', async () => {
       // Skipped: Complex mocking of Google Generative AI SDK
     })

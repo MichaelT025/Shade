@@ -10,18 +10,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setPersistentContentProtection: (enabled) => ipcRenderer.invoke('set-persistent-content-protection', enabled),
 
   // LLM messaging
-  sendMessage: (text, imageBase64, conversationHistory, summary, usePredictiveScreenshot = false, conversationId) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot, conversationId }),
-  stopMessage: () => ipcRenderer.invoke('stop-message'),
-  generateSummary: (messages, conversationId) => ipcRenderer.invoke('generate-summary', { messages, conversationId }),
+  sendMessage: (text, imageBase64, conversationHistory, summary, usePredictiveScreenshot = false, conversationId, requestId) => ipcRenderer.invoke('send-message', { text, imageBase64, conversationHistory, summary, usePredictiveScreenshot, conversationId, ...(requestId ? { requestId } : {}) }),
+  stopMessage: (requestId) => ipcRenderer.invoke('stop-message', requestId),
+  generateSummary: (messages, conversationId, requestId) => ipcRenderer.invoke('generate-summary', { messages, conversationId, ...(requestId ? { requestId } : {}) }),
 
   // Listen for streaming message chunks
   onMessageChunk: (callback) => {
-    ipcRenderer.on('message-chunk', (event, chunk) => callback(chunk))
+    ipcRenderer.on('message-chunk', (event, payload) => callback(payload))
   },
 
   // Listen for message complete
   onMessageComplete: (callback) => {
-    ipcRenderer.on('message-complete', () => callback())
+    ipcRenderer.on('message-complete', (_event, payload) => callback(payload))
   },
 
   // Listen for message errors
