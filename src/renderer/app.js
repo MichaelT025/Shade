@@ -32,6 +32,9 @@ let activeRequest = null // Request lifecycle owner for preparation and streamin
 let requestSequence = 0
 let lifecycleVersion = 0
 let sessionLoadVersion = 0
+let captureLifecycleVersion = 0
+let captureSequence = 0
+let activeManualCapture = null
 let isCollapsed = true // Overlay collapse state (starts collapsed)
 let lastShownErrorSignature = ''
 let lastShownErrorAt = 0
@@ -163,6 +166,8 @@ function finishPreparingRequest(request) {
 }
 
 function invalidateActiveRequest() {
+  invalidateCaptureLifecycle()
+
   const request = activeRequest
   if (!request) return
 
@@ -182,6 +187,8 @@ function invalidateActiveRequest() {
 }
 
 async function stopActiveRequest() {
+  invalidateCaptureLifecycle()
+
   const request = activeRequest
   if (!request) {
     resetSendButton()
@@ -224,6 +231,7 @@ let predictiveScreenshotTimestamp = null // When the screenshot was captured
 let predictiveCaptureInProgress = false // Whether a predictive capture is currently running
 let predictiveCapturePromise = null // Awaitable promise for in-flight capture
 let predictiveCaptureTimer = null
+let predictiveCaptureVersion = 0
 let inputWasEmpty = true
 let revealEffectsTimer = null
 const PREDICTIVE_SCREENSHOT_MAX_AGE = 15000 // 15 seconds - max age for cached screenshot
@@ -594,23 +602,7 @@ async function init() {
   autosizeMessageInput()
 
   // Enter to send message, Shift+Enter for newline
-  messageInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-
-      // Ctrl+Enter: Quick send with screenshot (capture if needed)
-      if (e.ctrlKey) {
-        // Always capture a fresh screenshot for Ctrl+Enter "Assist" if we don't have one.
-        // In auto mode, isScreenshotActive is true but capturedScreenshot may be null.
-        if (!capturedScreenshot) {
-          await handleScreenshotCapture()
-        }
-        sendBtn.click()
-      } else {
-        sendBtn.click()
-      }
-    }
-  })
+  messageInput.addEventListener('keydown', handleMessageInputKeydown)
 
   // Home button - go to homepage/dashboard
   homeBtn.addEventListener('click', async () => {
@@ -1010,10 +1002,42 @@ function updateCollapseState() {
 /**
  * Handle screenshot capture
  */
-async function handleScreenshotCapture() {
+function isManualCaptureCurrent(capture) {
+  return activeManualCapture === capture &&
+    capture.lifecycleVersion === captureLifecycleVersion &&
+    capture.conversationId === currentConversationId &&
+    (!capture.request || isRequestCurrent(capture.request))
+}
+
+function invalidateCaptureLifecycle() {
+  captureLifecycleVersion += 1
+  activeManualCapture = null
+  invalidatePredictiveCapture()
+}
+
+function invalidatePredictiveCapture() {
+  predictiveCaptureVersion += 1
+  if (predictiveCaptureTimer) {
+    clearTimeout(predictiveCaptureTimer)
+    predictiveCaptureTimer = null
+  }
+  clearPredictiveScreenshot()
+}
+
+async function handleScreenshotCapture({ request = null } = {}) {
+  const capture = {
+    id: ++captureSequence,
+    conversationId: currentConversationId,
+    lifecycleVersion: captureLifecycleVersion,
+    request
+  }
+  activeManualCapture = capture
+
   try {
     console.log('Capturing screenshot...')
     const result = await window.electronAPI.captureScreen({ captureMode: 'manual' })
+
+    if (!isManualCaptureCurrent(capture)) return null
 
     if (result.success) {
       capturedScreenshot = result.base64
@@ -1023,7 +1047,7 @@ async function handleScreenshotCapture() {
       screenshotBtn.title = 'Remove screenshot'
       
       // Clear any predictive screenshot since we now have a manual one
-      clearPredictiveScreenshot()
+      invalidatePredictiveCapture()
       
       // Show screenshot chip preview
       
@@ -1031,13 +1055,21 @@ async function handleScreenshotCapture() {
       messageInput.placeholder = 'Ask about the captured screen...'
       
       console.log('Screenshot captured and attached')
+      return result
     } else {
       console.error('Screenshot capture failed:', result.error)
       showToast('Failed to capture screenshot: ' + result.error, 'error')
+      return null
     }
   } catch (error) {
+    if (!isManualCaptureCurrent(capture)) return null
     console.error('Screenshot error:', error)
     showToast('Screenshot error: ' + error.message, 'error')
+    return null
+  } finally {
+    if (activeManualCapture === capture) {
+      activeManualCapture = null
+    }
   }
 }
 
@@ -1139,14 +1171,17 @@ async function performPredictiveCapture(forceFresh = false) {
   }
 
   predictiveCaptureInProgress = true
+  const captureVersion = predictiveCaptureVersion
+  const conversationId = currentConversationId
   console.log('Starting predictive screenshot capture...')
 
   try {
     const result = await window.electronAPI.captureScreen({ captureMode: 'predictive' })
 
     // Prevent caching when document becomes hidden during capture
-    if (document.hidden) {
-      console.log('Predictive capture completed while hidden; discarding result')
+    if (document.hidden || captureVersion !== predictiveCaptureVersion || conversationId !== currentConversationId) {
+      console.log('Predictive capture no longer belongs to the active conversation; discarding result')
+      clearPredictiveScreenshot()
       return
     }
 
@@ -1238,7 +1273,27 @@ function resetSendButton() {
 /**
  * Handle sending a message
  */
-async function handleSendMessage() {
+async function handleQuickScreenshotSend() {
+  // Ctrl+Enter must never turn the Send/Stop button into an asynchronous
+  // continuation. A second quick shortcut while capture is pending simply
+  // leaves the original request in charge.
+  if (isGenerating || activeRequest) return
+  await handleSendMessage({ captureFreshScreenshot: !capturedScreenshot })
+}
+
+async function handleMessageInputKeydown(e) {
+  if (e.key !== 'Enter' || e.shiftKey) return
+
+  e.preventDefault()
+  if (e.ctrlKey) {
+    await handleQuickScreenshotSend()
+    return
+  }
+
+  await handleSendMessage()
+}
+
+async function handleSendMessage({ captureFreshScreenshot = false } = {}) {
   // If already generating, stop it
   if (isGenerating) {
     await stopActiveRequest()
@@ -1261,6 +1316,15 @@ async function handleSendMessage() {
 
   let sendScreenshot = capturedScreenshot
   let sendHasScreenshot = isScreenshotActive
+
+  if (captureFreshScreenshot) {
+    const captureResult = await handleScreenshotCapture({ request })
+    if (!isRequestCurrent(request)) return
+    if (captureResult?.success) {
+      sendScreenshot = captureResult.base64
+      sendHasScreenshot = true
+    }
+  }
 
   // Auto mode: use cached predictive screenshot if fresh, otherwise capture fresh
   // Exception: if we already have a manually captured screenshot (from Ctrl+Enter), use it
