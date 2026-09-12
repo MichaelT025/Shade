@@ -1342,8 +1342,50 @@ async function handleSendMessage() {
   try {
     if (!isRequestCurrent(request)) return
 
-    // Add user message to UI (if text exists, otherwise use 'Assist' as default)
+    // Build the prompt before adding it to memory so the request history only
+    // contains prior turns. The user message is still retained if the send
+    // later fails, so retries do not need to remove an arbitrary history item.
     const messageText = text || 'Assist'
+    const promptText = messageText
+
+    // Check if we need to generate or extend the conversation summary.
+    if (memoryManager && (memoryManager.shouldGenerateSummary() || memoryManager.shouldRegenerateSummary())) {
+      console.log('Generating conversation summary...')
+      try {
+        await memoryManager.generateSummary(async (messages) => {
+          const result = await window.electronAPI.generateSummary(messages, conversationId, request.requestId)
+          if (!isRequestCurrent(request)) return ''
+          if (!result.success) {
+            throw new Error(result.error || 'Failed to generate summary')
+          }
+          return result.summary
+        }, () => isRequestCurrent(request))
+        if (!isRequestCurrent(request)) return
+        console.log('Summary generated successfully')
+      } catch (error) {
+        console.error('Failed to generate summary:', error)
+        // Continue without a new summary; the memory manager preserves uncovered messages.
+      }
+    }
+
+    if (!isRequestCurrent(request)) return
+
+    // Snapshot context before adding the current user turn. This avoids
+    // passing the same prompt both as history and as the provider's prompt.
+    const context = memoryManager ? memoryManager.getContextForRequest() : { summary: null, messages: [] }
+
+    // Convert memory manager messages to conversation history format.
+    const conversationHistory = context.messages.map(m => ({
+      type: m.role === 'user' ? 'user' : 'ai',
+      text: m.content,
+      // Only include screenshot in AI context if not excluded
+      hasScreenshot: false,
+      timestamp: new Date(m.timestamp)
+    }))
+
+    if (!isRequestCurrent(request)) return
+
+    // Add user message to UI and memory after the request history is fixed.
     addMessage('user', messageText, sendHasScreenshot, sendScreenshot)
 
     // Clear input immediately for better UX
@@ -1360,46 +1402,6 @@ async function handleSendMessage() {
     // Reset streaming state
     currentStreamingMessageId = null
     accumulatedText = ''
-
-    // Send to LLM with optional screenshot (returns immediately, streams via events)
-    // If text is empty but screenshot exists, use 'Assist' as default prompt
-    const promptText = text || 'Assist'
-
-    // Check if we need to generate a summary
-    if (memoryManager && memoryManager.shouldGenerateSummary()) {
-      console.log('Generating conversation summary...')
-      try {
-        await memoryManager.generateSummary(async (messages) => {
-          const result = await window.electronAPI.generateSummary(messages, conversationId, request.requestId)
-          if (!isRequestCurrent(request)) return ''
-          if (!result.success) {
-            throw new Error(result.error || 'Failed to generate summary')
-          }
-          return result.summary
-        }, () => isRequestCurrent(request))
-        if (!isRequestCurrent(request)) return
-        console.log('Summary generated successfully')
-      } catch (error) {
-        console.error('Failed to generate summary:', error)
-        // Continue without summary if generation fails
-      }
-    }
-
-    if (!isRequestCurrent(request)) return
-
-    // Get context from memory manager (summary + recent messages)
-    const context = memoryManager ? memoryManager.getContextForRequest() : { summary: null, messages: [] }
-    
-    // Convert memory manager messages to conversation history format
-    const conversationHistory = context.messages.map(m => ({
-      type: m.role === 'user' ? 'user' : 'ai',
-      text: m.content,
-      // Only include screenshot in AI context if not excluded
-      hasScreenshot: false, 
-      timestamp: new Date(m.timestamp)
-    }))
-
-    if (!isRequestCurrent(request)) return
 
     console.log('Sending message to LLM...', { 
       hasScreenshot: sendHasScreenshot, 

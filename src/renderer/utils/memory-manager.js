@@ -14,6 +14,8 @@ class MemoryManager {
     this.bufferZone = 5              // Extra messages before triggering summarization
     this.summarizationThreshold = historyLimit + this.bufferZone // Dynamic threshold
     this.summaryVersion = 0          // Track re-summarizations
+    this.pendingSummaryTarget = null // Message boundary currently being summarized
+    this.failedSummaryTarget = null  // Last failed boundary, to avoid identical retries
   }
 
   /**
@@ -50,23 +52,48 @@ class MemoryManager {
   }
 
   /**
+   * Get the message boundary for the next summary
+   * @returns {number}
+   */
+  getSummaryTargetMessageCount() {
+    const recentMessageLimit = this.summary
+      ? Math.max(0, this.historyLimit - this.bufferZone)
+      : this.historyLimit
+    return Math.max(0, this.messages.length - recentMessageLimit)
+  }
+
+  /**
    * Generate a summary of old messages
    * @param {Function} summaryGenerator - Async function that generates summary from messages
    * @param {Function} isCurrent - Lifecycle check used before committing async results
    */
   async generateSummary(summaryGenerator, isCurrent = () => true) {
-    if (this.messages.length <= this.historyLimit) {
+    if (!this.summary && this.messages.length <= this.historyLimit) {
       if (DEBUG) console.log('Not enough messages to summarize')
       return false
     }
 
-    // Get messages that will be summarized (all except last N)
-    const messagesToSummarize = this.messages.slice(0, -this.historyLimit)
+    const targetMessageCount = this.getSummaryTargetMessageCount()
+    const coveredMessageCount = this.summary
+      ? (this.summary.coveredMessageCount ?? this.summary.messageCount)
+      : 0
+
+    if (targetMessageCount <= coveredMessageCount || this.pendingSummaryTarget === targetMessageCount || this.failedSummaryTarget === targetMessageCount) {
+      return false
+    }
+
+    // Initial summaries cover the messages outside the recent window. Later
+    // summaries include a buffer of recent messages so coverage can advance in
+    // batches instead of requiring a summary on every send.
+    const messagesToSummarize = this.messages.slice(0, targetMessageCount)
+    const messageCountAtStart = this.messages.length
 
     if (messagesToSummarize.length === 0) {
       if (DEBUG) console.log('No messages to summarize')
       return false
     }
+
+    this.pendingSummaryTarget = targetMessageCount
 
     try {
       if (DEBUG) console.log('Generating summary for', messagesToSummarize.length, 'messages')
@@ -82,20 +109,29 @@ class MemoryManager {
         text: summaryText,
         generatedAt: Date.now(),
         messageCount: messagesToSummarize.length,
+        coveredMessageCount: targetMessageCount,
+        sourceMessageCount: messageCountAtStart,
         version: ++this.summaryVersion
       }
+      this.failedSummaryTarget = null
 
       if (DEBUG) {
         console.log('Summary generated:', {
           length: summaryText.length,
           messageCount: this.summary.messageCount,
+          coveredMessageCount: this.summary.coveredMessageCount,
           version: this.summary.version
         })
       }
       return true
     } catch (error) {
+      this.failedSummaryTarget = targetMessageCount
       console.error('Failed to generate summary:', error)
       throw error
+    } finally {
+      if (this.pendingSummaryTarget === targetMessageCount) {
+        this.pendingSummaryTarget = null
+      }
     }
   }
 
@@ -105,18 +141,20 @@ class MemoryManager {
    * @returns {Object} { summary: string|null, messages: Array }
    */
   getContextForRequest() {
-    if (this.messages.length <= this.historyLimit) {
-      // Send all messages if under limit
-      return {
-        summary: null,
-        messages: this.messages
-      }
-    }
+    const coveredMessageCount = this.summary
+      ? (this.summary.coveredMessageCount ?? this.summary.messageCount)
+      : 0
+    const lastHistoryStart = Math.max(0, this.messages.length - this.historyLimit)
+    const preserveUncoveredMessages = this.pendingSummaryTarget !== null || this.failedSummaryTarget !== null
+    const recentStart = this.summary
+      ? Math.min(lastHistoryStart, coveredMessageCount)
+      : this.messages.length <= this.summarizationThreshold || preserveUncoveredMessages
+        ? 0
+        : lastHistoryStart
 
-    // Send summary + last N messages
     return {
       summary: this.summary ? this.summary.text : null,
-      messages: this.messages.slice(-this.historyLimit)
+      messages: this.messages.slice(recentStart)
     }
   }
 
@@ -127,6 +165,7 @@ class MemoryManager {
   updateHistoryLimit(newLimit) {
     this.historyLimit = newLimit
     this.summarizationThreshold = newLimit + this.bufferZone
+    this.failedSummaryTarget = null
     if (DEBUG) console.log('History limit updated to:', newLimit, '(threshold:', this.summarizationThreshold + ')')
   }
 
@@ -137,6 +176,8 @@ class MemoryManager {
     this.messages = []
     this.summary = null
     this.summaryVersion = 0
+    this.pendingSummaryTarget = null
+    this.failedSummaryTarget = null
     if (DEBUG) console.log('Conversation cleared')
   }
 
@@ -150,6 +191,7 @@ class MemoryManager {
       historyLimit: this.historyLimit,
       hasSummary: !!this.summary,
       summaryVersion: this.summaryVersion,
+      summaryCoveredMessageCount: this.summary ? (this.summary.coveredMessageCount ?? this.summary.messageCount) : 0,
       summarizationThreshold: this.summarizationThreshold
     }
   }
@@ -159,7 +201,11 @@ class MemoryManager {
    * @returns {boolean}
    */
   shouldGenerateSummary() {
-    return this.messages.length > this.summarizationThreshold && !this.summary
+    if (this.messages.length <= this.summarizationThreshold || this.summary || this.pendingSummaryTarget !== null) {
+      return false
+    }
+
+    return this.failedSummaryTarget !== this.getSummaryTargetMessageCount()
   }
 
   /**
@@ -167,11 +213,15 @@ class MemoryManager {
    * @returns {boolean}
    */
   shouldRegenerateSummary() {
-    if (!this.summary) return false
-    
-    // Re-summarize every 10 messages after initial summary
-    const messagesSinceSummary = this.messages.length - this.summary.messageCount
-    return messagesSinceSummary >= 10
+    if (!this.summary || this.pendingSummaryTarget !== null) return false
+
+    const coveredMessageCount = this.summary.coveredMessageCount ?? this.summary.messageCount
+    if (this.messages.length - coveredMessageCount <= this.historyLimit) {
+      return false
+    }
+
+    const targetMessageCount = this.getSummaryTargetMessageCount()
+    return targetMessageCount > coveredMessageCount && this.failedSummaryTarget !== targetMessageCount
   }
 }
 

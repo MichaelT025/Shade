@@ -85,6 +85,28 @@ describe('MemoryManager', () => {
       expect(context.messages.length).toBe(5)
     })
 
+    test('should keep a stable pre-send history snapshot', () => {
+      memoryManager.addMessage('user', 'Prior turn')
+
+      const context = memoryManager.getContextForRequest()
+      memoryManager.addMessage('user', 'Current prompt')
+
+      const requestTurns = [
+        ...context.messages.map(message => ({ type: message.role === 'user' ? 'user' : 'ai', text: message.content })),
+        { type: 'user', text: 'Current prompt' }
+      ]
+
+      expect(requestTurns.map(turn => turn.text)).toEqual(['Prior turn', 'Current prompt'])
+      expect(context.messages.map(message => message.content)).toEqual(['Prior turn'])
+    })
+
+    test('should leave first-turn history empty before adding the prompt', () => {
+      const context = memoryManager.getContextForRequest()
+      memoryManager.addMessage('user', 'First prompt')
+
+      expect(context.messages).toEqual([])
+    })
+
     test('should return last N messages when over history limit', () => {
       for (let i = 0; i < 20; i++) {
         memoryManager.addMessage('user', `Message ${i}`)
@@ -241,16 +263,13 @@ describe('MemoryManager', () => {
       // - First 10 were summarized (summary.messageCount = 10)
       // - Last 10 are kept as recent messages
       // - messagesSinceSummary = 20 - 10 = 10
-      // - Since 10 >= 10, shouldRegenerateSummary() returns true
-      expect(memoryManager.shouldRegenerateSummary()).toBe(true)
+      // - The retained recent messages do not require regeneration yet
+      expect(memoryManager.shouldRegenerateSummary()).toBe(false)
 
-      // Add 10 more messages
-      for (let i = 20; i < 30; i++) {
-        memoryManager.addMessage('user', `Message ${i}`)
-      }
+      // One more message pushes an uncovered message out of the recent window.
+      memoryManager.addMessage('user', 'Message 20')
 
-      // Now with 30 total messages and 10 summarized
-      // messagesSinceSummary = 30 - 10 = 20
+      // Now with 21 total messages and 10 summarized, regeneration is needed.
       expect(memoryManager.shouldRegenerateSummary()).toBe(true)
     })
 
@@ -260,6 +279,71 @@ describe('MemoryManager', () => {
       }
 
       expect(memoryManager.shouldRegenerateSummary()).toBe(false)
+    })
+
+    test('should preserve coverage after a failed regeneration without retrying identical coverage', async () => {
+      for (let i = 0; i < 20; i++) {
+        memoryManager.addMessage('user', `Message ${i}`)
+      }
+
+      await memoryManager.generateSummary(vi.fn().mockResolvedValue('Initial summary'))
+      const initialSummary = memoryManager.summary
+
+      memoryManager.addMessage('user', 'Message 20')
+      expect(memoryManager.shouldRegenerateSummary()).toBe(true)
+
+      await expect(
+        memoryManager.generateSummary(vi.fn().mockRejectedValue(new Error('Temporary API error')))
+      ).rejects.toThrow('Temporary API error')
+
+      expect(memoryManager.summary).toBe(initialSummary)
+      expect(memoryManager.getContextForRequest().messages.map(message => message.content)).toEqual([
+        'Message 10',
+        'Message 11',
+        'Message 12',
+        'Message 13',
+        'Message 14',
+        'Message 15',
+        'Message 16',
+        'Message 17',
+        'Message 18',
+        'Message 19',
+        'Message 20'
+      ])
+      expect(memoryManager.shouldRegenerateSummary()).toBe(false)
+
+      memoryManager.addMessage('user', 'Message 21')
+      expect(memoryManager.shouldRegenerateSummary()).toBe(true)
+    })
+
+    test('should keep all facts covered through multiple rolling summaries', async () => {
+      const summaryRequests = []
+
+      for (let i = 1; i <= 45; i++) {
+        if (memoryManager.shouldGenerateSummary() || memoryManager.shouldRegenerateSummary()) {
+          await memoryManager.generateSummary(async messages => {
+            summaryRequests.push(messages.map(message => message.content))
+            return messages.map(message => message.content).join('|')
+          })
+        }
+
+        const context = memoryManager.getContextForRequest()
+        const currentFact = `Fact ${i}`
+        const visibleFacts = new Set(context.messages.map(message => message.content))
+        if (context.summary) {
+          context.summary.split('|').forEach(fact => visibleFacts.add(fact))
+        }
+        visibleFacts.add(currentFact)
+
+        for (let factNumber = 1; factNumber <= i; factNumber++) {
+          expect(visibleFacts.has(`Fact ${factNumber}`)).toBe(true)
+        }
+
+        memoryManager.addMessage(i % 2 === 0 ? 'assistant' : 'user', currentFact)
+      }
+
+      expect(summaryRequests.length).toBeGreaterThan(1)
+      expect(summaryRequests.length).toBeLessThan(10)
     })
   })
 
@@ -328,6 +412,7 @@ describe('MemoryManager', () => {
       expect(state).toHaveProperty('historyLimit')
       expect(state).toHaveProperty('hasSummary')
       expect(state).toHaveProperty('summaryVersion')
+      expect(state).toHaveProperty('summaryCoveredMessageCount')
       expect(state).toHaveProperty('summarizationThreshold')
     })
 
@@ -385,8 +470,9 @@ describe('MemoryManager', () => {
 
       const context = memoryManager.getContextForRequest()
 
-      expect(context.messages.length).toBe(10)
-      expect(context.messages[0].content).toBe('Message 1')
+      // Keep the short pre-summary window intact instead of dropping its first fact.
+      expect(context.messages.length).toBe(11)
+      expect(context.messages[0].content).toBe('Message 0')
     })
 
     test('should handle zero history limit', () => {
