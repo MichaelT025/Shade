@@ -7,6 +7,7 @@ dist/
 config.json
 .env
 .DS_Store
+
 .claude/
 CLAUDE.md
 GEMINI.md
@@ -17,7 +18,7 @@ resources/
 local/
 .omo/
 .learn/
-
+docs/audit/
 # Test coverage
 coverage/
 .nyc_output/
