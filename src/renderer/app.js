@@ -851,6 +851,10 @@ async function init() {
     // Apply reveal-settling class to suppress first-frame transitions
     document.body.classList.add('reveal-settling')
 
+    // Restore keyboard input on every reveal, not just on first initialization.
+    // Do not focus a disabled composer while a session is loading or a reply is generating.
+    if (!messageInput.disabled) messageInput.focus({ preventScroll: true })
+
     // Enable effects immediately to prevent backdrop-filter flash
     setVisualEffectsEnabled(true, 0, 'window-shown')
 
