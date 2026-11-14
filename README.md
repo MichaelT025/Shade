@@ -63,7 +63,8 @@ Press `Ctrl+/` to show the overlay, type a question, and press Enter. To ask abo
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+/` | Toggle overlay visibility |
+| `Ctrl+/` | Toggle overlay visibility, even when another window is focused |
+| `Ctrl+Shift+/` | Focus the composer while the overlay is visible |
 | `Ctrl+R` | Start a new chat |
 | `Enter` | Send a message |
 | `Shift+Enter` | Insert a newline |
@@ -72,7 +73,7 @@ Press `Ctrl+/` to show the overlay, type a question, and press Enter. To ask abo
 | `Ctrl+Shift+S` | Capture a screenshot |
 | `Ctrl+M` | Toggle the model switcher |
 
-Most overlay shortcuts are active only while the overlay is visible. Use the Dashboard to manage sessions and settings. The send button becomes a stop button while a response is generating.
+Most overlay shortcuts are active only while the overlay is visible, even when another application has keyboard focus. `Ctrl+Enter` sends through the existing screenshot flow without bringing Shade forward. Use the Dashboard to manage sessions and settings. The send button becomes a stop button while a response is generating.
 
 ## Privacy and storage
 

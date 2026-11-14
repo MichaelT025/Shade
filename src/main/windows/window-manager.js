@@ -135,6 +135,14 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
     return mainWindow
   }
 
+  function focusComposer() {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || mainWindow.isMinimized()) return false
+
+    mainWindow.focus()
+    mainWindow.webContents.send('focus-composer')
+    return true
+  }
+
   function getSettingsWindow() {
     return settingsWindow
   }
@@ -541,6 +549,7 @@ function createWindowManager({ rendererPath, getIconPath, configService, onOverl
 
   return {
     getMainWindow,
+    focusComposer,
     getSettingsWindow,
     getModelSwitcherWindow,
     sendToWindows,

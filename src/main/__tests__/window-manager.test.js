@@ -24,7 +24,7 @@ function windowHarness() {
     setContentProtection() {}
     setOpacity() {}
     loadFile() {}
-    focus() {}
+    focus = vi.fn()
     showInactive() {
       if (this.visible) return
       this.visible = true
@@ -62,6 +62,32 @@ function windowHarness() {
 describe('overlay shortcut visibility lifecycle', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
+
+  test('focuses the visible composer without showing or changing overlay bounds', () => {
+    const { manager, ipcMain, onOverlayShow } = windowHarness()
+    ipcMain.emit('renderer-ready', {}, {})
+    const win = manager.getMainWindow()
+    const bounds = win.getBounds()
+    win.focus.mockClear()
+    win.webContents.send.mockClear()
+
+    expect(manager.focusComposer()).toBe(true)
+
+    expect(win.focus).toHaveBeenCalledTimes(1)
+    expect(win.webContents.send).toHaveBeenCalledWith('focus-composer')
+    expect(win.getBounds()).toBe(bounds)
+    expect(onOverlayShow).toHaveBeenCalledTimes(1)
+  })
+
+  test('focus composer never reveals a hidden overlay', () => {
+    const { manager } = windowHarness()
+    const win = manager.getMainWindow()
+
+    expect(manager.focusComposer()).toBe(false)
+    expect(win.focus).not.toHaveBeenCalled()
+    expect(win.webContents.send).not.toHaveBeenCalledWith('focus-composer')
+    expect(win.isVisible()).toBe(false)
+  })
 
   test('registers shortcuts on first renderer-ready show and after hide/unhide', () => {
     const { manager, ipcMain, onOverlayShow, onOverlayHide } = windowHarness()

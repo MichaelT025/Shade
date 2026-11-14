@@ -159,6 +159,23 @@ function ctrlEnter() {
 }
 
 describe('renderer capture lifecycle (REV-01)', () => {
+  test('global quick-send event uses the same capture flow without composer keyboard focus', async () => {
+    const { context, capture, sendMessage } = createRendererFixture()
+    const source = fs.readFileSync(path.join(import.meta.dirname, '../app.js'), 'utf8')
+    let quickSend
+    context.window.electronAPI.onQuickScreenshotSend = callback => { quickSend = callback }
+    vm.runInContext(source.match(/^  window\.electronAPI\.onQuickScreenshotSend\(handleQuickScreenshotSend\)$/m)[0], context)
+    context.messageInput.value = 'Explain this screen'
+
+    const pending = quickSend()
+    capture.resolve({ success: true, base64: 'screen', thumbnail: 'thumb' })
+    await pending
+
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    expect(sendMessage.mock.calls[0][0]).toBe('Explain this screen')
+    expect(sendMessage.mock.calls[0][1]).toBe('screen')
+  })
+
   test('Ctrl+Enter owns the pending capture and does not send after New Chat', async () => {
     const { context, capture, sendMessage, click } = createRendererFixture()
     const event = ctrlEnter()
