@@ -4,7 +4,7 @@
 
 Shade is a Windows desktop assistant that stays in a translucent, always-on-top overlay. Ask a question, attach your screen when useful, and get streaming answers from your choice of cloud or local model.
 
-![Version](https://img.shields.io/badge/version-0.15.1-blue)
+![Version](https://img.shields.io/badge/version-0.19.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
