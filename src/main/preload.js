@@ -64,6 +64,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('capture-screenshot', () => callback())
   },
 
+  onQuickScreenshotSend: (callback) => {
+    ipcRenderer.on('quick-screenshot-send', () => callback())
+  },
+
+  onFocusComposer: (callback) => {
+    ipcRenderer.on('focus-composer', () => callback())
+  },
+
   // Listen for window shown event (for predictive screenshot capture)
   onWindowShown: (callback) => {
     ipcRenderer.on('window-shown', () => callback())

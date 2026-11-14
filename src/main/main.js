@@ -106,6 +106,27 @@ function createTray() {
 
 // Register overlay-specific shortcuts (only active when overlay is visible)
 function registerOverlayShortcuts() {
+  // Focus the composer without changing overlay visibility.
+  if (!overlayShortcuts.has('CommandOrControl+Shift+/')) {
+    const success = globalShortcut.register('CommandOrControl+Shift+/', () => {
+      windowManager?.focusComposer()
+    })
+    if (success) overlayShortcuts.set('CommandOrControl+Shift+/', true)
+    else console.warn('Could not register overlay shortcut: CommandOrControl+Shift+/')
+  }
+
+  // Quick send must also work while another application has keyboard focus.
+  if (!overlayShortcuts.has('CommandOrControl+Enter')) {
+    const success = globalShortcut.register('CommandOrControl+Enter', () => {
+      const mainWindow = windowManager?.getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()) {
+        mainWindow.webContents.send('quick-screenshot-send')
+      }
+    })
+    if (success) overlayShortcuts.set('CommandOrControl+Enter', true)
+    else console.warn('Could not register overlay shortcut: CommandOrControl+Enter')
+  }
+
   // Ctrl+R to start new chat
   if (!overlayShortcuts.has('CommandOrControl+R')) {
     const success = globalShortcut.register('CommandOrControl+R', () => {
@@ -163,7 +184,7 @@ function unregisterOverlayShortcuts() {
 function registerHotkeys() {
   const registrationFailures = []
 
-  // Ctrl+/ to toggle window visibility (hide to tray / show) - always registered
+  // Ctrl+/ toggles visibility regardless of which application has focus.
   const toggleSuccess = globalShortcut.register('CommandOrControl+/', () => {
     const mainWindow = windowManager?.getMainWindow()
     if (mainWindow) {

@@ -49,3 +49,20 @@ describe('composer focus when Shade is revealed', () => {
     expect(messageInput.focus).not.toHaveBeenCalled()
   })
 })
+
+describe('explicit composer focus while Shade is already visible', () => {
+  test.each([false, true])('respects composer disabled=%s', (disabled) => {
+    const source = fs.readFileSync(path.join(import.meta.dirname, '../app.js'), 'utf8')
+    const start = source.indexOf('  window.electronAPI.onFocusComposer(')
+    const end = source.indexOf('\n  })', start) + '\n  })'.length
+    expect(start).toBeGreaterThan(-1)
+    let focusComposer
+    const messageInput = { disabled, focus: vi.fn() }
+    vm.runInNewContext(source.slice(start, end), {
+      window: { electronAPI: { onFocusComposer: callback => { focusComposer = callback } } },
+      messageInput
+    })
+    focusComposer()
+    expect(messageInput.focus).toHaveBeenCalledTimes(disabled ? 0 : 1)
+  })
+})

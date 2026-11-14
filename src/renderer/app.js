@@ -739,6 +739,12 @@ async function init() {
   // Screenshot capture hotkey (Ctrl+Shift+S)
   window.electronAPI.onCaptureScreenshot(handleScreenshotCapture)
 
+  window.electronAPI.onQuickScreenshotSend(handleQuickScreenshotSend)
+
+  window.electronAPI.onFocusComposer(() => {
+    if (!messageInput.disabled) messageInput.focus({ preventScroll: true })
+  })
+
   window.electronAPI.onUpdateStatus?.((status) => {
     const ready = status?.status === 'downloaded' || status?.updateReady === true
     setUpdateReadyIndicator(ready)
